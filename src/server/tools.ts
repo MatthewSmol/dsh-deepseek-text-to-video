@@ -54,7 +54,7 @@ export function registerGenvideoTools(ctx: any, engine: any): () => void {
   const definitions = [
     tool('genvideo_status', 'ComfyUI/ffmpeg/jobs status of GenVideo.', { type: 'object', properties: {}, additionalProperties: false },
       async () => await engine.status()),
-    tool('genvideo_plan', 'Plan segment split for a prompt. Returns the clip count N; for N>1 write N different segmentPrompts and pass them to genvideo_generate. Generation runs through the configured ComfyUI workflow.', {
+    tool('genvideo_plan', 'Plan segment split for a prompt. Returns the clip count N, promptProfile and required facets. For N>1 write exactly N detailed segmentPrompts (subject, setting, light, camera, action, continuity) and pass them to genvideo_generate.', {
       type: 'object', properties: promptProps, required: ['prompt'], additionalProperties: false,
     }, async (args) => await engine.plan({ ...args, modelId: 'comfyui-workflow', runner: 'comfyui' })),
     tool('genvideo_generate', 'Generate a video through the configured ComfyUI workflow. First call genvideo_plan, show the preview to the user and wait for confirmation, then call again with planId. Generation without planId returns confirmation-required.', {

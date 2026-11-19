@@ -268,6 +268,9 @@ export class Engine {
 
   /** RU: Строит план и объясняет ограничения модели. EN: Builds the plan and explains model limits. */
   async plan(request: GenerateRequest): Promise<Plan> {
+    if (request.inputImageId && request.inputVideoId) {
+      throw new GenVideoError('input-conflict', 'Choose either a reference image or a reference video, not both.', { status: 409 })
+    }
     const settings = this.settings
     const { model, variant, runner } = await this.resolveModel(request)
     const deps = await this.deps()
@@ -435,6 +438,9 @@ export class Engine {
       throw new GenVideoError('plan-mismatch', 'The prompt changed after the plan was confirmed.', { status: 409 })
     }
     const plan = stored.plan
+    if (plan.warnings.some((warning) => warning.code === 'segment-prompts-count')) {
+      throw new GenVideoError('segment-prompts-count', 'Pass exactly one segment prompt per clip.', { status: 409 })
+    }
     this.plans.delete(String(request.planId))
     const settings = this.settings
     const transcode = this.transcodeOptions(request)

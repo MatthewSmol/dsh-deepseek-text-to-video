@@ -81,7 +81,7 @@ const en: Record<string, string> = {
   mcpTools: 'Tools', version: 'Version', settingsHint: 'Stored in DSH_HOME/genvideo/settings.json.',
   outputHint: 'Default: <project>/Videos', modelsHint: 'Default: <project>/models', seedHint: '-1 = random',
   stepsHint: '0 = model default', negativeHint: 'What to avoid in the shot', inputHint: 'The model must support this input.', sectionScene: 'Enter prompt', sectionReferences: 'Source', sectionOutput: 'Output', sectionEncoding: 'Encoding', sourceHint: 'The base to start from: a reference image or video.',
-  jobsHint: 'Live progress comes from the local GenVideo engine via SSE.', stageSample: 'Sample', stageUpscale: 'Upscale', stageMerge: 'Merge', stageEncode: 'Encode', stageReady: 'Ready', currentStep: 'Current step', clip: 'clip', libraryHint: 'Finished videos from the Videos folder.',
+  jobsHint: 'Live progress comes from the local GenVideo engine via SSE.', stageSample: 'Sample', stageUpscale: 'Upscale', stageMerge: 'Merge', stageEncode: 'Encode', stageReady: 'Ready', currentStep: 'Current step', clip: 'clip', promptsPreview: 'Prompts', libraryHint: 'Finished videos from the Videos folder.',
   gpuSelect: 'GPUs to use', budgetHint: '0 = no limit; compare with the GPU total above.',
   ffmpegMissing: 'ffmpeg is missing: generation and merging are unavailable.',
   comfyuiHint: 'URL of a running ComfyUI, e.g. http://127.0.0.1:8188', candleHint: 'Path to the built candle-video binary',
@@ -155,7 +155,7 @@ const ru: Record<string, string> = {
   mcpTools: 'Инструменты', version: 'Версия', settingsHint: 'Хранится в DSH_HOME/genvideo/settings.json.',
   outputHint: 'По умолчанию: <проект>/Videos', modelsHint: 'По умолчанию: <проект>/models', seedHint: '-1 = случайный',
   stepsHint: '0 = по умолчанию модели', negativeHint: 'Чего избегать в кадре', inputHint: 'Модель должна поддерживать этот вход.', sectionScene: 'Введите промпт', sectionReferences: 'Исходник', sectionOutput: 'Выход', sectionEncoding: 'Кодирование', sourceHint: 'База, от чего отталкиваться: референс-картинка или видео.',
-  jobsHint: 'Прогресс приходит от локального движка GenVideo по SSE.', stageSample: 'Сэмплинг', stageUpscale: 'Апскейл', stageMerge: 'Склейка', stageEncode: 'Кодирование', stageReady: 'Готово', currentStep: 'Текущий шаг', clip: 'клип', libraryHint: 'Готовые ролики из папки Videos.',
+  jobsHint: 'Прогресс приходит от локального движка GenVideo по SSE.', stageSample: 'Сэмплинг', stageUpscale: 'Апскейл', stageMerge: 'Склейка', stageEncode: 'Кодирование', stageReady: 'Готово', currentStep: 'Текущий шаг', clip: 'клип', promptsPreview: 'Промпты', libraryHint: 'Готовые ролики из папки Videos.',
   gpuSelect: 'Используемые GPU', budgetHint: '0 = без лимита; сравнивайте с объёмом GPU выше.',
   ffmpegMissing: 'ffmpeg не найден: генерация и склейка недоступны.',
   comfyuiHint: 'URL запущенного ComfyUI, например http://127.0.0.1:8188', candleHint: 'Путь к собранному бинарю candle-video',
@@ -562,7 +562,7 @@ const Panel = {
         })
         const payload = await response.json()
         if (!response.ok || payload.ok === false) throw new Error(payload?.error?.message ?? `HTTP ${response.status}`)
-        patch({ [field]: payload.value.id })
+        patch({ [field]: payload.value.id, ...(field === 'inputImageId' ? { inputVideoId: '' } : { inputImageId: '' }) })
         notice.value = `${file.name} · ${fmtBytes(payload.value.bytes)}`
       } catch (err: any) {
         error.value = err.message
@@ -876,9 +876,19 @@ const Panel = {
             h('div', { class: 'gv-hint' }, 'ComfyUI'), h('div', null, state.value.deps.comfyui.ok ? 'ready' : 'unavailable'),
           ]),
           warn.length ? h('ul', { class: 'gv-mt-3 gv-list-disc gv-pl-5 gv-text-[11.5px] gv-text-warn' }, warn.map((line: string, index: number) => h('li', { key: index }, line))) : null,
+          p.segments?.length
+            ? h('details', { class: 'gv-mt-3' }, [
+                h('summary', { class: 'gv-cursor-pointer gv-text-[11.5px] gv-text-muted' }, `${t('promptsPreview')} · ${p.segments.length}`),
+                h('div', { class: 'gv-mt-1 gv-flex gv-flex-col gv-gap-2 gv-max-h-40 gv-overflow-auto' }, p.segments.map((segment: any) =>
+                  h('div', { key: segment.index, class: 'gv-rounded-lg gv-bg-surface-2 gv-p-2' }, [
+                    h('div', { class: 'gv-text-[10.5px] gv-text-muted' }, `#${segment.index + 1} · ${segment.wordCount ?? '—'} words${segment.warnings?.length ? ` · ${segment.warnings.join(', ')}` : ''}`),
+                    h('div', { class: 'gv-mt-1 gv-text-[11px] gv-text-text' }, segment.prompt),
+                  ]))),
+              ])
+            : null,
           h('div', { class: 'gv-mt-4 gv-flex gv-justify-end gv-gap-2' }, [
             h('button', { type: 'button', class: 'gv-btn', onClick: () => (preview.value = null) }, t('cancel')),
-            h('button', { type: 'button', class: 'gv-btn gv-btn-primary', disabled: !state.value.deps.comfyui.ok, onClick: () => void confirmGenerate() }, 'Confirm generation'),
+            h('button', { type: 'button', class: 'gv-btn gv-btn-primary', disabled: !state.value.deps.comfyui.ok || (p.warnings ?? []).some((item: any) => item.code === 'segment-prompts-count'), onClick: () => void confirmGenerate() }, 'Confirm generation'),
           ]),
         ]),
       ])

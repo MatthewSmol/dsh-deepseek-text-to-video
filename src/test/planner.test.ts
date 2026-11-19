@@ -223,3 +223,46 @@ test('auto clip and orientation drive plan sizes', () => {
   assert.equal(plan.frames, 121)
   assert.equal(plan.segments.length, 15)
 })
+
+test('LTX prompt profile flags short and repeated segment prompts', () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  const short = 'A fox in snow.'
+  const plan = planGeneration({
+    settings,
+    model,
+    runner: 'mock',
+    gpu: { available: false, gpus: [], error: null, hints: [], checkedAt: Date.now() },
+    prompt: short,
+    targetDurationSec: 18,
+    clipSec: 9,
+    promptMode: 'shots',
+    segmentPrompts: [short, short],
+    width: 768,
+    height: 512,
+    fps: 24,
+  })
+  assert.equal(plan.segments.length, 2)
+  assert.ok(plan.warnings.some((item) => item.code === 'prompt-too-short'))
+  assert.ok(plan.warnings.some((item) => item.code === 'prompt-repeated'))
+  assert.equal(plan.promptProfile.id, 'ltx-2b-distilled')
+  assert.equal(plan.segments[0]?.wordCount, 4)
+})
+
+test('segment prompt count must match the clip count', () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  const plan = planGeneration({
+    settings,
+    model,
+    runner: 'mock',
+    gpu: { available: false, gpus: [], error: null, hints: [], checkedAt: Date.now() },
+    prompt: 'A detailed scene.',
+    targetDurationSec: 18,
+    clipSec: 9,
+    promptMode: 'shots',
+    segmentPrompts: ['only one prompt'],
+    width: 768,
+    height: 512,
+    fps: 24,
+  })
+  assert.ok(plan.warnings.some((item) => item.code === 'segment-prompts-count'))
+})

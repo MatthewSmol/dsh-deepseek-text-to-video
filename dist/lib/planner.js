@@ -1,3 +1,12 @@
+/**
+ * RU: Планирование генерации: сколько сегментов нужно, какие у них
+ *     длительности и промпты, хватит ли VRAM и сколько это займёт. План
+ *     объясняет пользователю «что модель может» до запуска.
+ * EN: Generation planning: how many segments are needed, their durations and
+ *     prompts, whether VRAM fits and how long it takes. The plan explains
+ *     "what the model can do" before the run.
+ */
+import { resolvePromptProfile, promptStats, promptSimilarity } from './prompt-profiles.js';
 /** RU: Оценка VRAM: веса + активации, линейно по числу пикселей и кадров.
  *  EN: VRAM estimate: weights + activations, linear in pixels and frames. */
 export function estimateVramGB(model, width, height, frames) {
@@ -174,6 +183,8 @@ export function planGeneration(input) {
     const autoClip = !input.clipSec || input.clipSec <= 0;
     const clipRequested = Math.min(autoClip ? autoClipSec(vram, fps) : input.clipSec, model.durationSec.max);
     const promptMode = input.promptMode ?? 'full';
+    const mode = input.videoInput ? 'v2v' : input.imageInput ? 'i2v' : 't2v';
+    const promptProfile = resolvePromptProfile(model, mode);
     const segmentMode = input.segmentMode ?? 'fixed';
     const requestedSegments = Math.ceil(target / Math.max(0.5, clipRequested));
     if (requestedSegments > 30) {
@@ -199,11 +210,32 @@ export function planGeneration(input) {
             message: `The full scene is longer than the model limit (${model.maxPromptChars} chars); prompts are split by sentences instead.`,
         });
     }
-    const segments = durations.map((durationSec, index) => ({
-        index,
-        durationSec,
-        prompt: built.prompts[index] ?? input.prompt,
-    }));
+    const explicit = (input.segmentPrompts ?? []).map((item) => String(item ?? '').trim()).filter(Boolean);
+    if (explicit.length && explicit.length !== durations.length) {
+        warnings.push({
+            code: 'segment-prompts-count',
+            message: `Received ${explicit.length} segment prompts for ${durations.length} clips. Pass exactly one prompt per clip.`,
+        });
+    }
+    const segments = durations.map((durationSec, index) => {
+        const prompt = built.prompts[index] ?? input.prompt;
+        const stats = promptStats(prompt);
+        const segmentWarnings = [];
+        if (stats.words < promptProfile.minWords)
+            segmentWarnings.push('prompt-too-short');
+        if (stats.chars > promptProfile.maxChars)
+            segmentWarnings.push('prompt-too-long');
+        const withoutContinuity = (value) => value.replace(/Continue seamlessly from the previous frame\./gi, '').trim();
+        if (index > 0 && promptSimilarity(withoutContinuity(prompt), withoutContinuity(built.prompts[index - 1] ?? '')) > 0.85)
+            segmentWarnings.push('prompt-repeated');
+        if (segmentWarnings.includes('prompt-too-short')) {
+            warnings.push({ code: 'prompt-too-short', message: `Clip ${index + 1} has ${stats.words} words; ${promptProfile.id} expects at least ${promptProfile.minWords}. Add subject, setting, light, camera, action and continuity details.` });
+        }
+        if (segmentWarnings.includes('prompt-repeated')) {
+            warnings.push({ code: 'prompt-repeated', message: `Clip ${index + 1} is almost identical to the previous clip; write a new action for this segment.` });
+        }
+        return { index, durationSec, prompt, wordCount: stats.words, warnings: segmentWarnings };
+    });
     const totalSec = Math.round(segments.reduce((acc, segment) => acc + segment.durationSec, 0) * 100) / 100;
     const frames = Math.max(9, Math.round((segments[0]?.durationSec ?? 1) * fps) + 1);
     const estimatedVramGB = estimateVramGB(model, width, height, frames);
@@ -252,8 +284,9 @@ export function planGeneration(input) {
         availableRunner: input.runner,
         clipSec: segments[0]?.durationSec ?? target,
         autoClip,
-        mode: input.videoInput ? 'v2v' : input.imageInput ? 'i2v' : 't2v',
+        mode,
         denoise: Math.min(0.8, Math.max(0.3, Number(input.denoise ?? 0.6))),
+        promptProfile,
         orientation: input.orientation ?? (width >= height ? 'landscape' : 'portrait'),
         baseWidth: width >= height ? 768 : 512,
         baseHeight: width >= height ? 512 : 768,

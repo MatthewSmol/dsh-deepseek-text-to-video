@@ -305,6 +305,8 @@ export interface PlannedSegment {
   index: number
   durationSec: number
   prompt: string
+  wordCount?: number
+  warnings?: string[]
 }
 
 /** RU: Как распределяется промпт по клипам. EN: How the prompt is distributed across clips. */
@@ -326,6 +328,7 @@ export interface Plan {
   autoClip: boolean
   mode: 't2v' | 'i2v' | 'v2v'
   denoise: number
+  promptProfile: import('./prompt-profiles.js').PromptProfile
   orientation: Orientation
   baseWidth: number
   baseHeight: number
