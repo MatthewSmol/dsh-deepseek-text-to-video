@@ -80,7 +80,7 @@ Native DSH tools:
 - Transcode: no transcode, quality tiers or a size limit; MP4/WebM/GIF; H.264/H.265; ffmpeg encoder auto/CPU/NVENC/Vulkan.
 - Detailed job progress over SSE; cancel; log tail.
 - English/Russian UI; the language switcher is in the panel header.
-- **Save defaults** persists duration, clip length, platform, aspect, resolution, FPS, prompt mode, continuity and transcode; the form rehydrates from saved settings on reload.
+- **Save defaults** persists duration, Format (Horizontal/Vertical), FPS, continuity, Denoise and transcode; clip length is automatic and the form rehydrates from saved settings on reload.
 
 ### Requirements
 
@@ -190,7 +190,7 @@ $DSH_HOME/genvideo/workflow.json
 - Транскод: без транскода, уровни качества или лимит размера; MP4/WebM/GIF; H.264/H.265; энкодер ffmpeg auto/CPU/NVENC/Vulkan.
 - Подробный прогресс по SSE, отмена, лог.
 - Интерфейс EN/RU; переключатель языка находится в шапке панели.
-- **Save defaults** сохраняет длительность, длину клипа, платформу, аспект, разрешение, FPS, режим промпта, непрерывность и транскод; форма восстанавливается из настроек после перезагрузки.
+- **Save defaults** сохраняет длительность, Format (Horizontal/Vertical), FPS, непрерывность, Denoise и транскод; длина клипа автоматическая, форма восстанавливается из настроек после перезагрузки.
 
 ### Требования
 
