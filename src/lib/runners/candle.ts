@@ -1,12 +1,12 @@
 /**
  * RU: Candle-раннер для oxide-lab/LTX-Video-0.9.8-2B-distilled. Это
  *     официальный Rust-путь модели: собранный бинарь `candle-video`
- *     (examples/ltx-video) запускается с локальными весами. Путь к бинарю
- *     задаётся в настройках; плагин не собирает Rust сам.
+ *     (examples/ltx-video) запускается с локальными весами. Бинарь можно
+ *     собрать из Settings → Tools; путь сохраняется автоматически.
  * EN: Candle runner for oxide-lab/LTX-Video-0.9.8-2B-distilled. It is the
  *     model's official Rust path: the compiled `candle-video` binary
- *     (examples/ltx-video) runs with local weights. The binary path is set in
- *     Settings; the plugin never builds Rust itself.
+ *     (examples/ltx-video) runs with local weights. The binary can be built
+ *     from Settings → Tools and its path is saved automatically.
  */
 import { access, constants, mkdir, readdir, rename, stat } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -52,7 +52,7 @@ export const candleRunner: Runner = {
     if (!findCandleBinary(input.settings.deps.candleBinary)) {
       return unavailable(
         'candle-video was not found',
-        'Build https://github.com/FerrisMind/candle-video (cargo build --release --features flash-attn,cudnn) and put the binary on PATH; the plugin also checks ./candle-video/target/release/examples/ltx-video.',
+        'Open Settings → Tools → Candle and press Build; the binary path is saved automatically.',
       )
     }
     return available()
