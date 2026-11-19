@@ -405,7 +405,7 @@ export interface JobRecord {
     bytes: number | null
     totalBytes: number | null
   }
-  segments: Array<{ index: number; status: JobStatus; percent: number }>
+  segments: Array<{ index: number; status: JobStatus; percent: number; phase?: JobPhase; message?: string }>
   outputs: OutputArtifact[]
   error: { code: string; message: string; details?: unknown } | null
   logTail: string[]

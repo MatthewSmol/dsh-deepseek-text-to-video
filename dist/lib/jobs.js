@@ -226,12 +226,16 @@ export class JobManager {
                 }));
                 touch(true);
             },
-            segment(index, status, percent) {
+            segment(index, status, percent, phase, message) {
                 const segment = job.segments[index];
                 if (!segment)
                     return;
                 segment.status = status;
                 segment.percent = Math.max(0, Math.min(100, Math.round(percent)));
+                if (phase)
+                    segment.phase = phase;
+                if (message !== undefined)
+                    segment.message = message;
                 job.progress.segmentIndex = index;
                 touch(false);
             },

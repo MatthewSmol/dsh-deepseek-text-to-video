@@ -449,7 +449,7 @@ export class Engine {
             const segmentSpan = 80 / segments.length;
             const fps = input.plan.fps;
             const frames = input.model.family === 'ltx-video' || input.model.family === 'ltx-2' ? snapFrames(segment.durationSec * fps + 1) : Math.max(1, Math.round(segment.durationSec * fps));
-            ctx.segment(index, 'running', 0);
+            ctx.segment(index, 'running', 0, 'sampling', 'Starting clip');
             ctx.phase('sampling', `Segment ${index + 1}/${segments.length}`);
             await input.runner.runner.run({
                 settings,
@@ -480,10 +480,10 @@ export class Engine {
                         totalSteps: progress.totalSteps,
                         message: progress.message ?? `Segment ${index + 1}/${segments.length}`,
                     });
-                    ctx.segment(index, 'running', progress.percent);
+                    ctx.segment(index, 'running', progress.percent, progress.phase, progress.message);
                 },
             });
-            ctx.segment(index, 'done', 100);
+            ctx.segment(index, 'done', 100, 'done', 'Ready');
             ctx.phase('segment_done', `Segment ${index + 1}/${segments.length} ready`);
             segmentFiles.push(outputPath);
             // RU: Continuity: последний кадр становится картинкой-условием для i2v.

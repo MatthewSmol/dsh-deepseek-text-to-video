@@ -81,7 +81,7 @@ const en: Record<string, string> = {
   mcpTools: 'Tools', version: 'Version', settingsHint: 'Stored in DSH_HOME/genvideo/settings.json.',
   outputHint: 'Default: <project>/Videos', modelsHint: 'Default: <project>/models', seedHint: '-1 = random',
   stepsHint: '0 = model default', negativeHint: 'What to avoid in the shot', inputHint: 'The model must support this input.',
-  jobsHint: 'Live progress comes from the local GenVideo engine via SSE.', libraryHint: 'Finished videos from the Videos folder.',
+  jobsHint: 'Live progress comes from the local GenVideo engine via SSE.', stageSample: 'Sample', stageUpscale: 'Upscale', stageMerge: 'Merge', stageEncode: 'Encode', stageReady: 'Ready', currentStep: 'Current step', clip: 'clip', libraryHint: 'Finished videos from the Videos folder.',
   gpuSelect: 'GPUs to use', budgetHint: '0 = no limit; compare with the GPU total above.',
   ffmpegMissing: 'ffmpeg is missing: generation and merging are unavailable.',
   comfyuiHint: 'URL of a running ComfyUI, e.g. http://127.0.0.1:8188', candleHint: 'Path to the built candle-video binary',
@@ -155,7 +155,7 @@ const ru: Record<string, string> = {
   mcpTools: 'Инструменты', version: 'Версия', settingsHint: 'Хранится в DSH_HOME/genvideo/settings.json.',
   outputHint: 'По умолчанию: <проект>/Videos', modelsHint: 'По умолчанию: <проект>/models', seedHint: '-1 = случайный',
   stepsHint: '0 = по умолчанию модели', negativeHint: 'Чего избегать в кадре', inputHint: 'Модель должна поддерживать этот вход.',
-  jobsHint: 'Прогресс приходит от локального движка GenVideo по SSE.', libraryHint: 'Готовые ролики из папки Videos.',
+  jobsHint: 'Прогресс приходит от локального движка GenVideo по SSE.', stageSample: 'Сэмплинг', stageUpscale: 'Апскейл', stageMerge: 'Склейка', stageEncode: 'Кодирование', stageReady: 'Готово', currentStep: 'Текущий шаг', clip: 'клип', libraryHint: 'Готовые ролики из папки Videos.',
   gpuSelect: 'Используемые GPU', budgetHint: '0 = без лимита; сравнивайте с объёмом GPU выше.',
   ffmpegMissing: 'ffmpeg не найден: генерация и склейка недоступны.',
   comfyuiHint: 'URL запущенного ComfyUI, например http://127.0.0.1:8188', candleHint: 'Путь к собранному бинарю candle-video',
@@ -1161,29 +1161,25 @@ const Panel = {
       ]),
     ])
 
-    const stageDefs = [
-      { key: 'prepare', label: 'stagePrepare' },
+    const clipStages = [
       { key: 'sample', label: 'stageSample' },
       { key: 'upscale', label: 'stageUpscale' },
-      { key: 'merge', label: 'stageMerge' },
-      { key: 'encode', label: 'stageEncode' },
+      { key: 'ready', label: 'stageReady' },
     ]
 
-    const stageIndex = (job: any): number => {
-      if (job.status === 'done') return stageDefs.length
-      const phase = String(job.phase ?? '')
-      if (phase.includes('transcod') || phase === 'verifying') return 4
-      if (phase === 'concatenating') return 3
-      if (phase === 'upscaling' || phase === 'muxing' || phase === 'decoding') return 2
-      if (phase === 'sampling' || phase === 'encoding_prompt' || phase === 'loading_model') return 1
-      return 0
+    const clipStageIndex = (segment: any): number => {
+      if (segment.status === 'done') return clipStages.length
+      const phase = String(segment.phase ?? '')
+      if (phase === 'upscaling' || phase === 'muxing' || phase === 'decoding') return 1
+      if (segment.status === 'running') return 0
+      return -1
     }
 
-    const stageTone = (job: any, index: number): string => {
-      if (job.status === 'done') return 'gv-stage-done'
-      if (job.status === 'failed' || job.status === 'cancelled') return index <= stageIndex(job) ? 'gv-stage-failed' : 'gv-stage-pending'
-      if (index < stageIndex(job)) return 'gv-stage-done'
-      if (index === stageIndex(job)) return 'gv-stage-active'
+    const clipStageTone = (segment: any, index: number): string => {
+      const current = clipStageIndex(segment)
+      if (segment.status === 'failed' || segment.status === 'cancelled') return index <= current ? 'gv-stage-failed' : 'gv-stage-pending'
+      if (segment.status === 'done' || index < current) return 'gv-stage-done'
+      if (index === current) return 'gv-stage-active'
       return 'gv-stage-pending'
     }
 
@@ -1197,11 +1193,14 @@ const Panel = {
       jobs.value.length === 0 ? h('div', { class: 'gv-card gv-p-6 gv-text-center gv-hint' }, t('noJobs')) : null,
       ...jobs.value.map((job: any) => {
         const total = job.progress?.segmentCount ?? job.params?.segments ?? 0
-        const idx = stageIndex(job)
         const params = job.params ?? {}
         const mode = params.inputVideoId ? 'V2V' : params.inputImageId ? 'I2V' : 'T2V'
         const running = job.status === 'running' || job.status === 'queued'
         const live = liveJobs.value[job.id] ?? job
+        const segments = job.segments ?? []
+        const merging = String(job.phase ?? '') === 'concatenating'
+        const encoding = String(job.phase ?? '').includes('transcod') || job.phase === 'verifying'
+        const finished = job.status === 'done'
         return h('div', { key: job.id, class: 'gv-card gv-job-card gv-p-4' }, [
           h('div', { class: 'gv-flex gv-flex-wrap gv-items-start gv-justify-between gv-gap-3' }, [
             h('div', { class: 'gv-min-w-0' }, [
@@ -1225,12 +1224,37 @@ const Panel = {
           h('div', { class: 'gv-mt-3 gv-flex gv-items-center gv-gap-2' }, [
             h('div', { class: 'gv-flex-1' }, [h(Progress, { percent: live.percent ?? job.percent, tone: job.status === 'failed' ? 'gv-bg-danger' : job.status === 'done' ? 'gv-bg-ok' : 'gv-bg-brand' })]),
           ]),
-          h('div', { class: 'gv-mt-3 gv-flex gv-flex-wrap gv-items-center gv-gap-1' }, stageDefs.map((stage: any, index: number) =>
-            h('div', { key: stage.key, class: `gv-stage gv-flex gv-items-center gv-gap-1.5 ${stageTone(job, index)}` }, [
-              h('span', { class: 'gv-stage-num' }, index < idx || job.status === 'done' ? '✓' : String(index + 1)),
-              h('span', null, t(stage.label)),
-              index < stageDefs.length - 1 ? h('span', { class: 'gv-stage-sep' }, '›') : null,
-            ]))),
+          h('div', { class: 'gv-mt-3 gv-flex gv-flex-col gv-gap-2' }, segments.map((segment: any) => {
+            const idx = clipStageIndex(segment)
+            return h('div', { key: segment.index, class: 'gv-clip-row' }, [
+              h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
+                h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
+                  h('span', { class: 'gv-clip-num' }, `#${segment.index + 1}`),
+                  h(Badge, { tone: statusTone(segment.status) }, t(segment.status) || segment.status),
+                  h('span', { class: 'gv-text-[11.5px] gv-text-text' }, segment.message || (segment.status === 'done' ? t('stageReady') : '')),
+                ]),
+                h('span', { class: 'gv-text-[11px] gv-text-muted' }, `${segment.percent}%`),
+              ]),
+              h('div', { class: 'gv-mt-1.5 gv-flex gv-flex-wrap gv-items-center gv-gap-1' }, clipStages.map((stage: any, index: number) =>
+                h('div', { key: stage.key, class: `gv-stage gv-flex gv-items-center gv-gap-1.5 ${clipStageTone(segment, index)}` }, [
+                  h('span', { class: 'gv-stage-num' }, segment.status === 'done' || index < idx ? '✓' : String(index + 1)),
+                  h('span', null, t(stage.label)),
+                  index < clipStages.length - 1 ? h('span', { class: 'gv-stage-sep' }, '›') : null,
+                ]))),
+              h('div', { class: 'gv-mt-1.5' }, [h(Progress, { percent: segment.percent, tone: segment.status === 'failed' ? 'gv-bg-danger' : segment.status === 'done' ? 'gv-bg-ok' : 'gv-bg-brand' })]),
+            ])
+          })),
+          segments.length > 0 ? h('div', { class: 'gv-mt-3 gv-flex gv-flex-wrap gv-items-center gv-gap-1' }, [
+            h('div', { class: `gv-stage gv-flex gv-items-center gv-gap-1.5 ${finished || merging ? (merging ? 'gv-stage-active' : 'gv-stage-done') : 'gv-stage-pending'}` }, [
+              h('span', { class: 'gv-stage-num' }, finished || !merging ? '✓' : '1'),
+              h('span', null, t('stageMerge')),
+            ]),
+            h('span', { class: 'gv-stage-sep' }, '›'),
+            h('div', { class: `gv-stage gv-flex gv-items-center gv-gap-1.5 ${finished || encoding ? (encoding ? 'gv-stage-active' : 'gv-stage-done') : 'gv-stage-pending'}` }, [
+              h('span', { class: 'gv-stage-num' }, finished ? '✓' : '2'),
+              h('span', null, t('stageEncode')),
+            ]),
+          ]) : null,
           h('div', { class: 'gv-mt-3 gv-rounded-lg gv-bg-surface-2 gv-p-2.5' }, [
             h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
               h('span', { class: 'gv-text-[11px] gv-font-medium gv-text-muted' }, t('currentStep')),
@@ -1245,13 +1269,6 @@ const Panel = {
             params.denoise !== undefined && params.denoise !== null ? h('span', null, `denoise ${params.denoise}`) : null,
             params.clipSec ? h('span', null, `clip ${fmtDuration(Number(params.clipSec))}`) : null,
           ]),
-          job.segments?.length > 1
-            ? h('div', { class: 'gv-mt-3 gv-flex gv-flex-wrap gv-gap-1.5' }, job.segments.map((segment: any) =>
-                h('div', { key: segment.index, class: 'gv-flex gv-min-w-[54px] gv-flex-1 gv-flex-col gv-gap-1' }, [
-                  h(Progress, { percent: segment.status === 'done' ? 100 : segment.percent, tone: segment.status === 'failed' ? 'gv-bg-danger' : segment.status === 'done' ? 'gv-bg-ok' : 'gv-bg-brand' }),
-                  h('span', { class: 'gv-text-[10px] gv-text-muted' }, `#${segment.index + 1} ${segment.status}`),
-                ])))
-            : null,
           job.outputs?.length
             ? h('div', { class: 'gv-mt-3 gv-flex gv-flex-wrap gv-gap-2' }, job.outputs.map((output: any) =>
                 h('a', { key: output.id, class: 'gv-btn gv-h-8 gv-px-2', href: `/genvideo/api/media/${encodeURIComponent(output.name)}`, target: '_blank', rel: 'noreferrer' }, `${output.name} · ${fmtBytes(output.bytes)}`)))
