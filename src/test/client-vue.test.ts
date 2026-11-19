@@ -61,9 +61,9 @@ test('vue bundle registers the sidebar, main and settings slots', async () => {
   }
   vm.runInNewContext(code, sandbox, { filename: 'client.js' })
 
-  assert.equal(registrations.length, 4, 'expected main, sidebar, settings and settings icon registrations')
+  assert.equal(registrations.length, 2, 'expected main and sidebar registrations')
   const names = registrations.map((item) => item.options.name)
-  assert.deepEqual(names, ['main', 'sidebar.panellist', 'settings.section', 'settings.section.icon'])
+  assert.deepEqual(names, ['main', 'sidebar.panellist'])
   assert.equal(registrations[0]?.options.key, 'genvideo')
   assert.equal(registrations[1]?.options.id, 'genvideo')
   assert.equal(registrations[1]?.options.order, 30)

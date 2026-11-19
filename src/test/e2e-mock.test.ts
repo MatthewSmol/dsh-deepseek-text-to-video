@@ -104,10 +104,9 @@ test('merge concatenates two clips into a longer video', { skip: !hasFfmpeg }, a
   assert.ok(info.durationSec >= 1.5)
 })
 
-test('plan reports unavailable runners without pretending success', { skip: !hasFfmpeg }, async () => {
+test('plan selects the ComfyUI workflow backend', { skip: !hasFfmpeg }, async () => {
   assert.ok(engine)
   const plan = await engine.plan({ prompt: 'A dragon', modelId: 'sulphur-2-base', targetDurationSec: 20 })
-  assert.equal(plan.availableRunner, null)
-  assert.ok(plan.warnings.some((warning) => warning.code === 'no-runner' || warning.code === 'runner-unavailable'))
+  assert.equal(plan.availableRunner, 'comfyui')
   assert.ok(plan.segments.length > 1)
 })

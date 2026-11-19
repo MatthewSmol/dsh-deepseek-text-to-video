@@ -43,6 +43,26 @@ export function customToEntry(custom: CustomModel): ModelEntry {
 /** RU: Встроенные модели. EN: Built-in models. */
 export const BUILTIN_MODELS: ModelEntry[] = [
   {
+    id: 'comfyui-workflow',
+    title: 'ComfyUI workflow',
+    family: 'comfyui',
+    repo: '',
+    kind: 'comfyui-workflow',
+    variants: [{ id: 'workflow', title: 'API workflow', files: [], sizeGB: 0, precision: 'workflow' }],
+    runtimes: ['comfyui'],
+    capabilities: { t2v: true, i2v: true, v2v: true, audio: false },
+    durationSec: { min: 1, max: 600, recommended: 9 },
+    fps: [24, 30],
+    width: 1280,
+    height: 720,
+    vramGB: { min: 0, recommended: 0 },
+    maxPromptChars: 4000,
+    license: 'n/a',
+    notes: 'Runs the ComfyUI API workflow configured on disk.',
+    encoder: { name: 'ComfyUI workflow', sizeGB: null, format: 'external' },
+    extraFiles: [],
+  },
+  {
     id: 'sulphur-2-base',
     title: 'Sulphur 2 base',
     family: 'ltx-2',

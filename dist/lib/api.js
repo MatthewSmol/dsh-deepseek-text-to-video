@@ -63,7 +63,7 @@ export function createApiHandler(engine, token) {
                 ok(res, { version: VERSION, startedAt: engine.startedAt, uptimeSec: Math.round((Date.now() - engine.startedAt) / 1000) });
                 return;
             }
-            if (req.headers['x-genvideo-token'] !== token) {
+            if (token && req.headers['x-genvideo-token'] !== token) {
                 json(res, 401, { ok: false, error: { code: 'unauthorized', message: 'Missing or invalid X-GenVideo-Token' } });
                 return;
             }

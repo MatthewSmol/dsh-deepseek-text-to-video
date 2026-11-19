@@ -19,7 +19,7 @@ const API = '/genvideo/api'
 /** RU: Английский словарь. EN: English dictionary. */
 const en: Record<string, string> = {
   nav: 'GenVideo', title: 'GenVideo', subtitle: 'Text to local video through the MCP service',
-  generate: 'Generate', jobs: 'Jobs', library: 'Library', models: 'Models', settings: 'Settings',
+  generate: 'Generate', jobs: 'Jobs', gallery: 'Gallery', environment: 'Environment',
   refresh: 'Refresh', loading: 'Loading…', save: 'Save', saved: 'Saved', reset: 'Reset', cancel: 'Cancel', close: 'Close',
   done: 'Done', failed: 'Failed', running: 'Running', queued: 'Queued', cancelled: 'Cancelled',
   progress: 'Progress', phase: 'Phase', segment: 'Segment', eta: 'ETA', elapsed: 'Elapsed',
@@ -69,7 +69,7 @@ const en: Record<string, string> = {
   comfyui: 'ComfyUI', path: 'Path', test: 'Test', installFfmpeg: 'Install ffmpeg', installPython: 'Install Python engine',
   outputDir: 'Output folder', modelsDir: 'Models folder', language: 'Language', english: 'English', russian: 'Русский',
   defaults: 'Defaults', service: 'MCP service', uptime: 'Uptime', unavailable: 'Unavailable',
-  mcpDown: 'MCP service unavailable', noJobs: 'No jobs yet.', noClips: 'Videos/ is empty.',
+  mcpDown: 'Service unavailable', noJobs: 'No jobs yet.', noClips: 'Videos/ is empty.',
   selectClips: 'Select clips to merge', merge: 'Merge selected', merging: 'Merging…', play: 'Play',
   modelCapabilities: 'Capabilities', requiredVram: 'Required VRAM', license: 'License', notes: 'Notes',
   newerVersion: 'Newer version available', installModel: 'Install model', weightsInstalled: 'Weights installed', deleteModel: 'Delete model', confirmDeleteModel: 'Delete the model files from disk?', deletedModel: 'Model deleted', deleting: 'Deleting…', addModel: 'Add a custom model',
@@ -79,7 +79,7 @@ const en: Record<string, string> = {
   mcpTools: 'Tools', version: 'Version', settingsHint: 'Stored in DSH_HOME/genvideo/settings.json.',
   outputHint: 'Default: <project>/Videos', modelsHint: 'Default: <project>/models', seedHint: '-1 = random',
   stepsHint: '0 = model default', negativeHint: 'What to avoid in the shot', inputHint: 'The model must support this input.',
-  jobsHint: 'Live progress comes from the MCP service via SSE.', libraryHint: 'Finished clips from the Videos folder.',
+  jobsHint: 'Live progress comes from the local GenVideo engine via SSE.', libraryHint: 'Finished videos from the Videos folder.',
   gpuSelect: 'GPUs to use', budgetHint: '0 = no limit; compare with the GPU total above.',
   ffmpegMissing: 'ffmpeg is missing: generation and merging are unavailable.',
   comfyuiHint: 'URL of a running ComfyUI, e.g. http://127.0.0.1:8188', candleHint: 'Path to the built candle-video binary',
@@ -91,7 +91,7 @@ const en: Record<string, string> = {
 /** RU: Русский словарь. EN: Russian dictionary. */
 const ru: Record<string, string> = {
   nav: 'GenVideo', title: 'GenVideo', subtitle: 'Текст в локальное видео через MCP-сервис',
-  generate: 'Генерация', jobs: 'Задания', library: 'Библиотека', models: 'Модели', settings: 'Настройки',
+  generate: 'Генерация', jobs: 'Задания', gallery: 'Галерея', environment: 'Окружение',
   refresh: 'Обновить', loading: 'Загрузка…', save: 'Сохранить', saved: 'Сохранено', reset: 'Сбросить', cancel: 'Отмена', close: 'Закрыть',
   done: 'Готово', failed: 'Ошибка', running: 'Выполняется', queued: 'В очереди', cancelled: 'Отменено',
   progress: 'Прогресс', phase: 'Фаза', segment: 'Сегмент', eta: 'Осталось', elapsed: 'Прошло',
@@ -141,7 +141,7 @@ const ru: Record<string, string> = {
   comfyui: 'ComfyUI', path: 'Путь', test: 'Проверить', installFfmpeg: 'Установить ffmpeg', installPython: 'Установить Python-движок',
   outputDir: 'Папка результатов', modelsDir: 'Папка моделей', language: 'Язык', english: 'English', russian: 'Русский',
   defaults: 'Значения по умолчанию', service: 'MCP-сервис', uptime: 'Аптайм', unavailable: 'Недоступен',
-  mcpDown: 'MCP-сервис недоступен', noJobs: 'Заданий пока нет.', noClips: 'Папка Videos/ пуста.',
+  mcpDown: 'Сервис недоступен', noJobs: 'Заданий пока нет.', noClips: 'Папка Videos/ пуста.',
   selectClips: 'Выберите ролики для склейки', merge: 'Склеить выбранные', merging: 'Склейка…', play: 'Смотреть',
   modelCapabilities: 'Возможности', requiredVram: 'Нужно VRAM', license: 'Лицензия', notes: 'Примечания',
   newerVersion: 'Доступна более новая версия', installModel: 'Установить модель', weightsInstalled: 'Веса установлены', deleteModel: 'Удалить модель', confirmDeleteModel: 'Удалить файлы модели с диска?', deletedModel: 'Модель удалена', deleting: 'Удаление…', addModel: 'Своя модель',
@@ -151,7 +151,7 @@ const ru: Record<string, string> = {
   mcpTools: 'Инструменты', version: 'Версия', settingsHint: 'Хранится в DSH_HOME/genvideo/settings.json.',
   outputHint: 'По умолчанию: <проект>/Videos', modelsHint: 'По умолчанию: <проект>/models', seedHint: '-1 = случайный',
   stepsHint: '0 = по умолчанию модели', negativeHint: 'Чего избегать в кадре', inputHint: 'Модель должна поддерживать этот вход.',
-  jobsHint: 'Прогресс приходит от MCP-сервиса по SSE.', libraryHint: 'Готовые ролики из папки Videos.',
+  jobsHint: 'Прогресс приходит от локального движка GenVideo по SSE.', libraryHint: 'Готовые ролики из папки Videos.',
   gpuSelect: 'Используемые GPU', budgetHint: '0 = без лимита; сравнивайте с объёмом GPU выше.',
   ffmpegMissing: 'ffmpeg не найден: генерация и склейка недоступны.',
   comfyuiHint: 'URL запущенного ComfyUI, например http://127.0.0.1:8188', candleHint: 'Путь к собранному бинарю candle-video',
@@ -239,8 +239,8 @@ function emptyForm(settings?: any) {
   return {
     prompt: '',
     negativePrompt: settings?.negativePrompt ?? '',
-    modelId: settings?.modelId ?? 'ltx-0.9.8-2b-distilled',
-    runner: 'candle',
+    modelId: 'comfyui-workflow',
+    runner: 'comfyui',
     platform: settings?.platform ?? 'youtube',
     aspect: settings?.aspect ?? '16:9',
     width: settings?.width ?? 1280,
@@ -498,7 +498,7 @@ const Panel = {
         try {
           plan.value = await api('/plan', {
             method: 'POST',
-            body: JSON.stringify({ ...form.value, runner: runner.value === 'auto' ? undefined : runner.value }),
+            body: JSON.stringify({ ...form.value, modelId: 'comfyui-workflow', runner: 'comfyui' }),
           })
           planError.value = ''
         } catch (err: any) {
@@ -559,7 +559,7 @@ const Panel = {
       try {
         const result = await api('/generate', {
           method: 'POST',
-          body: JSON.stringify({ ...form.value, runner: runner.value === 'auto' ? undefined : runner.value }),
+          body: JSON.stringify({ ...form.value, modelId: 'comfyui-workflow', runner: 'comfyui' }),
         })
         liveJobs.value = { ...liveJobs.value, [result.job.id]: result.job }
         tab.value = 'jobs'
@@ -911,46 +911,6 @@ const Panel = {
 
     const generateView = () => h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-4 lg:gv-grid-cols-[minmax(0,1fr)_320px]' }, [
       h('div', { class: 'gv-flex gv-flex-col gv-gap-4' }, [
-        h(Card, { title: `${t('model')} / ${t('runner')}` }, [
-          h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
-            h(Field, { label: t('model') }, [
-              h('select', {
-                class: 'gv-select', value: form.value.modelId,
-                onChange: (event: any) => {
-                  patch({ modelId: event.target.value, runner: 'candle' })
-                  void refreshRunners(event.target.value)
-                },
-              }, models.value.map((item: any) => h('option', {
-                key: item.entry.id, value: item.entry.id, disabled: !item.installed,
-              }, `${item.entry.title}${item.installed ? ' ✓' : ' — not installed'}`))),
-            ]),
-            h(Field, { label: t('runner'), hint: runnerHint.value }, [
-              h('select', { class: 'gv-select', value: runner.value, onChange: (event: any) => patch({ runner: event.target.value }) }, [
-                h('option', { value: 'auto' }, t('auto')),
-                ...(runners.value.length
-                  ? runners.value
-                  : (modelEntry.value?.runtimes ?? []).map((id: string) => ({ id, available: true }))
-                ).map((item: any) => h('option', {
-                  key: item.id, value: item.id, disabled: item.available === false,
-                }, `${item.id}${item.available === false ? ` — ${item.reason ?? t('unavailable')}` : ''}`)),
-              ]),
-            ]),
-          ]),
-          modelState.value && !modelState.value.installed
-            ? h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-items-center gv-gap-2 gv-rounded-lg gv-border gv-border-warn-soft gv-bg-warn-soft gv-p-2' }, [
-                h('span', { class: 'gv-text-[11.5px] gv-text-warn' }, t('modelWeightsMissing')),
-                h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', disabled: Boolean(busy.value), onClick: () => void installModel(form.value.modelId) }, t('installModel')),
-              ])
-            : null,
-          modelEntry.value
-            ? h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-gap-1.5' }, [
-                ...(['t2v', 'i2v', 'v2v', 'audio'] as const).map((capability) =>
-                  h(Badge, { key: capability, tone: modelEntry.value.capabilities[capability] ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-line gv-bg-surface-2 gv-text-muted' }, capability.toUpperCase())),
-                h(Badge, null, `${modelEntry.value.durationSec.min}–${modelEntry.value.durationSec.max}s`),
-                h(Badge, null, `${modelEntry.value.vramGB.min}–${modelEntry.value.vramGB.recommended} GB`),
-              ])
-            : null,
-        ]),
         h(Card, { title: t('prompt') }, [
           h('textarea', {
             class: 'gv-input gv-h-28 gv-resize-y gv-py-2', placeholder: t('promptHint'), value: form.value.prompt,
@@ -975,54 +935,48 @@ const Panel = {
             ]),
           ]),
         ]),
-        (modelEntry.value?.capabilities?.i2v || modelEntry.value?.capabilities?.v2v)
-          ? h(Card, { title: t('referenceInput'), hint: t('inputHint') }, [
-              h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
-                modelEntry.value?.capabilities?.i2v
-                  ? h(Field, { label: t('imageInput'), hint: t('inputHint') }, [
-                      h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
-                        h('button', {
-                          type: 'button', class: 'gv-btn', disabled: uploading.value === 'inputImageId',
-                          onClick: () => {
-                            const input = document.createElement('input')
-                            input.type = 'file'
-                            input.accept = 'image/*'
-                            input.onchange = () => {
-                              const file = input.files?.[0]
-                              if (file) void upload(file, 'inputImageId')
-                            }
-                            input.click()
-                          },
-                        }, uploading.value === 'inputImageId' ? t('uploading') : t('chooseFile')),
-                        form.value.inputImageId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputImageId.slice(0, 28)) : null,
-                        form.value.inputImageId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputImageId: '' }) }, t('removeFile')) : null,
-                      ]),
-                    ])
-                  : null,
-                modelEntry.value?.capabilities?.v2v
-                  ? h(Field, { label: t('videoInput'), hint: t('inputHint') }, [
-                      h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
-                        h('button', {
-                          type: 'button', class: 'gv-btn', disabled: uploading.value === 'inputVideoId',
-                          onClick: () => {
-                            const input = document.createElement('input')
-                            input.type = 'file'
-                            input.accept = 'video/*'
-                            input.onchange = () => {
-                              const file = input.files?.[0]
-                              if (file) void upload(file, 'inputVideoId')
-                            }
-                            input.click()
-                          },
-                        }, uploading.value === 'inputVideoId' ? t('uploading') : t('chooseFile')),
-                        form.value.inputVideoId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputVideoId.slice(0, 28)) : null,
-                        form.value.inputVideoId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputVideoId: '' }) }, t('removeFile')) : null,
-                      ]),
-                    ])
-                  : null,
+        h(Card, { title: t('referenceInput'), hint: t('inputHint') }, [
+          h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
+            h(Field, { label: t('imageInput'), hint: t('inputHint') }, [
+              h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
+                h('button', {
+                  type: 'button', class: 'gv-btn', disabled: uploading.value === 'inputImageId',
+                  onClick: () => {
+                    const input = document.createElement('input')
+                    input.type = 'file'
+                    input.accept = 'image/*'
+                    input.onchange = () => {
+                      const file = input.files?.[0]
+                      if (file) void upload(file, 'inputImageId')
+                    }
+                    input.click()
+                  },
+                }, uploading.value === 'inputImageId' ? t('uploading') : t('chooseFile')),
+                form.value.inputImageId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputImageId.slice(0, 28)) : null,
+                form.value.inputImageId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputImageId: '' }) }, t('removeFile')) : null,
               ]),
-            ])
-          : null,
+            ]),
+            h(Field, { label: t('videoInput'), hint: t('inputHint') }, [
+              h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
+                h('button', {
+                  type: 'button', class: 'gv-btn', disabled: uploading.value === 'inputVideoId',
+                  onClick: () => {
+                    const input = document.createElement('input')
+                    input.type = 'file'
+                    input.accept = 'video/*'
+                    input.onchange = () => {
+                      const file = input.files?.[0]
+                      if (file) void upload(file, 'inputVideoId')
+                    }
+                    input.click()
+                  },
+                }, uploading.value === 'inputVideoId' ? t('uploading') : t('chooseFile')),
+                form.value.inputVideoId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputVideoId.slice(0, 28)) : null,
+                form.value.inputVideoId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputVideoId: '' }) }, t('removeFile')) : null,
+              ]),
+            ]),
+          ]),
+        ]),
         h(Card, { title: t('duration') }, [
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-3' }, [
             h(Field, { label: t('duration'), hint: t('durationHint') }, [
@@ -1141,7 +1095,6 @@ const Panel = {
           h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('refresh')),
         ]),
       ]),
-      h('div', { class: 'gv-flex gv-flex-col gv-gap-4' }, [estimate()]),
     ])
 
     const jobsView = () => h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
@@ -1538,6 +1491,34 @@ const Panel = {
       h(Row, { label: t('mcpTools') }, [h(Badge, { tone: 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' }, 'mcp__genvideo__*')]),
     ])
 
+    const environmentView = () => {
+      const deps = state.value.deps
+      return h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
+        h(Card, { title: t('environment') }, [
+          h('p', { class: 'gv-hint gv-mb-3' }, 'Read-only status of the engine used for generation.'),
+          h('div', { class: 'gv-flex gv-flex-col gv-gap-2' }, [
+            h(Row, { label: 'ComfyUI', hint: deps.comfyui.url ?? '' }, [
+              h(Badge, { tone: deps.comfyui.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.comfyui.ok ? deps.comfyui.url : t('unavailable')),
+            ]),
+            h(Row, { label: 'Workflow' }, [
+              h(Badge, null, '$DSH_HOME/genvideo/workflow.json'),
+            ]),
+            h(Row, { label: t('ffmpeg'), hint: deps.ffmpeg.version ?? '' }, [
+              h(Badge, { tone: deps.ffmpeg.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.ffmpeg.ok ? deps.ffmpeg.path : t('unavailable')),
+            ]),
+            h(Row, { label: t('ffprobe') }, [
+              h(Badge, { tone: deps.ffprobe.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.ffprobe.ok ? deps.ffprobe.path : t('unavailable')),
+            ]),
+          ]),
+          h('div', { class: 'gv-mt-3' }, [
+            h('div', { class: 'gv-group-title gv-mb-1' }, 'Agent tools'),
+            h('div', { class: 'gv-flex gv-flex-wrap gv-gap-1.5' }, ['genvideo_status','genvideo_plan','genvideo_generate','genvideo_jobs','genvideo_job','genvideo_cancel','genvideo_merge','genvideo_transcode'].map((tool) => h(Badge, { key: tool }, tool))),
+          ]),
+          h('div', { class: 'gv-mt-3' }, [h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', onClick: () => void recheckDeps() }, t('refresh'))]),
+        ]),
+      ])
+    }
+
     const settingsView = () => h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-4 lg:gv-grid-cols-2' }, [
       gpuSection(), toolsSection(), pathsSection(), networkSection(), serviceSection(),
     ])
@@ -1546,11 +1527,11 @@ const Panel = {
       if (!state.value) {
         return h('div', { class: 'gv-panel gv-flex gv-flex-col gv-gap-3 gv-p-6 gv-text-text' }, [h('style', null, typeof styles === 'string' ? styles : ''), h('div', { class: 'gv-hint' }, t('loading'))])
       }
-      const tabs = [['generate', t('generate')], ['jobs', t('jobs')], ['library', t('library')], ['settings', t('settings')]]
+      const tabs = [['generate', t('generate')], ['jobs', t('jobs')], ['gallery', t('gallery')], ['environment', t('environment')]]
       const content = tab.value === 'generate' ? generateView()
         : tab.value === 'jobs' ? jobsView()
-        : tab.value === 'library' ? libraryView()
-        : settingsView()
+        : tab.value === 'gallery' ? libraryView()
+        : environmentView()
       return h('div', { class: 'gv-panel gv-flex gv-flex-col gv-gap-4 gv-p-4 gv-font-sans gv-text-text' }, [
         h('style', null, typeof styles === 'string' ? styles : ''),
         header(),
@@ -1563,7 +1544,7 @@ const Panel = {
               key: value, type: 'button',
               onClick: () => {
                 tab.value = value
-                if (value === 'library') void refreshLibrary()
+                if (value === 'gallery') void refreshLibrary()
               },
               class: `gv-relative gv-px-3 gv-py-2 gv-text-[12.5px] gv-font-medium gv-transition-colors ${tab.value === value ? 'gv-text-text' : 'gv-text-muted hover:gv-text-text'}`,
             }, [label, tab.value === value ? h('span', { class: 'gv-absolute gv-inset-x-2 gv-bottom-0 gv-h-0.5 gv-rounded-t gv-bg-brand' }) : null]))),

@@ -108,7 +108,7 @@ test('the Vue panel mounts through the React bridge and renders the scoped UI', 
   }
   if (!loaded) throw new Error('client bundle did not register')
   loaded.factory(() => react).apply(ctx)
-  assert.equal(registrations.length, 4)
+  assert.equal(registrations.length, 2)
 
   const main = registrations.find((item) => item.options.name === 'main')?.component
   assert.equal(typeof main, 'function')
@@ -123,7 +123,6 @@ test('the Vue panel mounts through the React bridge and renders the scoped UI', 
   assert.ok(container, 'the bridge must provide a container element')
   document.body.appendChild(container)
   const cleanup = await effects[0]!()
-  let settingsCleanup: any = null
 
   // RU: Ждём ответ /state и следующий тик Vue. EN: Wait for /state and the next Vue tick.
   await new Promise((resolve) => setTimeout(resolve, 50))
@@ -137,29 +136,17 @@ test('the Vue panel mounts through the React bridge and renders the scoped UI', 
   assert.ok(html.includes('ffmpeg'), 'environment state must be rendered')
   assert.ok(html.length > 2000, `expected a full panel, got ${html.length} chars`)
 
-  // RU: Экран настроек должен явно показывать движки и что устанавливать.
-  // EN: The settings screen must clearly show engines and what to install.
-  const settings = registrations.find((item) => item.options.name === 'settings.section')?.component
-  assert.equal(typeof settings, 'function')
-  const settingsOuter = settings({})
-  const settingsInner = settingsOuter.type(settingsOuter.props)
-  settingsInner.props.ref.current = document.createElement('div')
-  const settingsContainer = settingsInner.props.ref.current
-  document.body.appendChild(settingsContainer)
-  settingsCleanup = await effects[1]!()
-  await new Promise((resolve) => setTimeout(resolve, 50))
-  const settingsHtml = settingsContainer.innerHTML
-  assert.ok(settingsHtml.includes('ComfyUI'), 'the ComfyUI engine card must be visible')
-  assert.ok(settingsHtml.includes('Mock'), 'the Mock card must be visible')
-  assert.ok(!settingsHtml.includes('Install Python engine'), 'the Python installer must be hidden')
-  assert.ok(!settingsHtml.includes('Build candle engine'), 'the Candle installer must be hidden')
-
+  assert.ok(html.includes('Gallery'), 'the Gallery tab must be visible')
+  assert.ok(html.includes('Environment'), 'the Environment tab must be visible')
+  assert.ok(!html.includes('Library'), 'the old Library tab must be gone')
+  assert.ok(!html.includes('Models'), 'the Models tab must be gone')
+  assert.ok(html.includes('Reference image') || html.includes('image-to-video'), 'the image reference input must be visible')
+  assert.ok(html.includes('Reference video') || html.includes('video-to-video'), 'the video reference input must be visible')
   // RU: Снимаем Vue-приложение и закрываем happy-dom, иначе интервал опроса
   //     состояния не даст тестовому процессу завершиться.
   // EN: Unmount the Vue app and close happy-dom; otherwise the state polling
   //     interval keeps the test process alive.
   } finally {
-    if (typeof settingsCleanup === 'function') settingsCleanup()
     if (typeof cleanup === 'function') cleanup()
     await (window as any).happyDOM?.close?.()
   }

@@ -1,164 +1,55 @@
 /**
- * RU: Host-половина плагина GenVideo — тонкий прокси между браузером и
- *     MCP-сервисом. Плагин ничего не хранит: он читает endpoint.json
- *     (порт/токен/pid), проверяет живость процесса и пробрасывает
- *     `/genvideo/*` на `http://127.0.0.1:<port>/*`, добавляя токен.
- * EN: GenVideo Host half — a thin proxy between the browser and the MCP
- *     service. The plugin stores nothing: it reads endpoint.json
- *     (port/token/pid), checks that the process is alive, and forwards
- *     `/genvideo/*` to `http://127.0.0.1:<port>/*` adding the token.
+ * RU: Host-половина GenVideo. Движок работает в процессе Host-плагина:
+ *     он обслуживает HTTP-роут панели и регистрирует нативные DSH-инструменты
+ *     для агента. Отдельного MCP-сервера и stdio больше нет — бэкенд один,
+ *     ComfyUI, а плагин лишь вызывает его API.
+ * EN: GenVideo host half. The engine runs inside the host plugin: it serves the
+ *     panel HTTP route and registers native DSH tools for the agent. There is no
+ *     separate MCP server or stdio anymore — ComfyUI is the only backend and the
+ *     plugin just calls its API.
  */
-import { readFile, stat } from 'node:fs/promises'
-import { Readable } from 'node:stream'
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { endpointFile } from './lib/paths.js'
+import { createApiHandler } from './lib/api.js'
+import { Engine } from './lib/engine.js'
+import { ensureServiceDirs } from './lib/paths.js'
+import { registerGenvideoTools } from './server/tools.js'
 
 /** RU: Имя плагина для логов. EN: Plugin name for logs. */
 export const name = '@local/dsh-genvideo'
 
-/** RU: Зависимость от Web-сервера DSH. EN: Dependency on the DSH web server. */
-export const inject = ['webServer']
+/** RU: Зависимости Host-плагина. EN: Host plugin dependencies. */
+export const inject = ['webServer', 'tools']
 
-interface Endpoint {
-  port: number
-  token: string
-  pid: number
-  startedAt: number
-  version: string
-}
+/** RU: Регистрирует HTTP-роут и нативные инструменты. EN: Registers the HTTP route and native tools. */
+export function apply(ctx: any): void {
+  ensureServiceDirs()
+  const engine = new Engine()
+  const handler = createApiHandler(engine, '')
 
-let cache: { endpoint: Endpoint; mtime: number } | null = null
-
-/** RU: Читает endpoint.json с кэшем по mtime (2 c). EN: Reads endpoint.json with a 2s mtime cache. */
-async function readEndpoint(): Promise<Endpoint | null> {
-  const file = endpointFile()
-  try {
-    const info = await stat(file)
-    if (cache && cache.mtime === info.mtimeMs) return cache.endpoint
-    const parsed = JSON.parse(await readFile(file, 'utf8')) as Endpoint
-    if (!parsed.port || !parsed.token || !parsed.pid) return null
-    cache = { endpoint: parsed, mtime: info.mtimeMs }
-    return parsed
-  } catch {
-    return null
-  }
-}
-
-/** RU: Проверяет, что процесс сервиса жив. EN: Checks that the service process is alive. */
-function alive(pid: number): boolean {
-  try {
-    process.kill(pid, 0)
-    return true
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === 'EPERM'
-  }
-}
-
-/** RU: JSON-ответ об ошибке. EN: JSON error response. */
-function unavailable(res: ServerResponse, message: string): void {
-  res.statusCode = 503
-  res.setHeader('content-type', 'application/json; charset=utf-8')
-  res.setHeader('cache-control', 'no-store')
-  res.end(JSON.stringify({ ok: false, error: { code: 'mcp-unavailable', message } }))
-}
-
-/** RU: Копирует заголовки ответа сервиса. EN: Copies the service response headers. */
-function copyHeaders(source: Headers, res: ServerResponse): void {
-  const allowed = ['content-type', 'content-length', 'content-range', 'accept-ranges', 'cache-control', 'x-accel-buffering']
-  for (const header of allowed) {
-    const value = source.get(header)
-    if (value !== null) res.setHeader(header, value)
-  }
-}
-
-/** RU: Проксирует один запрос. EN: Proxies one request. */
-async function proxy(req: IncomingMessage, res: ServerResponse, path: string): Promise<void> {
-  const endpoint = await readEndpoint()
-  if (!endpoint || !alive(endpoint.pid)) {
-    unavailable(
-      res,
-      'The GenVideo MCP service is not running. Enable the genvideo-mcp row (or restart DSH) and refresh this page.',
-    )
-    return
-  }
-  const url = new URL(req.url ?? '/', 'http://127.0.0.1')
-  // RU: поисковая строка (?page=2, ?id=…) обязательна для GET-ручек.
-  // EN: the query string (?page=2, ?id=…) is required for GET handlers.
-  const target = `http://127.0.0.1:${endpoint.port}${path || '/'}${url.search}`
-  const headers: Record<string, string> = { 'x-genvideo-token': endpoint.token }
-  for (const header of ['range', 'content-type', 'x-file-name', 'accept']) {
-    const value = req.headers[header]
-    if (typeof value === 'string') headers[header] = value
-  }
-  const method = req.method ?? 'GET'
-  const hasBody = method !== 'GET' && method !== 'HEAD'
-  const controller = new AbortController()
-  // RU: Нельзя вешать abort на req 'close': для POST он срабатывает сразу после
-  //     отправки тела и обрывает запрос к сервису (кнопки установки/сохранения
-  //     «не работали»). Отменяем fetch только если ответ оборвался, не успев
-  //     завершиться, то есть клиент действительно ушёл.
-  // EN: Do not abort on req 'close': for POST it fires right after the body is
-  //     sent and kills the upstream request (install/save buttons "did nothing").
-  //     Abort the fetch only when the response closes before finishing, i.e. the
-  //     client really disconnected.
-  res.on('close', () => {
-    if (!res.writableFinished) controller.abort()
-  })
-  try {
-    const response = await fetch(target, {
-      method,
-      headers,
-      body: hasBody ? (req as unknown as ReadableStream) : undefined,
-      duplex: hasBody ? 'half' : undefined,
-      signal: controller.signal,
-    } as RequestInit & { duplex?: 'half' })
-    res.statusCode = response.status
-    copyHeaders(response.headers, res)
-    res.flushHeaders?.()
-    if (!response.body) {
-      res.end()
-      return
+  const disposers: Array<() => void> = []
+  disposers.push(ctx.webServer.register({
+    kind: 'prefix',
+    path: '/genvideo',
+    handler: async (req: IncomingMessage, res: ServerResponse) => {
+      const remote = req.socket.remoteAddress ?? ''
+      const loopback = remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1' || remote === ''
+      if (!loopback) {
+        res.statusCode = 403
+        res.setHeader('content-type', 'application/json; charset=utf-8')
+        res.end(JSON.stringify({ ok: false, error: { code: 'forbidden', message: 'loopback only' } }))
+        return
+      }
+      const url = new URL(req.url ?? '/', 'http://127.0.0.1')
+      req.url = `${url.pathname.replace(/^\/genvideo/, '') || '/'}${url.search}`
+      await handler(req, res)
+    },
+  }))
+  disposers.push(registerGenvideoTools(ctx, engine))
+  ctx.logger?.info?.('genvideo: engine ready, native tools registered')
+  ctx.effect?.(() => () => {
+    for (const dispose of disposers.splice(0)) {
+      try { dispose() } catch { /* ignore */ }
     }
-    const stream = Readable.fromWeb(response.body as import('node:stream/web').ReadableStream<Uint8Array>)
-    stream.on('error', () => res.end())
-    stream.pipe(res)
-    res.on('close', () => stream.destroy())
-  } catch (error) {
-    if (!res.headersSent) {
-      unavailable(res, error instanceof Error ? error.message : String(error))
-    } else {
-      res.end()
-    }
-  }
-}
-
-/** RU: Регистрирует prefix-route `/genvideo`. EN: Registers the `/genvideo` prefix route. */
-export function apply(ctx: {
-  webServer: { register: (route: { kind: 'prefix'; path: string; handler: (req: IncomingMessage, res: ServerResponse) => void | Promise<void> }) => () => void }
-  effect?: (callback: () => () => void, label?: string) => void
-  logger?: { info?: (message: string) => void; warn?: (message: string) => void }
-}): void {
-  ctx.effect?.(() => {
-    const dispose = ctx.webServer.register({
-      kind: 'prefix',
-      path: '/genvideo',
-      handler: async (req, res) => {
-        const url = new URL(req.url ?? '/', 'http://127.0.0.1')
-        const path = url.pathname.replace(/^\/genvideo/, '') || '/'
-        // RU: Проверяем loopback, чтобы маршрут не было смысла атаковать снаружи.
-        // EN: Require loopback so the route is not reachable from outside.
-        const remote = req.socket.remoteAddress ?? ''
-        const isLoopback = remote === '127.0.0.1' || remote === '::1' || remote === '::ffff:127.0.0.1' || remote === ''
-        if (!isLoopback) {
-          res.statusCode = 403
-          res.setHeader('content-type', 'application/json; charset=utf-8')
-          res.end(JSON.stringify({ ok: false, error: { code: 'forbidden', message: 'loopback only' } }))
-          return
-        }
-        await proxy(req, res, path)
-      },
-    })
-    ctx.logger?.info?.('genvideo: proxy registered on /genvideo')
-    return dispose
-  }, 'genvideo: proxy route')
+    engine.dispose()
+  }, 'genvideo: engine and tools')
 }

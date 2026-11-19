@@ -12,6 +12,7 @@ test('built-in registry is coherent', () => {
   const ids = BUILTIN_MODELS.map((entry) => entry.id)
   assert.equal(new Set(ids).size, ids.length)
   for (const entry of BUILTIN_MODELS) {
+    if (entry.id === 'comfyui-workflow') continue
     assert.ok(entry.repo.includes('/'))
     assert.ok(entry.variants.length > 0)
     assert.ok(entry.variants.every((variant) => variant.files.length > 0 && variant.sizeGB > 0))

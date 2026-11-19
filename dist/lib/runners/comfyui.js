@@ -9,14 +9,32 @@
  *     /history and downloads the result through /view.
  */
 import { access, mkdir, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 import { available, unavailable } from './types.js';
 import { GenVideoError } from '../errors.js';
 import { modelsDirOf } from '../store.js';
 import { detectComfyUi } from '../deps.js';
+import { genvideoHome } from '../paths.js';
+/** RU: Загружает референс в input ComfyUI и возвращает имя для LoadImage/LoadVideo.
+ *  EN: Uploads a reference into ComfyUI's input folder and returns its node name. */
+async function uploadInput(base, filePath, signal) {
+    const data = await readFile(filePath);
+    const form = new FormData();
+    form.append('image', new Blob([data]), basename(filePath));
+    form.append('type', 'input');
+    const response = await fetch(`${base}/upload/image`, { method: 'POST', body: form, signal });
+    if (!response.ok) {
+        throw new GenVideoError('comfyui-upload-failed', `ComfyUI rejected the reference upload: HTTP ${response.status}`);
+    }
+    const payload = await response.json();
+    if (!payload.name)
+        throw new GenVideoError('comfyui-upload-failed', 'ComfyUI did not return an uploaded file name');
+    return payload.subfolder ? `${payload.subfolder}/${payload.name}` : payload.name;
+}
 /** RU: Где искать workflow. EN: Where to look for the workflow. */
 export function workflowPath(modelId, modelsDir) {
-    return process.env.GENVIDEO_COMFY_WORKFLOW || join(modelsDir, modelId, 'workflow.json');
+    return process.env.GENVIDEO_COMFY_WORKFLOW || join(genvideoHome(), 'workflow.json');
 }
 async function exists(path) {
     try {
@@ -50,7 +68,15 @@ export const comfyuiRunner = {
         if (!(await exists(wfPath))) {
             throw new GenVideoError('comfyui-workflow-missing', `Workflow not found at ${wfPath}. Export it in API format and place it there, or set GENVIDEO_COMFY_WORKFLOW.`);
         }
-        const template = await (await import('node:fs/promises')).readFile(wfPath, 'utf8');
+        const template = await readFile(wfPath, 'utf8');
+        if (input.imagePath && !template.includes('{{image}}')) {
+            throw new GenVideoError('workflow-image-placeholder-missing', `Workflow ${wfPath} has no {{image}} placeholder`);
+        }
+        if (input.videoPath && !template.includes('{{video}}')) {
+            throw new GenVideoError('workflow-video-placeholder-missing', `Workflow ${wfPath} has no {{video}} placeholder`);
+        }
+        const uploadedImage = input.imagePath ? await uploadInput(base, input.imagePath, input.signal) : '';
+        const uploadedVideo = input.videoPath ? await uploadInput(base, input.videoPath, input.signal) : '';
         const workflowText = substituteWorkflow(template, {
             prompt: input.prompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"'),
             negative: input.negativePrompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"'),
@@ -60,7 +86,8 @@ export const comfyuiRunner = {
             fps: String(input.fps),
             seed: String(Math.max(0, input.seed)),
             steps: String(Math.max(0, input.steps)),
-            image: input.imagePath ?? '',
+            image: uploadedImage,
+            video: uploadedVideo,
             model: input.model.id,
         });
         let workflow;

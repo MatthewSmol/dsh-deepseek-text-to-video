@@ -38,7 +38,6 @@ const PANEL_ID = 'genvideo'
     // RU: main и settings используют один Vue-компонент с разным surface.
     // EN: main and settings share one Vue component with a different surface.
     const MainPanel = (props: any) => React.createElement(VueHost, { ...props, surface: 'main' })
-    const SettingsPanel = (props: any) => React.createElement(VueHost, { ...props, surface: 'settings' })
     const PanelIcon = (props: any) => {
       const size = props?.size ?? 16
       const active = Boolean(props?.active)
@@ -62,10 +61,6 @@ const PANEL_ID = 'genvideo'
       ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: PANEL_ID, locale: NS }, MainPanel))
       ctx.slots.inject('sidebar.panellist', () =>
         ctx.slots.register({ name: 'sidebar.panellist', id: PANEL_ID, order: 30, label, locale: NS }, PanelIcon))
-      ctx.slots.inject('settings.section', () =>
-        ctx.slots.register({ name: 'settings.section', id: PANEL_ID, order: 60, label, locale: NS }, SettingsPanel))
-      ctx.slots.inject('settings.section.icon', () =>
-        ctx.slots.register({ name: 'settings.section.icon', id: PANEL_ID, locale: NS }, PanelIcon))
     }
 
     return { apply, inject: ['slots', 'locale'] }
