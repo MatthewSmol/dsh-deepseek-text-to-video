@@ -234,7 +234,7 @@ function emptyForm(settings?: any) {
     prompt: '',
     negativePrompt: settings?.negativePrompt ?? '',
     modelId: settings?.modelId ?? 'ltx-0.9.8-2b-distilled',
-    runner: 'auto',
+    runner: 'candle',
     platform: settings?.platform ?? 'youtube',
     aspect: settings?.aspect ?? '16:9',
     width: settings?.width ?? 1280,
@@ -377,6 +377,7 @@ const Panel = {
     const custom = ref<any>(emptyCustom())
     const language = ref('en')
     const modelsTab = ref<'installed' | 'explore'>('installed')
+    const runners = ref<any[]>([])
     const explore = ref<any>(null)
     const explorePage = ref(1)
     const exploreBusy = ref(false)
@@ -422,12 +423,24 @@ const Panel = {
         models.value = next.models
         if (!settingsDraft.value) settingsDraft.value = next.settings
         language.value = next.settings?.language ?? 'en'
+        void refreshRunners()
       } catch (err: any) {
         error.value = err.message
       }
     }
 
     /** RU: Загружает библиотеку. EN: Loads the library. */
+    /** RU: Доступность всех раннеров для выбранной модели.
+     *  EN: Availability of every runner for the selected model. */
+    async function refreshRunners(modelId = form.value.modelId) {
+      try {
+        const list = await api(`/runners?modelId=${encodeURIComponent(modelId)}`)
+        if (Array.isArray(list)) runners.value = list
+      } catch {
+        /* keep the previous list */
+      }
+    }
+
     async function refreshLibrary() {
       try {
         library.value = await api('/library')
@@ -775,13 +788,23 @@ const Panel = {
         h(Card, { title: `${t('model')} / ${t('runner')}` }, [
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
             h(Field, { label: t('model') }, [
-              h('select', { class: 'gv-select', value: form.value.modelId, onChange: (event: any) => patch({ modelId: event.target.value }) },
-                models.value.map((item: any) => h('option', { key: item.entry.id, value: item.entry.id }, `${item.entry.title}${item.installed ? ' ✓' : ''}`))),
+              h('select', {
+                class: 'gv-select', value: form.value.modelId,
+                onChange: (event: any) => {
+                  patch({ modelId: event.target.value, runner: 'candle' })
+                  void refreshRunners(event.target.value)
+                },
+              }, models.value.map((item: any) => h('option', { key: item.entry.id, value: item.entry.id }, `${item.entry.title}${item.installed ? ' ✓' : ''}`))),
             ]),
             h(Field, { label: t('runner') }, [
               h('select', { class: 'gv-select', value: runner.value, onChange: (event: any) => patch({ runner: event.target.value }) }, [
                 h('option', { value: 'auto' }, t('auto')),
-                ...(modelEntry.value?.runtimes ?? []).map((id: string) => h('option', { key: id, value: id }, id)),
+                ...(runners.value.length
+                  ? runners.value
+                  : (modelEntry.value?.runtimes ?? []).map((id: string) => ({ id, available: true }))
+                ).map((item: any) => h('option', {
+                  key: item.id, value: item.id, disabled: item.available === false,
+                }, `${item.id}${item.available === false ? ` (${t('unavailable')})` : ''}`)),
               ]),
             ]),
           ]),
