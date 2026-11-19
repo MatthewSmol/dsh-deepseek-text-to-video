@@ -237,7 +237,7 @@ def build_pipeline(request: dict[str, Any], diffusers_module: Any, dtype: Any) -
             raise ValueError("`baseRepo` is required when modelDir has no model_index.json")
         log(
             "GenVideo worker: modelDir has no model_index.json; "
-            f"loading the reference pipeline {source}"
+            f"loading the reference pipeline {source} (first run downloads its components, ~21 GB; the GPU stays idle during the download)"
         )
 
     pipe = pipeline_class.from_pretrained(source, torch_dtype=dtype)
@@ -289,7 +289,22 @@ def configure_pipeline(pipe: Any, device: str) -> bool:
 
     offloaded = False
     if device == "cuda":
-        if hasattr(pipe, "enable_model_cpu_offload"):
+        # RU: На 8 ГБ T5 (~9.5 ГБ в bf16) не влезает даже поштучно, поэтому
+        #     для небольших карт используем последовательный offload.
+        # EN: On 8 GB the T5 encoder (~9.5 GB in bf16) does not fit even alone,
+        #     so small cards use sequential offload.
+        try:
+            total_gb = torch.cuda.get_device_properties(0).total_memory / 1e9
+        except Exception:
+            total_gb = 0
+        if total_gb and total_gb < 12 and hasattr(pipe, "enable_sequential_cpu_offload"):
+            try:
+                pipe.enable_sequential_cpu_offload()
+                offloaded = True
+                log(f"GenVideo worker: sequential CPU offload enabled ({total_gb:.1f} GB VRAM)")
+            except Exception as exc:
+                log(f"WARNING: enable_sequential_cpu_offload failed ({type(exc).__name__}: {exc})")
+        if not offloaded and hasattr(pipe, "enable_model_cpu_offload"):
             try:
                 pipe.enable_model_cpu_offload()
                 offloaded = True
