@@ -199,6 +199,10 @@ export function createApiHandler(engine: Engine, token: string): (req: IncomingM
         ok(res, await engine.workflowDetails())
         return
       }
+      if (path === '/api/comfy/start' && req.method === 'POST') {
+        ok(res, await engine.ensureComfyUI(true))
+        return
+      }
       if (path === '/api/library/delete' && req.method === 'POST') {
         const body = JSON.parse((await readBody(req, MAX_JSON)).toString('utf8') || '{}') as { name?: string }
         ok(res, await engine.deleteVideo(String(body.name ?? '')))

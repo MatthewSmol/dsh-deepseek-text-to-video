@@ -51,7 +51,7 @@ const en: Record<string, string> = {
   gpu: 'GPU', gpuNone: 'No CUDA GPU detected', gpuHint: 'Only the Mock runner can produce video without a GPU.',
   totalMemory: 'Total', usedMemory: 'Used', gpuStrategy: 'Strategy', single: 'Single GPU',
   roundRobin: 'Round-robin', tensorParallel: 'Tensor parallel',
-  tools: 'Tools',
+  tools: 'Tools', comfyAutoStart: 'Start ComfyUI automatically when it is down', comfyDir: 'ComfyUI directory', comfyStart: 'Start now', comfyStarting: 'Starting…',
   enginesIntro: 'Video generation runs through a ComfyUI server with a model workflow. Mock is always available for a quick check.',
   engineReady: 'Ready', engineMissing: 'Not installed', recommended: 'Recommended',
   pythonEngine: 'Python engine (diffusers)', pythonEngineDesc: 'Diffusers models, including LTX-Video 0.9.8 2B and image-to-video. About 5 GB, no root.',
@@ -125,7 +125,7 @@ const ru: Record<string, string> = {
   gpu: 'GPU', gpuNone: 'CUDA GPU не найдена', gpuHint: 'Без GPU видео может создать только Mock-раннер.',
   totalMemory: 'Всего', usedMemory: 'Занято', gpuStrategy: 'Стратегия', single: 'Одна GPU',
   roundRobin: 'По очереди', tensorParallel: 'Tensor parallel',
-  tools: 'Инструменты',
+  tools: 'Инструменты', comfyAutoStart: 'Поднимать ComfyUI автоматически, если он упал', comfyDir: 'Папка ComfyUI', comfyStart: 'Запустить сейчас', comfyStarting: 'Запуск…',
   enginesIntro: 'Генерация идёт через сервер ComfyUI с workflow модели. Mock всегда доступен для быстрой проверки.',
   engineReady: 'Готов', engineMissing: 'Не установлен', recommended: 'Рекомендуется',
   pythonEngine: 'Python-движок (diffusers)', pythonEngineDesc: 'Модели diffusers, включая LTX-Video 0.9.8 2B и image-to-video. Около 5 ГБ, без sudo.',
@@ -1657,7 +1657,7 @@ const Panel = {
       const deps = state.value.deps
       return h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
         h(Card, { title: t('environment') }, [
-          h('p', { class: 'gv-hint gv-mb-3' }, 'Read-only status of the engine used for generation.'),
+          h('p', { class: 'gv-hint gv-mb-3' }, 'Status and local ComfyUI control.'),
           h('div', { class: 'gv-flex gv-flex-col gv-gap-2' }, [
             h(Row, { label: 'ComfyUI', hint: deps.comfyui.url ?? '' }, [
               h(Badge, { tone: deps.comfyui.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.comfyui.ok ? deps.comfyui.url : t('unavailable')),
@@ -1670,6 +1670,39 @@ const Panel = {
             ]),
             h(Row, { label: t('ffprobe') }, [
               h(Badge, { tone: deps.ffprobe.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.ffprobe.ok ? deps.ffprobe.path : t('unavailable')),
+            ]),
+          ]),
+          h('div', { class: 'gv-mt-4 gv-rounded-lg gv-border gv-border-line gv-bg-surface-2 gv-p-2.5' }, [
+            h('label', { class: 'gv-flex gv-items-center gv-gap-2 gv-text-[12px] gv-text-text' }, [
+              h('input', {
+                type: 'checkbox', checked: Boolean(settings.value.deps?.comfyuiAutoStart),
+                onChange: (event: any) => {
+                  settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, comfyuiAutoStart: event.target.checked } }
+                  void saveSettings(settingsDraft.value)
+                },
+              }),
+              t('comfyAutoStart'),
+            ]),
+            h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-items-end gv-gap-2' }, [
+              h('div', { class: 'gv-flex-1 gv-min-w-[220px]' }, [
+                h('div', { class: 'gv-hint gv-mb-1' }, t('comfyDir')),
+                h('input', {
+                  class: 'gv-input', placeholder: '/path/to/ComfyUI', value: settings.value.deps?.comfyuiDir ?? '',
+                  onInput: (event: any) => (settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, comfyuiDir: event.target.value } }),
+                }),
+              ]),
+              h('button', { type: 'button', class: 'gv-btn', onClick: () => void saveSettings(settingsDraft.value) }, t('save')),
+              h('button', {
+                type: 'button', class: 'gv-btn gv-btn-primary', disabled: busy.value === 'comfy-start',
+                onClick: async () => {
+                  busy.value = 'comfy-start'
+                  try {
+                    const result = await api('/comfy/start', { method: 'POST', body: '{}' })
+                    notice.value = result.ok ? `ComfyUI: ${result.url}` : (result.error ?? t('unavailable'))
+                    await refresh()
+                  } catch (err: any) { error.value = err.message } finally { busy.value = '' }
+                },
+              }, busy.value === 'comfy-start' ? t('comfyStarting') : t('comfyStart')),
             ]),
           ]),
           h('div', { class: 'gv-mt-4' }, [

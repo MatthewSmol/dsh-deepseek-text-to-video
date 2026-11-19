@@ -111,6 +111,8 @@ export interface DepsSettings {
    *  EN: Extra argv for candle-video (for example, --device vulkan). */
   candleArgs: string[]
   comfyuiUrl: string
+  comfyuiAutoStart: boolean
+  comfyuiDir: string
 }
 
 /** RU: Поведение раннеров. EN: Runner behaviour. */

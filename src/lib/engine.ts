@@ -8,7 +8,8 @@
  *     methods, so the agent and the UI see identical results.
  */
 import { access, copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises'
-import { existsSync } from 'node:fs'
+import { closeSync, existsSync, openSync, readFileSync } from 'node:fs'
+import { spawn } from 'node:child_process'
 import { homedir } from 'node:os'
 import { dirname, extname, join } from 'node:path'
 import { randomInt, randomUUID } from 'node:crypto'
@@ -32,7 +33,7 @@ import { GenVideoError, toApiError } from './errors.js'
 import { SettingsStore, resolveDirs } from './store.js'
 import { JobManager, type JobContext } from './jobs.js'
 import { detectGpus, selectGpus } from './gpu.js'
-import { buildToolsStatus, detectDeps, findNvcc } from './deps.js'
+import { buildToolsStatus, detectComfyUi, detectDeps, findNvcc } from './deps.js'
 import { allModels, findModel, findVariant, formatGB, snapFrames } from './models.js'
 import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes } from './media.js'
 import { fitPlanToBudget, planGeneration } from './planner.js'
@@ -102,6 +103,7 @@ export class Engine {
   private depsStatus: DepsStatus | null = null
   private readonly listeners = new Set<(event: ServerEvent) => void>()
   private readonly plans = new Map<string, { plan: Plan; request: GenerateRequest; createdAt: number }>()
+  private comfyStarting: Promise<{ ok: boolean; started: boolean; url: string; error: string | null; logTail: string[] }> | null = null
 
   constructor(
     readonly settingsStore = new SettingsStore(),
@@ -268,6 +270,7 @@ export class Engine {
 
   /** RU: Строит план и объясняет ограничения модели. EN: Builds the plan and explains model limits. */
   async plan(request: GenerateRequest): Promise<Plan> {
+    if (this.settings.deps.comfyuiAutoStart) await this.ensureComfyUI()
     if (request.inputImageId && request.inputVideoId) {
       throw new GenVideoError('input-conflict', 'Choose either a reference image or a reference video, not both.', { status: 409 })
     }
@@ -395,6 +398,7 @@ export class Engine {
     const prompt = String(request.prompt ?? '').trim()
     if (!prompt) throw new GenVideoError('empty-prompt', 'A prompt is required')
     if (prompt.length > 8000) throw new GenVideoError('prompt-too-long', 'The prompt is longer than 8000 characters')
+    if (this.settings.deps.comfyuiAutoStart) await this.ensureComfyUI()
     if (!request.planId) {
       const preview = await this.plan(request)
       throw new GenVideoError('confirmation-required', 'Generation requires confirmation. Show the plan to the user, then call generate with planId.', {
@@ -753,6 +757,65 @@ export class Engine {
       })
     })
     return job
+  }
+
+  /** RU: Каталог ComfyUI: настройка, env или известные пути.
+   *  EN: ComfyUI directory: setting, env or known locations. */
+  private comfyDir(): string {
+    const candidates = [
+      this.settings.deps.comfyuiDir,
+      process.env.GENVIDEO_COMFY_DIR ?? '',
+      join(homedir(), 'test', 'ComfyUI'),
+      join(homedir(), 'ComfyUI'),
+      join(homedir(), 'comfyui'),
+      join(genvideoHome(), 'ComfyUI'),
+    ].filter(Boolean)
+    return candidates.find((dir) => existsSync(join(dir, 'main.py')) && existsSync(join(dir, 'venv', 'bin', 'python'))) ?? candidates[0] ?? ''
+  }
+
+  /** RU: Поднимает локальный ComfyUI, если он упал. EN: Starts local ComfyUI when it is down. */
+  async ensureComfyUI(force = false): Promise<{ ok: boolean; started: boolean; url: string; error: string | null; logTail: string[] }> {
+    const detected = await detectComfyUi(this.settings.deps.comfyuiUrl)
+    if (detected.ok) return { ok: true, started: false, url: detected.url, error: null, logTail: [] }
+    if (!force && !this.settings.deps.comfyuiAutoStart) {
+      return { ok: false, started: false, url: '', error: 'ComfyUI is not running and auto-start is disabled.', logTail: [] }
+    }
+    if (this.comfyStarting) return await this.comfyStarting
+    this.comfyStarting = (async () => {
+      const dir = this.comfyDir()
+      const python = join(dir, 'venv', 'bin', 'python')
+      const main = join(dir, 'main.py')
+      if (!dir || !existsSync(main) || !existsSync(python)) {
+        return { ok: false, started: false, url: '', error: `ComfyUI directory not found. Set deps.comfyuiDir to a folder with main.py and venv/bin/python (tried: ${dir || 'nothing'}).`, logTail: [] }
+      }
+      const url = this.settings.deps.comfyuiUrl || 'http://127.0.0.1:8188'
+      const port = (() => { try { return new URL(url).port || '8188' } catch { return '8188' } })()
+      const logPath = join(genvideoHome(), 'comfyui-autostart.log')
+      const fd = openSync(logPath, 'a')
+      try {
+        const child = spawn(python, [main, '--listen', '127.0.0.1', '--port', port], {
+          cwd: dir, detached: true, stdio: ['ignore', fd, fd], env: process.env,
+        })
+        child.unref()
+        console.log(`genvideo: auto-starting ComfyUI from ${dir} (pid ${child.pid ?? '?'})`)
+      } catch (error) {
+        closeSync(fd)
+        return { ok: false, started: false, url: '', error: error instanceof Error ? error.message : String(error), logTail: [] }
+      }
+      closeSync(fd)
+      const startedAt = Date.now()
+      while (Date.now() - startedAt < 60_000) {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        if (await detectComfyUi(url).then((item) => item.ok).catch(() => false)) {
+          this.depsStatus = null
+          await this.refresh(true)
+          return { ok: true, started: true, url, error: null, logTail: [] }
+        }
+      }
+      const logTail = readFileSync(logPath, 'utf8').trim().split('\n').slice(-12)
+      return { ok: false, started: false, url: '', error: `ComfyUI did not start within 60s. See ${logPath}.`, logTail }
+    })().finally(() => { this.comfyStarting = null })
+    return await this.comfyStarting
   }
 
   /** RU: Разбирает ComfyUI-workflow и показывает модели/энкодер/VAE/апскейлер.

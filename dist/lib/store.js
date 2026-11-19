@@ -59,6 +59,8 @@ export const DEFAULT_SETTINGS = {
         candleBinary: '',
         candleArgs: [],
         comfyuiUrl: '',
+        comfyuiAutoStart: false,
+        comfyuiDir: '',
     },
     runners: {
         mockDelayMs: 120,
@@ -213,6 +215,8 @@ export function sanitizeSettings(raw) {
                 ? depsRaw.candleArgs.filter((arg) => typeof arg === 'string' && arg.length > 0).slice(0, 32).map((arg) => arg.slice(0, 500))
                 : [],
             comfyuiUrl: str(depsRaw.comfyuiUrl, 1000, ''),
+            comfyuiAutoStart: bool(depsRaw.comfyuiAutoStart, false),
+            comfyuiDir: str(depsRaw.comfyuiDir, 1000, ''),
         },
         runners: {
             mockDelayMs: int(runnersRaw.mockDelayMs, 0, 10_000, 120),
