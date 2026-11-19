@@ -4,6 +4,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
+import { parseNvidiaSmiCsv } from '../lib/gpu.js'
 import { BUILTIN_MODELS, allModels, customToEntry, findModel, findVariant, isNativeSize, snapFrames } from '../lib/models.js'
 import type { CustomModel } from '../lib/types.js'
 
@@ -64,4 +65,21 @@ test('frame helpers snap to 8n+1 and multiples of 32', () => {
   assert.equal(snapFrames(1000, 9, 257), 257)
   assert.equal(isNativeSize(768, 512), true)
   assert.equal(isNativeSize(770, 512), false)
+})
+
+
+/**
+ * RU: Регрессия: nvidia-smi отдаёт 5 полей после индекса (name, total, used,
+ *     driver, compute_cap), причём с CRLF. Раньше парсер требовал 6 и молча
+ *     возвращал пустой список, из-за чего GPU «пропадали».
+ * EN: Regression: nvidia-smi returns 5 fields after the index (name, total,
+ *     used, driver, compute_cap) with CRLF. The parser used to require 6 and
+ *     silently returned an empty list, so GPUs "disappeared".
+ */
+test('parses nvidia-smi CSV with two GPUs', () => {
+  const csv = '0, NVIDIA GeForce RTX 3070, 8192, 2735, 621.14, 8.6\r\n1, NVIDIA GeForce RTX 3060 Ti, 8192, 78, 621.14, 8.6\r\n'
+  const gpus = parseNvidiaSmiCsv(csv)
+  assert.equal(gpus.length, 2)
+  assert.deepEqual(gpus[0], { index: 0, name: 'NVIDIA GeForce RTX 3070', totalMB: 8192, usedMB: 2735, driver: '621.14', computeCap: '8.6' })
+  assert.equal(gpus[1].name, 'NVIDIA GeForce RTX 3060 Ti')
 })

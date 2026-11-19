@@ -9,6 +9,7 @@
 import { existsSync } from 'node:fs';
 import { runCommand } from './proc.js';
 const QUERY = 'index,name,memory.total,memory.used,driver_version,compute_cap';
+const WINDOWS_SMI = '/mnt/c/Windows/System32/nvidia-smi.exe';
 /** RU: Парсит CSV-ответ nvidia-smi. EN: Parses the nvidia-smi CSV answer. */
 export function parseNvidiaSmiCsv(text) {
     const gpus = [];
@@ -24,13 +25,17 @@ export function parseNvidiaSmiCsv(text) {
         const index = Number(trimmed.slice(0, firstComma));
         const rest = trimmed.slice(firstComma + 1);
         const tail = rest.split(',');
-        if (tail.length < 6)
+        // RU: после index идут 5 полей: name, total, used, driver, compute_cap.
+        //     name может содержать запятые, поэтому отделяем его по остатку.
+        // EN: index is followed by 5 fields: name, total, used, driver, compute_cap.
+        //     name may contain commas, so keep everything before the last four.
+        if (tail.length < 5)
             continue;
         const computeCap = tail[tail.length - 1].trim();
         const driver = tail[tail.length - 2].trim();
         const used = Number(tail[tail.length - 3]);
         const total = Number(tail[tail.length - 4]);
-        const name = tail.slice(0, tail.length - 5).join(',').trim();
+        const name = tail.slice(0, tail.length - 4).join(',').trim();
         if (!Number.isFinite(index))
             continue;
         gpus.push({
@@ -58,27 +63,71 @@ function hintsFor(error) {
     hints.push('The plugin stays usable with the Mock runner and ffmpeg-only operations.');
     return hints;
 }
-/** RU: Опрашивает nvidia-smi и возвращает состояние GPU.
- *  EN: Queries nvidia-smi and returns the GPU state. */
+/** RU: Один запрос к указанному nvidia-smi. EN: One query to a given nvidia-smi. */
+async function queryNvidiaSmi(command) {
+    const result = await runCommand(command, [`--query-gpu=${QUERY}`, '--format=csv,noheader,nounits'], { timeoutMs: 12_000 });
+    if (result.code !== 0) {
+        return { ok: false, error: (result.stderr || result.stdout || `nvidia-smi exited ${result.code}`).trim() };
+    }
+    const gpus = parseNvidiaSmiCsv(result.stdout);
+    if (!gpus.length)
+        return { ok: false, error: 'nvidia-smi returned no GPUs' };
+    return { ok: true, gpus };
+}
+/** RU: Подсказки, когда карты видны из Windows, но не проброшены в WSL.
+ *  EN: Hints for "GPUs visible from Windows but not passed through to WSL". */
+function windowsHints() {
+    return [
+        'The GPUs are visible through the Windows driver, but /dev/nvidia* is missing inside WSL.',
+        'Update the Windows NVIDIA driver, then run `wsl --shutdown` in PowerShell and reopen WSL.',
+        'Real CUDA generation will fail until passthrough is restored; the Mock runner still works.',
+    ];
+}
+/** RU: Опрашивает nvidia-smi и возвращает состояние GPU. Если NVML в WSL
+ *      сломан, но Windows-драйвер карты видит, показывает их с предупреждением.
+ *  EN: Queries nvidia-smi and returns the GPU state. If WSL NVML is broken but
+ *      the Windows driver sees the cards, it lists them with a warning. */
 export async function detectGpus() {
     const checkedAt = Date.now();
-    try {
-        const result = await runCommand('nvidia-smi', [`--query-gpu=${QUERY}`, '--format=csv,noheader,nounits'], { timeoutMs: 8000 });
-        if (result.code !== 0) {
-            const error = (result.stderr || result.stdout || `nvidia-smi exited ${result.code}`).trim();
-            return { available: false, gpus: [], error, hints: hintsFor(error), checkedAt };
+    const errors = [];
+    for (const command of ['nvidia-smi', '/usr/lib/wsl/lib/nvidia-smi']) {
+        try {
+            const attempt = await queryNvidiaSmi(command);
+            if (attempt.ok) {
+                return { available: true, gpus: attempt.gpus, error: null, hints: [], checkedAt, source: 'linux' };
+            }
+            errors.push(attempt.error);
         }
-        const gpus = parseNvidiaSmiCsv(result.stdout);
-        if (!gpus.length) {
-            const error = 'nvidia-smi returned no GPUs';
-            return { available: false, gpus: [], error, hints: hintsFor(error), checkedAt };
+        catch (error) {
+            errors.push(error instanceof Error ? error.message : String(error));
         }
-        return { available: true, gpus, error: null, hints: [], checkedAt };
     }
-    catch (error) {
-        const message = error instanceof Error ? error.message : String(error);
-        return { available: false, gpus: [], error: message, hints: hintsFor(message), checkedAt };
+    const nativeError = errors[0] ?? 'nvidia-smi is unavailable';
+    // RU: WSL часто теряет /dev/nvidia* после обновления драйвера, но
+    //     nvidia-smi.exe из Windows продолжает видеть карты. Показываем их,
+    //     чтобы настройки GPU и объём памяти оставались осмысленными.
+    // EN: WSL often loses /dev/nvidia* after a driver update, while the Windows
+    //     nvidia-smi.exe still sees the cards. Show them so GPU settings and
+    //     VRAM numbers stay meaningful.
+    if (existsSync(WINDOWS_SMI)) {
+        try {
+            const attempt = await queryNvidiaSmi(WINDOWS_SMI);
+            if (attempt.ok) {
+                return {
+                    available: true,
+                    gpus: attempt.gpus,
+                    error: `GPUs detected through the Windows driver, but WSL CUDA passthrough is unavailable (${nativeError})`,
+                    hints: windowsHints(),
+                    checkedAt,
+                    source: 'windows',
+                };
+            }
+        }
+        catch {
+            /* ignore the fallback failure; the native error is more useful */
+        }
     }
+    return { available: false, gpus: [], error: nativeError, hints: hintsFor(nativeError), checkedAt };
 }
 /** RU: Выбирает GPU по настройкам; пустой список = первая доступная.
  *  EN: Picks GPUs from settings; an empty list means the first available one. */

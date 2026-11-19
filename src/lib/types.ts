@@ -224,6 +224,9 @@ export interface GpuStatus {
   error: string | null
   hints: string[]
   checkedAt: number
+  /** RU: linux = NVML в WSL, windows = fallback через Windows-драйвер.
+   *  EN: linux = NVML inside WSL, windows = fallback through the Windows driver. */
+  source?: 'linux' | 'windows'
 }
 
 /** RU: Состояние внешних зависимостей. EN: External dependency state. */

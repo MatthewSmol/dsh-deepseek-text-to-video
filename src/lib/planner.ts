@@ -118,6 +118,13 @@ export function planGeneration(input: PlanInput): Plan {
   if (!gpu.available) {
     warnings.push({ code: 'no-gpu', message: gpu.error || 'No CUDA GPU detected; only the Mock runner can produce output.' })
   }
+  // RU: Карты видны из Windows, но CUDA в WSL не проброшена — реальный раннер
+  //     почти наверняка упадёт, хотя VRAM для оценки известна.
+  // EN: Cards are visible from Windows but CUDA is not passed through to WSL;
+  //     the real runner will likely fail even though VRAM is known.
+  if (gpu.available && gpu.source === 'windows') {
+    warnings.push({ code: 'wsl-cuda-unavailable', message: 'GPUs were detected through the Windows driver, but WSL CUDA passthrough is unavailable. Real generation may fail until `wsl --shutdown` is run after a driver update.' })
+  }
   if (!input.imageInput && model.capabilities.i2v) {
     warnings.push({ code: 'image-optional', message: 'This model also accepts a reference image (image-to-video).' })
   }

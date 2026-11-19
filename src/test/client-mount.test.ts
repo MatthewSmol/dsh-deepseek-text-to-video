@@ -127,6 +127,8 @@ test('the Vue panel mounts through the React bridge and renders the scoped UI', 
   const html = container.innerHTML
   assert.ok(html.includes('GenVideo'), 'the header title must be rendered')
   assert.ok(html.includes('gv-'), 'scoped panel classes must be applied')
+  assert.ok(html.includes('gv-panel'), 'the root must be the scrollable panel')
+  assert.ok(html.includes('.gv-panel'), 'the scroll CSS must be inlined')
   assert.ok(html.includes('Generate video') || html.includes('Generate'), 'the generate tab must be visible')
   assert.ok(html.includes('ffmpeg'), 'environment state must be rendered')
   assert.ok(html.length > 2000, `expected a full panel, got ${html.length} chars`)

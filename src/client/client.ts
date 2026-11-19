@@ -32,7 +32,7 @@ const PANEL_ID = 'genvideo'
         app.mount(container.current)
         return () => app.unmount()
       }, [])
-      return React.createElement('div', { ref: container, class: 'genvideo-host' })
+      return React.createElement('div', { ref: container, class: 'genvideo-host', style: { display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 } })
     }
 
     // RU: main и settings используют один Vue-компонент с разным surface.
