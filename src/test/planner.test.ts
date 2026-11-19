@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildSegmentPrompts, computeSegments, splitPrompt, estimateVramGB, planGeneration } from '../lib/planner.js'
+import { buildSegmentPrompts, computeSegments, fitPlanToBudget, splitPrompt, estimateVramGB, planGeneration } from '../lib/planner.js'
 import { DEFAULT_SETTINGS } from '../lib/store.js'
 import type { ModelEntry } from '../lib/types.js'
 
@@ -146,4 +146,14 @@ test('plan uses fixed 9s clips and full-scene prompts for a 60s video', () => {
   assert.equal(plan.totalSec, 60)
   assert.ok(plan.segments.every((segment) => segment.prompt.includes('A full scene')))
   assert.equal(plan.segments[6]?.durationSec, 6)
+})
+
+
+test('auto-fit finds a multiple-of-32 resolution and clip within the budget', () => {
+  const fit = fitPlanToBudget({ model, budgetGB: 8, width: 1280, height: 720, clipSec: 9, targetDurationSec: 60, fps: 24 })
+  assert.ok(fit)
+  assert.equal(fit!.width % 32, 0)
+  assert.equal(fit!.height % 32, 0)
+  assert.ok(fit!.estimatedVramGB <= 8 * 0.95)
+  assert.ok(fit!.clipSec <= 9)
 })

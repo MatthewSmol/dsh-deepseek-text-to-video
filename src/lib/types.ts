@@ -344,6 +344,8 @@ export interface GenerateRequest {
   steps?: number
   guidance?: number
   continuity?: 'none' | 'last-frame'
+  /** RU: Автоподбор разрешения/клипа под VRAM (для чат-бота). EN: Auto-fit resolution/clip to VRAM (for chat agents). */
+  autoFit?: boolean
   inputImageId?: string
   inputVideoId?: string
   outputName?: string

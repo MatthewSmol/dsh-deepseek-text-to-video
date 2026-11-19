@@ -106,6 +106,7 @@ const TOOLS: ToolDefinition[] = [
         clipSec: { type: 'number' },
         promptMode: { type: 'string', enum: ['split', 'full'] },
         segmentMode: { type: 'string', enum: ['fixed', 'even'] },
+        autoFit: { type: 'boolean' },
         continuity: { type: 'string', enum: ['none', 'last-frame'] },
         inputImageId: { type: 'string' },
         inputVideoId: { type: 'string' },
@@ -343,9 +344,9 @@ async function callTool(engine: Engine, name: string, args: Record<string, unkno
     case 'check_updates':
       return await engine.checkUpdates(args.modelId ? String(args.modelId) : undefined)
     case 'plan':
-      return await engine.plan(args as unknown as GenerateRequest)
+      return await engine.plan({ ...args, autoFit: args.autoFit === undefined ? true : Boolean(args.autoFit) } as unknown as GenerateRequest)
     case 'generate': {
-      const result = await engine.generate(args as unknown as GenerateRequest)
+      const result = await engine.generate({ ...args, autoFit: args.autoFit === undefined ? true : Boolean(args.autoFit) } as unknown as GenerateRequest)
       return { jobId: result.job.id, plan: result.plan }
     }
     case 'jobs': {

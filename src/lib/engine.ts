@@ -35,7 +35,7 @@ import { detectGpus, selectGpus } from './gpu.js'
 import { buildToolsStatus, detectDeps, findNvcc } from './deps.js'
 import { allModels, findModel, findVariant, formatGB, snapFrames } from './models.js'
 import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes } from './media.js'
-import { planGeneration } from './planner.js'
+import { fitPlanToBudget, planGeneration } from './planner.js'
 import { defaultModelsDir, defaultVideosDir, genvideoHome, inputsDir, safeBaseName, scratchDir, assertInside, outputFileName, slugify, ensureDirSync } from './paths.js'
 import { allAvailability, pickRunner } from './runners/index.js'
 import { downloadModelFiles, checkRemoteRevision, findNewerCandidates } from './downloads.js'
@@ -271,8 +271,30 @@ export class Engine {
     const { model, variant, runner } = await this.resolveModel(request)
     const deps = await this.deps()
     const gpu = await this.gpu()
-    const { width, height, fps } = this.frameSize(request, model, settings)
+    let { width, height } = this.frameSize(request, model, settings)
+    const { fps } = this.frameSize(request, model, settings)
     const target = Math.max(0.5, request.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended)
+    let clipSec = request.clipSec ?? settings.clipSec
+    let autoFitNote: string | null = null
+    if (request.autoFit && !request.width && !request.height) {
+      const selected = selectGpus(gpu, settings.gpu.ids)
+      const budget = settings.gpu.vramBudgetGB > 0
+        ? settings.gpu.vramBudgetGB
+        : selected.length
+          ? Math.max(...selected.map((card) => card.totalMB / 1024))
+          : 0
+      if (budget > 0) {
+        const fit = fitPlanToBudget({
+          model, budgetGB: budget, width, height, clipSec, targetDurationSec: target, fps, segmentMode: request.segmentMode,
+        })
+        if (fit) {
+          width = fit.width
+          height = fit.height
+          clipSec = fit.clipSec
+          autoFitNote = `Auto-fit: ${width}x${height}, ${fit.clipSec}s clips, ~${fit.estimatedVramGB} GB VRAM.`
+        }
+      }
+    }
     const transcode = this.transcodeOptions(request)
     let estimatedBytes: number | null = null
     if (transcode.enabled) {
@@ -289,7 +311,7 @@ export class Engine {
       gpu,
       prompt: request.prompt,
       targetDurationSec: target,
-      clipSec: request.clipSec ?? settings.clipSec,
+      clipSec,
       promptMode: request.promptMode,
       segmentMode: request.segmentMode,
       width,
@@ -302,6 +324,7 @@ export class Engine {
       transcodeMode: transcode.enabled ? transcode.mode : null,
     })
     plan.warnings.push(...this.runtimeWarnings(model, variant, runner, deps, gpu, settings))
+    if (autoFitNote) plan.warnings.push({ code: 'auto-fit', message: autoFitNote })
     return plan
   }
 

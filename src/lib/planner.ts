@@ -140,6 +140,44 @@ export function buildSegmentPrompts(
   return { prompts: Array.from({ length: count }, () => base), fallback: false }
 }
 
+/** RU: Максимальное разрешение и клип, укладывающиеся в бюджет VRAM.
+ *      Используется авто-режимом MCP, когда тонкие настройки недоступны.
+ *  EN: Maximum resolution and clip that fit the VRAM budget. Used by the MCP
+ *      auto mode when fine-grained settings are unavailable. */
+export function fitPlanToBudget(input: {
+  model: ModelEntry
+  budgetGB: number
+  width: number
+  height: number
+  clipSec: number
+  targetDurationSec: number
+  fps: number
+  segmentMode?: SegmentMode
+}): { width: number; height: number; clipSec: number; estimatedVramGB: number } | null {
+  const budget = input.budgetGB * 0.95
+  if (budget <= 0) return null
+  const ratio = input.width / Math.max(1, input.height)
+  const snap = (value: number) => Math.max(64, Math.round(value / 32) * 32)
+  const heights = [input.height, 768, 704, 640, 576, 512, 448, 384, 320, 256, 224, 192]
+    .map((value) => snap(value))
+    .filter((value, index, list) => list.indexOf(value) === index)
+    .sort((a, b) => b - a)
+  const clips = Array.from(new Set([Math.min(input.clipSec, input.targetDurationSec), 8, 7, 6, 5, 4, 3, 2, 1]))
+    .filter((value) => value > 0 && value <= input.model.durationSec.max)
+    .sort((a, b) => b - a)
+  for (const clip of clips) {
+    const frames = Math.max(9, Math.round(clip * input.fps) + 1)
+    for (const height of heights) {
+      const width = snap(height * ratio)
+      const estimated = estimateVramGB(input.model, width, height, frames)
+      if (estimated <= budget) {
+        return { width, height, clipSec: clip, estimatedVramGB: estimated }
+      }
+    }
+  }
+  return null
+}
+
 /** RU: Собирает полный план. EN: Builds the full plan. */
 export function planGeneration(input: PlanInput): Plan {
   const { settings, model, gpu } = input
