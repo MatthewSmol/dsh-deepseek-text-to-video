@@ -13,3 +13,6 @@ dist/vite-client/
 dist/client.meta.json
 .npm-cache/
 AGENTS.md
+
+# ComfyUI runtime log
+.comfy-server.log
