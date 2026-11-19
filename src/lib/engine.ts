@@ -793,7 +793,9 @@ export class Engine {
       const logPath = join(genvideoHome(), 'comfyui-autostart.log')
       const fd = openSync(logPath, 'a')
       try {
-        const child = spawn(python, [main, '--listen', '127.0.0.1', '--port', port], {
+        const gpuTotal = this.gpuStatus?.gpus?.length ? Math.max(...this.gpuStatus.gpus.map((gpu) => gpu.totalMB / 1024)) : 0
+        const memoryArgs = gpuTotal > 0 && gpuTotal <= 12 ? ['--reserve-vram', '1'] : []
+        const child = spawn(python, [main, '--listen', '127.0.0.1', '--port', port, ...memoryArgs], {
           cwd: dir, detached: true, stdio: ['ignore', fd, fd], env: process.env,
         })
         child.unref()

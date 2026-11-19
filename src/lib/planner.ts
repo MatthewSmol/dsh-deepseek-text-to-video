@@ -212,7 +212,8 @@ export function fitPlanToBudget(input: {
 
 /** RU: Авто-длина клипа по VRAM. EN: Auto clip length by VRAM. */
 export function autoClipSec(vramGB: number, fps: number): number {
-  const base = vramGB >= 16 ? 8 : vramGB >= 10 ? 6 : 4
+  if (!(vramGB > 0)) return 4
+  const base = vramGB >= 16 ? 8 : vramGB >= 10 ? 6 : vramGB >= 6.5 ? 4 : vramGB >= 4.5 ? 3 : 2
   const frames = Math.round(base * fps + 1)
   if (frames <= 257) return base
   return Math.max(1, Math.floor((257 - 1) / fps))
@@ -227,16 +228,25 @@ export function planGeneration(input: PlanInput): Plan {
   const height = input.height && input.height > 0 ? input.height : model.height
   const target = Math.max(0.5, input.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended)
   const selectedGpu = gpu.available ? gpu.gpus.filter((item) => !settings.gpu.ids.length || settings.gpu.ids.includes(item.index)) : []
-  const vram = settings.gpu.vramBudgetGB > 0
-    ? settings.gpu.vramBudgetGB
-    : selectedGpu.length
-      ? Math.max(...selectedGpu.map((item) => item.totalMB / 1024))
-      : 0
+  const totalVram = selectedGpu.length
+    ? Math.max(...selectedGpu.map((item) => item.totalMB / 1024))
+    : 0
+  const freeVram = selectedGpu.length
+    ? Math.min(...selectedGpu.map((item) => (item.totalMB - item.usedMB) / 1024))
+    : 0
+  const vram = settings.gpu.vramBudgetGB > 0 ? settings.gpu.vramBudgetGB : totalVram
+  const autoBudget = freeVram > 0 ? Math.min(vram || freeVram, freeVram) : vram
   const autoClip = !input.clipSec || input.clipSec <= 0
   const clipRequested = Math.min(
-    autoClip ? autoClipSec(vram, fps) : (input.clipSec as number),
+    autoClip ? autoClipSec(autoBudget, fps) : (input.clipSec as number),
     model.durationSec.max,
   )
+  if (autoClip) {
+    warnings.push({
+      code: 'auto-clip',
+      message: `Auto clip ${clipRequested}s: ${autoBudget.toFixed(1)} GB usable VRAM (${freeVram.toFixed(1)} GB free), max 257 frames.`,
+    })
+  }
   const promptMode: PromptMode = input.promptMode ?? 'full'
   const mode: 't2v' | 'i2v' | 'v2v' = input.videoInput ? 'v2v' : input.imageInput ? 'i2v' : 't2v'
   const promptProfile = resolvePromptProfile(model, mode)
