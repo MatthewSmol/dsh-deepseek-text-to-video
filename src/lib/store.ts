@@ -180,7 +180,7 @@ export function sanitizeSettings(raw: unknown): Settings {
     negativePrompt: str(source.negativePrompt, 4000, ''),
     seed: int(source.seed, -1, 2_147_483_647, -1),
     continuity: oneOf(source.continuity, ['none', 'last-frame'] as const, 'none'),
-    promptMode: oneOf(source.promptMode, ['split', 'full'] as const, 'full'),
+    promptMode: oneOf(source.promptMode, ['split', 'full', 'shots'] as const, 'full'),
     transcode: {
       enabled: bool(transcodeRaw.enabled, true),
       mode: oneOf(transcodeRaw.mode, ['quality', 'size'] as const, 'quality'),

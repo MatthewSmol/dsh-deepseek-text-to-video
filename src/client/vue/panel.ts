@@ -248,9 +248,9 @@ function emptyForm(settings?: any) {
     fps: settings?.fps ?? 30,
     targetDurationSec: settings?.targetDurationSec ?? 60,
     clipSec: settings?.clipSec ?? 9,
-    promptMode: 'shots',
+    promptMode: settings?.promptMode ?? 'shots',
     segmentPrompts: '',
-    continuity: 'last-frame',
+    continuity: settings?.continuity ?? 'last-frame',
     seed: settings?.seed ?? -1,
     steps: settings?.steps ?? 0,
     guidance: settings?.guidance ?? 0,
@@ -371,6 +371,7 @@ const Panel = {
     const state = ref<any>(null)
     const tab = ref(props.surface === 'settings' ? 'settings' : 'generate')
     const form = ref<any>(emptyForm())
+    let formHydrated = false
     const plan = ref<any>(null)
     const planError = ref('')
     const liveJobs = ref<Record<string, any>>({})
@@ -431,6 +432,10 @@ const Panel = {
         state.value = next
         models.value = next.models
         if (!settingsDraft.value) settingsDraft.value = next.settings
+        if (!formHydrated) {
+          form.value = { ...emptyForm(next.settings), prompt: form.value.prompt, segmentPrompts: form.value.segmentPrompts }
+          formHydrated = true
+        }
         language.value = next.settings?.language ?? 'en'
         void refreshRunners()
       } catch (err: any) {
