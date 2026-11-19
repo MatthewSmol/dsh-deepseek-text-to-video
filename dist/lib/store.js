@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
     negativePrompt: '',
     seed: -1,
     continuity: 'none',
+    promptMode: 'full',
     transcode: {
         enabled: true,
         mode: 'quality',
@@ -176,6 +177,7 @@ export function sanitizeSettings(raw) {
         negativePrompt: str(source.negativePrompt, 4000, ''),
         seed: int(source.seed, -1, 2_147_483_647, -1),
         continuity: oneOf(source.continuity, ['none', 'last-frame'], 'none'),
+        promptMode: oneOf(source.promptMode, ['split', 'full'], 'full'),
         transcode: {
             enabled: bool(transcodeRaw.enabled, true),
             mode: oneOf(transcodeRaw.mode, ['quality', 'size'], 'quality'),

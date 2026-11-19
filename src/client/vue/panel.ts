@@ -75,7 +75,7 @@ const en: Record<string, string> = {
   newerVersion: 'Newer version available', installModel: 'Install model', addModel: 'Add a custom model',
   repo: 'Hugging Face repo', runtime: 'Runner', commandTemplate: 'Command template (one argv token per line)',
   weights: 'Weights (one file per line)', removeModel: 'Delete model', saveModel: 'Save model',
-  uploading: 'Uploading…', planFailed: 'Could not build the plan', qualityMode: 'Quality tiers', sizeMode: 'Size limit',
+  saveDefaults: 'Save settings', uploading: 'Uploading…', planFailed: 'Could not build the plan', qualityMode: 'Quality tiers', sizeMode: 'Size limit',
   mcpTools: 'Tools', version: 'Version', settingsHint: 'Stored in DSH_HOME/genvideo/settings.json.',
   outputHint: 'Default: <project>/Videos', modelsHint: 'Default: <project>/models', seedHint: '-1 = random',
   stepsHint: '0 = model default', negativeHint: 'What to avoid in the shot', inputHint: 'The model must support this input.',
@@ -147,7 +147,7 @@ const ru: Record<string, string> = {
   newerVersion: 'Доступна более новая версия', installModel: 'Установить модель', addModel: 'Своя модель',
   repo: 'Репозиторий Hugging Face', runtime: 'Раннер', commandTemplate: 'Шаблон команды (по одному токену в строке)',
   weights: 'Файлы весов (по одному в строке)', removeModel: 'Удалить модель', saveModel: 'Сохранить модель',
-  uploading: 'Загрузка…', planFailed: 'Не удалось построить план', qualityMode: 'Уровни качества', sizeMode: 'Лимит размера',
+  saveDefaults: 'Сохранить настройки', uploading: 'Загрузка…', planFailed: 'Не удалось построить план', qualityMode: 'Уровни качества', sizeMode: 'Лимит размера',
   mcpTools: 'Инструменты', version: 'Версия', settingsHint: 'Хранится в DSH_HOME/genvideo/settings.json.',
   outputHint: 'По умолчанию: <проект>/Videos', modelsHint: 'По умолчанию: <проект>/models', seedHint: '-1 = случайный',
   stepsHint: '0 = по умолчанию модели', negativeHint: 'Чего избегать в кадре', inputHint: 'Модель должна поддерживать этот вход.',
@@ -248,7 +248,7 @@ function emptyForm(settings?: any) {
     fps: settings?.fps ?? 30,
     targetDurationSec: settings?.targetDurationSec ?? 60,
     clipSec: settings?.clipSec ?? 9,
-    promptMode: 'full',
+    promptMode: settings?.promptMode ?? 'full',
     seed: settings?.seed ?? -1,
     steps: settings?.steps ?? 0,
     guidance: settings?.guidance ?? 0,
@@ -656,6 +656,28 @@ const Panel = {
       } finally {
         busy.value = ''
       }
+    }
+
+    // RU: Сохраняет текущие параметры формы Generate как дефолты.
+    // EN: Persists the current Generate form values as defaults.
+    async function saveGenerateDefaults() {
+      await saveSettings({
+        modelId: form.value.modelId,
+        platform: form.value.platform,
+        aspect: form.value.aspect,
+        width: form.value.width,
+        height: form.value.height,
+        fps: form.value.fps,
+        targetDurationSec: form.value.targetDurationSec,
+        clipSec: form.value.clipSec,
+        promptMode: form.value.promptMode,
+        negativePrompt: form.value.negativePrompt,
+        seed: form.value.seed,
+        steps: form.value.steps,
+        guidance: form.value.guidance,
+        continuity: form.value.continuity,
+        transcode: form.value.transcode,
+      })
     }
 
     async function saveCustom() {
@@ -1095,6 +1117,7 @@ const Panel = {
         ]),
         h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
           h('button', { type: 'button', class: 'gv-btn gv-btn-primary gv-h-10 gv-px-4', disabled: Boolean(busy.value) || !form.value.prompt.trim(), onClick: generate }, busy.value === 'generate' ? t('generating') : t('generateButton')),
+          h('button', { type: 'button', class: 'gv-btn', disabled: Boolean(busy.value), onClick: () => void saveGenerateDefaults() }, t('saveDefaults')),
           h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('refresh')),
         ]),
       ]),

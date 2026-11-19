@@ -168,6 +168,7 @@ export interface Settings {
   negativePrompt: string
   seed: number
   continuity: 'none' | 'last-frame'
+  promptMode: PromptMode
   transcode: TranscodeOptions
   gpu: GpuSettings
   proxy: ProxySettings
