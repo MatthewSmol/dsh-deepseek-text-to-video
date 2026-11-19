@@ -1184,14 +1184,11 @@ const Panel = {
 
     const clipStages = [
       { key: 'sample', label: 'stageSample' },
-      { key: 'upscale', label: 'stageUpscale' },
       { key: 'ready', label: 'stageReady' },
     ]
 
     const clipStageIndex = (segment: any): number => {
       if (segment.status === 'done') return clipStages.length
-      const phase = String(segment.phase ?? '')
-      if (phase === 'upscaling' || phase === 'muxing' || phase === 'decoding') return 1
       if (segment.status === 'running') return 0
       return -1
     }
@@ -1219,9 +1216,28 @@ const Panel = {
         const running = job.status === 'running' || job.status === 'queued'
         const live = liveJobs.value[job.id] ?? job
         const segments = job.segments ?? []
-        const merging = String(job.phase ?? '') === 'concatenating'
-        const encoding = String(job.phase ?? '').includes('transcod') || job.phase === 'verifying'
+        const phase = String(job.phase ?? '')
         const finished = job.status === 'done'
+        const upscaleEnabled = String(params.upscale ?? 'neural') !== 'off'
+        const globalStages = [
+          ...(segments.length > 1 ? [{ key: 'merge', label: 'stageMerge' }] : []),
+          ...(upscaleEnabled ? [{ key: 'upscale', label: 'stageUpscale' }] : []),
+          { key: 'encode', label: 'stageEncode' },
+        ]
+        const activeKey = finished ? 'done'
+          : phase === 'concatenating' ? 'merge'
+            : phase === 'upscaling' ? 'upscale'
+              : phase.includes('transcod') || phase === 'verifying' ? 'encode'
+                : null
+        const activeIndex = globalStages.findIndex((stage) => stage.key === activeKey)
+        const stageClass = (index: number) => {
+          if (finished) return 'gv-stage-done'
+          if (job.status === 'failed' || job.status === 'cancelled') return index <= activeIndex ? 'gv-stage-failed' : 'gv-stage-pending'
+          if (activeIndex < 0) return 'gv-stage-pending'
+          if (index < activeIndex) return 'gv-stage-done'
+          if (index === activeIndex) return 'gv-stage-active'
+          return 'gv-stage-pending'
+        }
         return h('div', { key: job.id, class: 'gv-card gv-job-card gv-p-4' }, [
           h('div', { class: 'gv-flex gv-flex-wrap gv-items-start gv-justify-between gv-gap-3' }, [
             h('div', { class: 'gv-min-w-0' }, [
@@ -1265,17 +1281,16 @@ const Panel = {
               h('div', { class: 'gv-mt-1.5' }, [h(Progress, { percent: segment.percent, tone: segment.status === 'failed' ? 'gv-bg-danger' : segment.status === 'done' ? 'gv-bg-ok' : 'gv-bg-brand' })]),
             ])
           })),
-          segments.length > 0 ? h('div', { class: 'gv-mt-3 gv-flex gv-flex-wrap gv-items-center gv-gap-1' }, [
-            h('div', { class: `gv-stage gv-flex gv-items-center gv-gap-1.5 ${finished || merging ? (merging ? 'gv-stage-active' : 'gv-stage-done') : 'gv-stage-pending'}` }, [
-              h('span', { class: 'gv-stage-num' }, finished || !merging ? '✓' : '1'),
-              h('span', null, t('stageMerge')),
-            ]),
-            h('span', { class: 'gv-stage-sep' }, '›'),
-            h('div', { class: `gv-stage gv-flex gv-items-center gv-gap-1.5 ${finished || encoding ? (encoding ? 'gv-stage-active' : 'gv-stage-done') : 'gv-stage-pending'}` }, [
-              h('span', { class: 'gv-stage-num' }, finished ? '✓' : '2'),
-              h('span', null, t('stageEncode')),
-            ]),
-          ]) : null,
+          segments.length > 0 ? h('div', { class: 'gv-mt-3 gv-flex gv-flex-wrap gv-items-center gv-gap-1' }, globalStages.flatMap((stage: any, index: number) => {
+            const label = stage.key === 'upscale' && params.upscaleBatch ? `${t(stage.label)} · ${params.upscaleBatch}` : t(stage.label)
+            return [
+              h('div', { key: stage.key, class: `gv-stage gv-flex gv-items-center gv-gap-1.5 ${stageClass(index)}` }, [
+                h('span', { class: 'gv-stage-num' }, finished || index < activeIndex ? '✓' : String(index + 1)),
+                h('span', null, label),
+              ]),
+              index < globalStages.length - 1 ? h('span', { key: `${stage.key}-sep`, class: 'gv-stage-sep' }, '›') : null,
+            ]
+          })) : null,
           h('div', { class: 'gv-mt-3 gv-rounded-lg gv-bg-surface-2 gv-p-2.5' }, [
             h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
               h('span', { class: 'gv-text-[11px] gv-font-medium gv-text-muted' }, t('currentStep')),
