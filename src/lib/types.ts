@@ -262,6 +262,7 @@ export interface DepsStatus {
   venv: { ok: boolean; path: string; torch: string | null; diffusers: string | null; cuda: boolean }
   cargo: { ok: boolean; path: string; version: string | null }
   cuda: { nvcc: boolean; path: string }
+  build: { pkgConfig: boolean; openssl: boolean }
   candle: { ok: boolean; path: string }
   comfyui: { ok: boolean; url: string; error: string | null }
   disk: { freeGB: number; totalGB: number }

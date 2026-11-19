@@ -28,6 +28,7 @@ function fixtureState() {
       venv: { ok: false, path: '/tmp/venv', torch: null, diffusers: null, cuda: false },
       cargo: { ok: false, path: 'cargo', version: null },
       cuda: { nvcc: false, path: '' },
+      build: { pkgConfig: false, openssl: false },
       candle: { ok: false, path: '' },
       comfyui: { ok: false, url: '', error: 'not configured' },
       disk: { freeGB: 10, totalGB: 20 },

@@ -6,7 +6,7 @@
  *     diffusers, cargo (for candle), ComfyUI and free disk space. ffmpeg is
  *     installed only on an explicit user action.
  */
-import { accessSync, constants, existsSync } from 'node:fs';
+import { accessSync, constants, existsSync, readdirSync } from 'node:fs';
 import { delimiter, join } from 'node:path';
 import { homedir } from 'node:os';
 import { genvideoHome, freeDiskGB, packageRoot, workdir } from './paths.js';
@@ -51,10 +51,23 @@ export function findCandleBinary(configured) {
 // RU: Ищет nvcc из CUDA toolkit для сборки Candle.
 // EN: Finds nvcc from the CUDA toolkit for building Candle.
 export function findNvcc() {
+    // RU: runfile-версии в /usr/local/cuda-* новее apt-пакета, поэтому сначала
+    //     проверяем их, затем /usr/bin (apt) и PATH.
+    // EN: runfile versions in /usr/local/cuda-* are newer than the apt package, so
+    //     check them first, then /usr/bin (apt) and PATH.
+    const runfile = existsSync('/usr/local')
+        ? readdirSync('/usr/local')
+            .filter((entry) => /^cuda-\d+(\.\d+)*$/.test(entry))
+            .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }))
+            .map((entry) => join('/usr/local', entry, 'bin', 'nvcc'))
+        : [];
     const candidates = [
         process.env.CUDA_HOME ? join(process.env.CUDA_HOME, 'bin', 'nvcc') : '',
         process.env.CUDA_PATH ? join(process.env.CUDA_PATH, 'bin', 'nvcc') : '',
         '/usr/local/cuda/bin/nvcc',
+        ...runfile,
+        '/usr/bin/nvcc',
+        '/usr/local/bin/nvcc',
         ...(process.env.PATH || '').split(delimiter).filter(Boolean).map((dir) => join(dir, 'nvcc')),
     ].filter(Boolean);
     for (const candidate of candidates) {
@@ -67,6 +80,20 @@ export function findNvcc() {
         }
     }
     return null;
+}
+// RU: Системные пакеты, нужные cargo для сборки Candle (openssl-sys).
+// EN: System packages cargo needs to build Candle (openssl-sys).
+export function buildToolsStatus() {
+    const inPath = (name) => (process.env.PATH || '')
+        .split(delimiter)
+        .filter(Boolean)
+        .some((dir) => existsSync(join(dir, name)));
+    return {
+        pkgConfig: inPath('pkg-config') || inPath('pkgconf') || existsSync('/usr/bin/pkg-config') || existsSync('/usr/bin/pkgconf'),
+        openssl: existsSync('/usr/include/openssl/ssl.h') ||
+            existsSync('/usr/local/include/openssl/ssl.h') ||
+            existsSync('/usr/local/ssl/include/openssl/ssl.h'),
+    };
 }
 /** RU: Кэш проверки ComfyUI, чтобы /state не сканировал порты постоянно.
  *  EN: ComfyUI probe cache so /state does not scan ports on every refresh. */
@@ -161,6 +188,7 @@ export async function detectDeps(settings) {
     }
     const candlePath = findCandleBinary(settings.deps.candleBinary);
     const nvccPath = findNvcc();
+    const buildTools = buildToolsStatus();
     const cargo = await firstWorking(['cargo'], ['--version']);
     const comfy = await detectComfyUi(settings.deps.comfyuiUrl);
     const disk = await freeDiskGB(genvideoHome());
@@ -171,6 +199,7 @@ export async function detectDeps(settings) {
         venv,
         cargo: { ok: Boolean(cargo), path: 'cargo', version: cargo?.version ?? null },
         cuda: { nvcc: Boolean(nvccPath), path: nvccPath ?? '' },
+        build: buildTools,
         candle: { ok: Boolean(candlePath), path: candlePath ?? '' },
         comfyui: comfy,
         disk,

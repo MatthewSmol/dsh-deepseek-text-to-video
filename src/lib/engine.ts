@@ -32,7 +32,7 @@ import { GenVideoError, toApiError } from './errors.js'
 import { SettingsStore, resolveDirs } from './store.js'
 import { JobManager, type JobContext } from './jobs.js'
 import { detectGpus, selectGpus } from './gpu.js'
-import { detectDeps, findNvcc } from './deps.js'
+import { buildToolsStatus, detectDeps, findNvcc } from './deps.js'
 import { allModels, findModel, findVariant, formatGB, snapFrames } from './models.js'
 import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes } from './media.js'
 import { planGeneration } from './planner.js'
@@ -894,6 +894,14 @@ export class Engine {
           { status: 409, details: { command: 'sudo apt-get install -y nvidia-cuda-toolkit' } },
         )
       }
+      const tools = buildToolsStatus()
+      if (!tools.pkgConfig || !tools.openssl) {
+        throw new GenVideoError(
+          'build-deps-missing',
+          'Candle needs pkg-config and OpenSSL headers. Install them once: sudo apt-get install -y pkg-config libssl-dev, then press Build again.',
+          { status: 409, details: { command: 'sudo apt-get install -y pkg-config libssl-dev' } },
+        )
+      }
       const git = await firstWorking(['git'], ['--version'])
       if (!git) throw new GenVideoError('git-missing', 'git is not installed; install it with "sudo apt-get install -y git"', { status: 409 })
 
@@ -928,7 +936,18 @@ export class Engine {
 
       ctx.phase('building', 'Building candle-video with CUDA (10–20 minutes)')
       ctx.progress({ percent: 25, message: 'cargo build --release --example ltx-video --features cuda' })
-      const env = { PATH: `${dirname(nvcc)}:${process.env.PATH ?? ''}`, CUDA_HOME: dirname(dirname(nvcc)) }
+      // RU: apt-обёртка лежит в /usr/bin, а реальный toolkit — в /usr/local/cuda;
+      //     для nvcc нужен корректный CUDA_HOME, иначе сборка не найдёт библиотеки.
+      // EN: the apt wrapper lives in /usr/bin while the real toolkit is in
+      //     /usr/local/cuda; nvcc needs a correct CUDA_HOME or the build misses libs.
+      const cudaHome = nvcc.startsWith('/usr/bin/')
+        ? (existsSync('/usr/local/cuda') ? '/usr/local/cuda' : '/usr')
+        : dirname(dirname(nvcc))
+      const env = {
+        PATH: `${join(cudaHome, 'bin')}:${dirname(nvcc)}:${process.env.PATH ?? ''}`,
+        CUDA_HOME: cudaHome,
+        CUDA_PATH: cudaHome,
+      }
       const build = await runStreaming(
         cargo.path,
         ['build', '--release', '--example', 'ltx-video', '--features', 'cuda'],
