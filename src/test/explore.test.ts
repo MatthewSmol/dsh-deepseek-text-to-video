@@ -31,7 +31,7 @@ test('quality reasons describe popularity and size', () => {
 
 test('overview sorts known VRAM ascending and pushes unknown last', () => {
   const make = (id: string, vramGB: number | null, downloads: number): ExploreModel => ({
-    id, author: id.split('/')[0] ?? '', downloads, likes: 0, lastModified: '', library: null, tags: [], paramsB: null, vramGB, reasons: [],
+    id, author: id.split('/')[0] ?? '', downloads, likes: 0, lastModified: '', library: null, tags: [], paramsB: null, vramGB, reasons: [], encoder: null,
   })
   const sorted = sortByVram([make('b/big', 12, 10), make('a/small', 2, 5), make('c/unknown', null, 100), make('d/mid', 6, 1)])
   assert.deepEqual(sorted.map((item) => item.id), ['a/small', 'd/mid', 'b/big', 'c/unknown'])

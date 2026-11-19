@@ -208,6 +208,7 @@ export interface ModelEntry {
   /** RU: Оценка VRAM в ГБ. EN: VRAM estimate in GB. */
   vramGB: { min: number; recommended: number }
   maxPromptChars: number
+  encoder?: EncoderInfo
   license: string
   notes: string
   /** RU: Дополнительные файлы (текст-энкодер, LoRA), нужные для запуска.
@@ -217,6 +218,16 @@ export interface ModelEntry {
   fallbackRepo?: string
   /** RU: Ожидаемая ревизия/дата для проверки апдейтов. EN: Expected revision for update checks. */
   knownRevision?: string
+}
+
+/** RU: Текстовый энкодер модели. EN: Model text encoder. */
+export interface EncoderInfo {
+  name: string
+  /** RU: Ориентировочный размер в ГБ; null — неизвестно. EN: Approximate size in GB; null means unknown. */
+  sizeGB: number | null
+  /** RU: Формат/квантование (bf16, FP8, GGUF Q5, external). EN: Format/quantisation. */
+  format: string
+  note?: string
 }
 
 /** RU: Публичное состояние модели для UI. EN: Public model state for the UI. */

@@ -79,6 +79,7 @@ export const BUILTIN_MODELS: ModelEntry[] = [
     height: 720,
     vramGB: { min: 24, recommended: 40 },
     maxPromptChars: 4000,
+    encoder: { name: 'LTX-2 Gemma', sizeGB: null, format: 'external', note: 'Gemma text encoder and LTX-2 pipelines are not bundled.' },
     license: 'LTX-2 Community License',
     notes:
       '22B DiT based on Lightricks/LTX-2.3. Needs the LTX-2 Gemma text encoder and LTX-2 pipelines or a ComfyUI workflow; diffusers support for LTX-2.3 is not released yet.',
@@ -111,6 +112,7 @@ export const BUILTIN_MODELS: ModelEntry[] = [
     height: 512,
     vramGB: { min: 8, recommended: 12 },
     maxPromptChars: 2000,
+    encoder: { name: 'T5-XXL', sizeGB: 3.4, format: 'GGUF Q5', note: 'Bundled in the 9.73 GB Candle weights.' },
     license: 'LTX-Video license (other)',
     notes:
       'Rust/Candle implementation. 7 steps, CFG 1. Default size 512x768, 97 frames (8n+1 frames). Text-to-video only in this repository.',
@@ -140,6 +142,7 @@ export const BUILTIN_MODELS: ModelEntry[] = [
     height: 512,
     vramGB: { min: 8, recommended: 12 },
     maxPromptChars: 2000,
+    encoder: { name: 'T5-XXL', sizeGB: 9.5, format: 'bf16 (19 GB fp32 download)', note: 'Reference pipeline components are downloaded separately on first run.' },
     license: 'LTX-Video license (other)',
     notes:
       'The official diffusers checkpoint is a single safetensors file: the worker loads the reference pipeline repository and swaps the transformer weights, which enables image-to-video.',

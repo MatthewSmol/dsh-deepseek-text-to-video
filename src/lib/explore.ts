@@ -36,6 +36,7 @@ export interface ExploreModel {
   paramsB: number | null
   vramGB: number | null
   reasons: QualityReason[]
+  encoder: string | null
 }
 
 export interface ExplorePage {
@@ -47,6 +48,17 @@ export interface ExplorePage {
 }
 
 type RawModel = Record<string, unknown>
+
+/** RU: Семейство текстового энкодера по имени и тегам (эвристика).
+ *  EN: Text-encoder family from name and tags (heuristic). */
+export function encoderName(id: string, tags: string[]): string | null {
+  const text = `${id} ${tags.join(' ')}`.toLowerCase()
+  if (text.includes('ltx-video') || text.includes('ltx-2')) return 'T5-XXL'
+  if (text.includes('wan2') || text.includes('wan-ai')) return 'umT5-XXL'
+  if (text.includes('cogvideo')) return 'T5-XXL'
+  if (text.includes('hunyuanvideo')) return 'Llama/CLIP'
+  return null
+}
 
 /** RU: Разбирает «14B», «1.3B» из имени репозитория.
  *  EN: Parses "14B", "1.3B" from the repository name. */
@@ -125,6 +137,7 @@ export function toExploreModel(raw: RawModel): ExploreModel {
     paramsB,
     vramGB: estimateVramGB(paramsB, bpp),
     reasons: qualityReasons({ id, tags, downloads: Number(raw.downloads ?? 0) || 0, paramsB }),
+    encoder: encoderName(id, tags),
   }
 }
 

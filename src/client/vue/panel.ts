@@ -1248,6 +1248,14 @@ const Panel = {
           h(Badge, null, `${item.entry.vramGB.min}–${item.entry.vramGB.recommended} GB`),
           h(Badge, null, `${item.entry.durationSec.min}–${item.entry.durationSec.max}s`),
           h(Badge, null, item.entry.runtimes.join(' · ')),
+          item.entry.encoder
+            ? h(Badge, {
+                tone: item.entry.encoder.sizeGB !== null && item.entry.encoder.sizeGB > 8
+                  ? 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn'
+                  : 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok',
+                title: [item.entry.encoder.format, item.entry.encoder.note].filter(Boolean).join(' · '),
+              }, `${t('encoder')}: ${item.entry.encoder.name}${item.entry.encoder.sizeGB !== null ? ` · ${item.entry.encoder.sizeGB} GB` : ''}`)
+            : null,
         ]),
         h('p', { class: 'gv-hint gv-mt-2' }, item.entry.notes),
         item.installed && item.entry.runtimes.includes('diffusers') && !state.value.deps.venv.ok
@@ -1325,6 +1333,7 @@ const Panel = {
                     : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn',
                 }, fitsVram(model.vramGB, limit) ? `${limit} GB ✓` : `${limit} GB ✗`),
                 model.paramsB ? h(Badge, null, `${model.paramsB}B`) : null,
+                model.encoder ? h(Badge, { tone: 'gv-border-line gv-bg-surface-2 gv-text-muted' }, `${t('encoder')}: ${model.encoder}`) : null,
                 h(Badge, null, `${fmtCount(model.downloads)} ${t('downloadsLabel')}`),
                 h(Badge, null, `♥ ${fmtCount(model.likes)}`),
               ]),
