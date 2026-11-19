@@ -779,11 +779,15 @@ export class Engine {
             const venv = venvDir();
             const cuda = (await this.gpu()).available;
             const pip = joinPath(venv, 'bin', 'python');
-            const index = cuda ? 'https://download.pytorch.org/whl/cu124' : 'https://download.pytorch.org/whl/cpu';
+            // RU: CUDA-колёса ставим с PyPI: они несут CUDA-библиотеки и есть под
+            //     новые Python; CPU-вариант берём из индекса PyTorch.
+            // EN: CUDA wheels come from PyPI: they bundle CUDA libraries and exist for
+            //     new Python versions; the CPU variant uses the PyTorch index.
+            const index = 'https://download.pytorch.org/whl/cpu';
             const steps = [
                 { label: 'Creating the virtual environment', command: python, args: ['-m', 'venv', venv] },
                 { label: 'Upgrading pip', command: pip, args: ['-m', 'pip', 'install', '--upgrade', 'pip'] },
-                { label: cuda ? 'Installing torch (CUDA)' : 'Installing torch (CPU)', command: pip, args: ['-m', 'pip', 'install', '--index-url', index, 'torch'] },
+                { label: cuda ? 'Installing torch (CUDA)' : 'Installing torch (CPU)', command: pip, args: cuda ? ['-m', 'pip', 'install', 'torch'] : ['-m', 'pip', 'install', '--index-url', index, 'torch'] },
                 {
                     label: 'Installing diffusers and helpers',
                     command: pip,

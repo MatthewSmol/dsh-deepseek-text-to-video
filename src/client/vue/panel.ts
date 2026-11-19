@@ -43,7 +43,16 @@ const en: Record<string, string> = {
   gpu: 'GPU', gpuNone: 'No CUDA GPU detected', gpuHint: 'Only the Mock runner can produce video without a GPU.',
   totalMemory: 'Total', usedMemory: 'Used', gpuStrategy: 'Strategy', single: 'Single GPU',
   roundRobin: 'Round-robin', tensorParallel: 'Tensor parallel',
-  tools: 'Tools', enginesNote: 'The plugin downloads models and starts engines automatically when it can. Everything below is an optional override, not required setup.',
+  tools: 'Tools',
+  enginesIntro: 'Video generation needs one engine. Start with Python — it installs without root. Candle is faster but needs the CUDA toolkit. ComfyUI works if its server is already running. Mock is always available.',
+  engineReady: 'Ready', engineMissing: 'Not installed', recommended: 'Recommended',
+  pythonEngine: 'Python engine (diffusers)', pythonEngineDesc: 'Diffusers models, including LTX-Video 0.9.8 2B and image-to-video. About 5 GB, no root.',
+  candleEngine: 'Candle (Rust + CUDA)', candleEngineDesc: 'Faster on NVIDIA. Needs the CUDA toolkit (nvcc); the build takes 10–20 minutes.',
+  cudaRequired: 'Install the CUDA toolkit first in Ubuntu:', cudaReady: 'CUDA toolkit found',
+  comfyEngine: 'ComfyUI', comfyEngineDesc: 'External server; the plugin auto-probes 127.0.0.1:8188, 8189 and 8000.',
+  comfyCheck: 'Check again', mockEngine: 'Mock', mockEngineDesc: 'Synthetic video without a GPU, useful to test the pipeline.',
+  alwaysAvailable: 'Always available', systemTools: 'System tools',
+  enginesNote: 'The plugin downloads models and starts engines automatically when it can. Everything below is an optional override, not required setup.',
   candleVideo: 'candle-video', candleNotFound: 'Not found; auto-checked in PATH and ./candle-video/target/release/examples/ltx-video. Building needs the CUDA toolkit (nvcc).',
   buildCandle: 'Build candle engine', buildStarted: 'Candle build started; progress is in Jobs.',
   cargoHint: 'Needed only to build candle-video; Python and ComfyUI do not require Rust.',
@@ -98,7 +107,16 @@ const ru: Record<string, string> = {
   gpu: 'GPU', gpuNone: 'CUDA GPU не найдена', gpuHint: 'Без GPU видео может создать только Mock-раннер.',
   totalMemory: 'Всего', usedMemory: 'Занято', gpuStrategy: 'Стратегия', single: 'Одна GPU',
   roundRobin: 'По очереди', tensorParallel: 'Tensor parallel',
-  tools: 'Инструменты', enginesNote: 'Плагин сам скачивает модели и по возможности запускает движки. Всё ниже — необязательное переопределение, а не обязательная настройка.',
+  tools: 'Инструменты',
+  enginesIntro: 'Для генерации нужен один движок. Начните с Python — он ставится без root. Candle быстрее, но требует CUDA toolkit. ComfyUI — если сервер уже запущен. Mock доступен всегда.',
+  engineReady: 'Готов', engineMissing: 'Не установлен', recommended: 'Рекомендуется',
+  pythonEngine: 'Python-движок (diffusers)', pythonEngineDesc: 'Модели diffusers, включая LTX-Video 0.9.8 2B и image-to-video. Около 5 ГБ, без sudo.',
+  candleEngine: 'Candle (Rust + CUDA)', candleEngineDesc: 'Быстрее на NVIDIA. Нужен CUDA toolkit (nvcc); сборка 10–20 минут.',
+  cudaRequired: 'Сначала установите CUDA toolkit в Ubuntu:', cudaReady: 'CUDA toolkit найден',
+  comfyEngine: 'ComfyUI', comfyEngineDesc: 'Внешний сервер; плагин сам ищет 127.0.0.1:8188, 8189 и 8000.',
+  comfyCheck: 'Проверить снова', mockEngine: 'Mock', mockEngineDesc: 'Синтетическое видео без GPU — для проверки пайплайна.',
+  alwaysAvailable: 'Всегда доступен', systemTools: 'Системные инструменты',
+  enginesNote: 'Плагин сам скачивает модели и по возможности запускает движки. Всё ниже — необязательное переопределение, а не обязательная настройка.',
   candleVideo: 'candle-video', candleNotFound: 'Не найден; проверяется PATH и ./candle-video/target/release/examples/ltx-video. Для сборки нужен CUDA toolkit (nvcc).',
   buildCandle: 'Собрать candle-движок', buildStarted: 'Сборка Candle запущена; прогресс во вкладке «Задания».',
   cargoHint: 'Нужен только для сборки candle-video; Python и ComfyUI не требуют Rust.',
@@ -1068,34 +1086,85 @@ const Panel = {
           ]),
     ])
 
-    const toolsSection = () => h(Card, { title: t('tools') }, [
-      h('p', { class: 'gv-hint gv-mb-2' }, t('enginesNote')),
-      h('div', { class: 'gv-flex gv-flex-col' }, [
-        h(Row, { label: t('ffmpeg'), hint: state.value.deps.ffmpeg.version ?? '' }, [
-          h(Badge, { tone: state.value.deps.ffmpeg.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, state.value.deps.ffmpeg.ok ? state.value.deps.ffmpeg.path : t('unavailable')),
-          !state.value.deps.ffmpeg.ok ? h('button', { type: 'button', class: 'gv-btn', onClick: installFfmpeg }, t('installFfmpeg')) : null,
+    // RU: Понятные карточки движков: что это, готов ли, что нажать.
+    // EN: Clear engine cards: what it is, whether it is ready, what to click.
+    const engineCard = (title: string, description: string, ready: boolean, statusText: string, action: any, extra: any = null) =>
+      h('div', { class: 'gv-flex gv-flex-col gv-gap-2 gv-rounded-xl gv-border gv-border-line gv-bg-surface-2 gv-p-3' }, [
+        h('div', { class: 'gv-flex gv-flex-wrap gv-items-start gv-justify-between gv-gap-2' }, [
+          h('div', { class: 'gv-min-w-0' }, [
+            h('div', { class: 'gv-text-[13px] gv-font-semibold gv-text-text' }, title),
+            h('div', { class: 'gv-hint gv-mt-0.5' }, description),
+          ]),
+          h(Badge, { tone: ready ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' }, statusText),
         ]),
-        h(Row, { label: t('ffprobe') }, [
-          h(Badge, { tone: state.value.deps.ffprobe.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, state.value.deps.ffprobe.ok ? state.value.deps.ffprobe.path : t('unavailable')),
+        action ? h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-gap-2' }, action) : null,
+        extra,
+      ])
+
+    const toolsSection = () => {
+      const deps = state.value.deps
+      const pythonReady = deps.venv.ok
+      const candleReady = deps.candle.ok
+      const comfyReady = deps.comfyui.ok
+      const cudaReady = deps.cuda.nvcc
+      return h(Card, { title: t('tools') }, [
+        h('p', { class: 'gv-hint gv-mb-3' }, t('enginesIntro')),
+        h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
+          engineCard(
+            `${t('pythonEngine')} · ${t('recommended')}`,
+            t('pythonEngineDesc'),
+            pythonReady,
+            pythonReady ? `torch ${deps.venv.torch} · diffusers ${deps.venv.diffusers}` : t('engineMissing'),
+            pythonReady
+              ? null
+              : [h('button', { type: 'button', class: 'gv-btn gv-btn-primary gv-h-8 gv-px-3', disabled: Boolean(busy.value), onClick: installPython }, t('installPython'))],
+          ),
+          engineCard(
+            t('candleEngine'),
+            t('candleEngineDesc'),
+            candleReady,
+            candleReady ? deps.candle.path : cudaReady ? t('engineMissing') : 'CUDA: nvcc',
+            [
+              candleReady
+                ? null
+                : h('button', {
+                    type: 'button', class: 'gv-btn gv-btn-primary gv-h-8 gv-px-3',
+                    disabled: Boolean(busy.value) || !cudaReady,
+                    onClick: installCandle,
+                  }, busy.value === 'candle' ? t('installing') : t('buildCandle')),
+              h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', onClick: () => void refresh() }, t('comfyCheck')),
+            ],
+            cudaReady
+              ? h('div', { class: 'gv-hint' }, t('cudaReady'))
+              : h('div', { class: 'gv-flex gv-flex-col gv-gap-1' }, [
+                  h('div', { class: 'gv-text-[11.5px] gv-text-warn' }, t('cudaRequired')),
+                  h('code', { class: 'gv-w-fit gv-rounded gv-bg-surface-3 gv-px-2 gv-py-1 gv-text-[10.5px] gv-text-text' }, 'sudo apt-get install -y nvidia-cuda-toolkit'),
+                ]),
+          ),
+          engineCard(
+            t('comfyEngine'),
+            t('comfyEngineDesc'),
+            comfyReady,
+            comfyReady ? deps.comfyui.url : t('engineMissing'),
+            [h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', onClick: () => void refresh() }, t('comfyCheck'))],
+          ),
+          engineCard(t('mockEngine'), t('mockEngineDesc'), true, t('alwaysAvailable'), null),
         ]),
-        h(Row, { label: t('python') }, [h(Badge, null, state.value.deps.python.version ?? t('unavailable'))]),
-        h(Row, { label: t('venv'), hint: state.value.deps.venv.path }, [
-          h(Badge, { tone: state.value.deps.venv.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' },
-            state.value.deps.venv.ok ? `torch ${state.value.deps.venv.torch} · diffusers ${state.value.deps.venv.diffusers}` : t('notInstalled')),
-          h('button', { type: 'button', class: 'gv-btn', onClick: installPython }, t('installPython')),
+        h('div', { class: 'gv-mt-4' }, [
+          h('div', { class: 'gv-group-title gv-mb-1' }, t('systemTools')),
+          h('div', { class: 'gv-flex gv-flex-col' }, [
+            h(Row, { label: t('ffmpeg'), hint: deps.ffmpeg.version ?? '' }, [
+              h(Badge, { tone: deps.ffmpeg.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.ffmpeg.ok ? deps.ffmpeg.path : t('unavailable')),
+              !deps.ffmpeg.ok ? h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', onClick: installFfmpeg }, t('installFfmpeg')) : null,
+            ]),
+            h(Row, { label: t('ffprobe') }, [
+              h(Badge, { tone: deps.ffprobe.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.ffprobe.ok ? deps.ffprobe.path : t('unavailable')),
+            ]),
+            h(Row, { label: t('python') }, [h(Badge, null, deps.python.version ?? t('unavailable'))]),
+          ]),
         ]),
-        h(Row, { label: t('candleVideo'), hint: state.value.deps.candle.ok ? state.value.deps.candle.path : t('candleNotFound') }, [
-          h(Badge, { tone: state.value.deps.candle.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' },
-            state.value.deps.candle.ok ? state.value.deps.candle.path : t('notInstalled')),
-          !state.value.deps.candle.ok
-            ? h('button', { type: 'button', class: 'gv-btn', disabled: busy.value === 'candle', onClick: installCandle },
-                busy.value === 'candle' ? t('installing') : t('buildCandle'))
-            : null,
-        ]),
-        h(Row, { label: t('comfyui'), hint: state.value.deps.comfyui.error ?? '' }, [h(Badge, { tone: state.value.deps.comfyui.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' }, state.value.deps.comfyui.url || t('notInstalled'))]),
-      ]),
-      h('div', { class: 'gv-mt-3' }, [h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('refresh'))]),
-    ])
+      ])
+    }
 
     const pathsSection = () => h(Card, { title: t('defaults'), hint: t('settingsHint') }, [
       h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [

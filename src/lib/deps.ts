@@ -170,6 +170,7 @@ export async function detectDeps(settings: Settings): Promise<DepsStatus> {
   }
 
   const candlePath = findCandleBinary(settings.deps.candleBinary)
+  const nvccPath = findNvcc()
   const cargo = await firstWorking(['cargo'], ['--version'])
   const comfy = await detectComfyUi(settings.deps.comfyuiUrl)
   const disk = await freeDiskGB(genvideoHome())
@@ -180,6 +181,7 @@ export async function detectDeps(settings: Settings): Promise<DepsStatus> {
     python: { ok: Boolean(python), path: python?.path ?? '', version: python?.version ?? null },
     venv,
     cargo: { ok: Boolean(cargo), path: 'cargo', version: cargo?.version ?? null },
+    cuda: { nvcc: Boolean(nvccPath), path: nvccPath ?? '' },
     candle: { ok: Boolean(candlePath), path: candlePath ?? '' },
     comfyui: comfy,
     disk,
@@ -217,11 +219,11 @@ export async function installFfmpeg(): Promise<{ ok: boolean; message: string; c
 /** RU: Команда установки Python-движка (torch/diffusers) в venv.
  *  EN: Command that installs the Python engine (torch/diffusers) into the venv. */
 export function pythonEngineCommand(settings: Settings, cuda: boolean): string[] {
-  const index = cuda ? 'https://download.pytorch.org/whl/cu124' : 'https://download.pytorch.org/whl/cpu'
+  const index = 'https://download.pytorch.org/whl/cpu'
   return [
     settings.deps.pythonPath || 'python3', '-m', 'venv', venvDir(),
     '&&', venvPython(), '-m', 'pip', 'install', '--upgrade', 'pip',
-    '&&', venvPython(), '-m', 'pip', 'install', '--index-url', index, 'torch',
+    '&&', venvPython(), '-m', 'pip', 'install', ...(cuda ? ['torch'] : ['--index-url', index, 'torch']),
     '&&', venvPython(), '-m', 'pip', 'install', 'diffusers', 'transformers', 'accelerate', 'safetensors', 'sentencepiece', 'imageio', 'imageio-ffmpeg',
   ]
 }

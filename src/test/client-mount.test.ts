@@ -27,6 +27,7 @@ function fixtureState() {
       python: { ok: true, path: 'python3', version: '3.14' },
       venv: { ok: false, path: '/tmp/venv', torch: null, diffusers: null, cuda: false },
       cargo: { ok: false, path: 'cargo', version: null },
+      cuda: { nvcc: false, path: '' },
       candle: { ok: false, path: '' },
       comfyui: { ok: false, url: '', error: 'not configured' },
       disk: { freeGB: 10, totalGB: 20 },
@@ -121,6 +122,7 @@ test('the Vue panel mounts through the React bridge and renders the scoped UI', 
   assert.ok(container, 'the bridge must provide a container element')
   document.body.appendChild(container)
   const cleanup = await effects[0]!()
+  let settingsCleanup: any = null
 
   // RU: Ждём ответ /state и следующий тик Vue. EN: Wait for /state and the next Vue tick.
   await new Promise((resolve) => setTimeout(resolve, 50))
@@ -134,11 +136,28 @@ test('the Vue panel mounts through the React bridge and renders the scoped UI', 
   assert.ok(html.includes('ffmpeg'), 'environment state must be rendered')
   assert.ok(html.length > 2000, `expected a full panel, got ${html.length} chars`)
 
+  // RU: Экран настроек должен явно показывать движки и что устанавливать.
+  // EN: The settings screen must clearly show engines and what to install.
+  const settings = registrations.find((item) => item.options.name === 'settings.section')?.component
+  assert.equal(typeof settings, 'function')
+  const settingsOuter = settings({})
+  const settingsInner = settingsOuter.type(settingsOuter.props)
+  settingsInner.props.ref.current = document.createElement('div')
+  const settingsContainer = settingsInner.props.ref.current
+  document.body.appendChild(settingsContainer)
+  settingsCleanup = await effects[1]!()
+  await new Promise((resolve) => setTimeout(resolve, 50))
+  const settingsHtml = settingsContainer.innerHTML
+  assert.ok(settingsHtml.includes('Python engine'), 'python engine card must be visible')
+  assert.ok(settingsHtml.includes('Build candle engine') || settingsHtml.includes('CUDA toolkit'), 'candle prerequisites must be visible')
+  assert.ok(settingsHtml.includes('Install Python engine'), 'the primary install button must be explicit')
+
   // RU: Снимаем Vue-приложение и закрываем happy-dom, иначе интервал опроса
   //     состояния не даст тестовому процессу завершиться.
   // EN: Unmount the Vue app and close happy-dom; otherwise the state polling
   //     interval keeps the test process alive.
   } finally {
+    if (typeof settingsCleanup === 'function') settingsCleanup()
     if (typeof cleanup === 'function') cleanup()
     await (window as any).happyDOM?.close?.()
   }
