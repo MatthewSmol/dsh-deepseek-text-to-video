@@ -41,7 +41,7 @@ const en: Record<string, string> = {
   candleArgs: 'candle-video extra arguments', candleArgsHint: 'One argv per line; for a custom Vulkan build, e.g. --device and vulkan.',
   quality: 'Quality', sizeLimit: 'Size limit', mb: 'MB', high: 'High', medium: 'Medium', compressed: 'Max compression',
   format: 'Format', fit: 'Fit', contain: 'Contain (bars)', cover: 'Cover (crop)', source: 'Source',
-  estimate: 'Estimate', vram: 'VRAM', fitVram: 'Fit to VRAM', fitVramBusy: 'Finding a fit…', fitVramResult: 'Applied: {dims}, {sec}s → ~{gb} GB VRAM', fitVramFailed: 'Nothing fits even at the lowest resolution; use CPU offload or a smaller model.', time: 'Time', size: 'Size', segments: 'Segments', warnings: 'Warnings',
+  estimate: 'Estimate', vram: 'VRAM', generationTime: 'Generation time', fitVram: 'Fit to VRAM', fitVramBusy: 'Finding a fit…', fitVramResult: 'Applied: {dims}, {sec}s → ~{gb} GB VRAM', fitVramFailed: 'Nothing fits even at the lowest resolution; use CPU offload or a smaller model.', time: 'Time', size: 'Size', segments: 'Segments', warnings: 'Warnings',
   generateButton: 'Generate video', generating: 'Starting…',
   gpu: 'GPU', gpuNone: 'No CUDA GPU detected', gpuHint: 'Only the Mock runner can produce video without a GPU.',
   totalMemory: 'Total', usedMemory: 'Used', gpuStrategy: 'Strategy', single: 'Single GPU',
@@ -110,7 +110,7 @@ const ru: Record<string, string> = {
   candleArgs: 'Дополнительные аргументы candle-video', candleArgsHint: 'По одному argv в строке; для своей Vulkan-сборки, например --device и vulkan.',
   quality: 'Качество', sizeLimit: 'Лимит размера', mb: 'МБ', high: 'Высокое', medium: 'Среднее', compressed: 'Максимальное сжатие',
   format: 'Формат', fit: 'Вписывание', contain: 'Вписать (поля)', cover: 'Заполнить (обрезка)', source: 'Исходное',
-  estimate: 'Оценка', vram: 'VRAM', fitVram: 'Подогнать под VRAM', fitVramBusy: 'Подбираю…', fitVramResult: 'Применено: {dims}, {sec} с → ~{gb} ГБ VRAM', fitVramFailed: 'Даже минимальное разрешение не влезает; нужен offload или модель поменьше.', time: 'Время', size: 'Размер', segments: 'Сегменты', warnings: 'Предупреждения',
+  estimate: 'Оценка', vram: 'VRAM', generationTime: 'Время генерации', fitVram: 'Подогнать под VRAM', fitVramBusy: 'Подбираю…', fitVramResult: 'Применено: {dims}, {sec} с → ~{gb} ГБ VRAM', fitVramFailed: 'Даже минимальное разрешение не влезает; нужен offload или модель поменьше.', time: 'Время', size: 'Размер', segments: 'Сегменты', warnings: 'Предупреждения',
   generateButton: 'Сгенерировать видео', generating: 'Запуск…',
   gpu: 'GPU', gpuNone: 'CUDA GPU не найдена', gpuHint: 'Без GPU видео может создать только Mock-раннер.',
   totalMemory: 'Всего', usedMemory: 'Занято', gpuStrategy: 'Стратегия', single: 'Одна GPU',
@@ -851,7 +851,7 @@ const Panel = {
         ? h('div', { class: 'gv-flex gv-flex-col gv-gap-2' }, [
             h('div', { class: 'gv-grid gv-grid-cols-2 gv-gap-2 gv-text-[11.5px] sm:gv-grid-cols-4' }, [
               h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-2' }, [h('div', { class: 'gv-text-muted' }, t('vram')), h('div', { class: 'gv-font-semibold' }, `${plan.value.estimatedVramGB} GB`)]),
-              h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-2' }, [h('div', { class: 'gv-text-muted' }, t('time')), h('div', { class: 'gv-font-semibold' }, fmtDuration(plan.value.estimatedSeconds))]),
+              h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-2' }, [h('div', { class: 'gv-text-muted' }, t('generationTime')), h('div', { class: 'gv-font-semibold' }, fmtDuration(plan.value.estimatedSeconds))]),
               h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-2' }, [h('div', { class: 'gv-text-muted' }, t('segments')), h('div', { class: 'gv-font-semibold' }, String(plan.value.segments.length))]),
               h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-2' }, [h('div', { class: 'gv-text-muted' }, t('size')), h('div', { class: 'gv-font-semibold' }, plan.value.transcode.estimatedBytes ? fmtBytes(plan.value.transcode.estimatedBytes) : '—')]),
             ]),
