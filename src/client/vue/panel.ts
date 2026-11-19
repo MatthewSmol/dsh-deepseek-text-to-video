@@ -41,7 +41,7 @@ const en: Record<string, string> = {
   candleArgs: 'candle-video extra arguments', candleArgsHint: 'One argv per line; for a custom Vulkan build, e.g. --device and vulkan.',
   quality: 'Quality', sizeLimit: 'Size limit', mb: 'MB', high: 'High', medium: 'Medium', compressed: 'Max compression',
   format: 'Format', fit: 'Fit', contain: 'Contain (bars)', cover: 'Cover (crop)', source: 'Source',
-  estimate: 'Estimate', vram: 'VRAM', time: 'Time', size: 'Size', segments: 'Segments', warnings: 'Warnings',
+  estimate: 'Estimate', vram: 'VRAM', fitVram: 'Fit to VRAM', fitVramBusy: 'Finding a fit…', fitVramResult: 'Applied: {dims}, {sec}s → ~{gb} GB VRAM', fitVramFailed: 'Nothing fits even at the lowest resolution; use CPU offload or a smaller model.', time: 'Time', size: 'Size', segments: 'Segments', warnings: 'Warnings',
   generateButton: 'Generate video', generating: 'Starting…',
   gpu: 'GPU', gpuNone: 'No CUDA GPU detected', gpuHint: 'Only the Mock runner can produce video without a GPU.',
   totalMemory: 'Total', usedMemory: 'Used', gpuStrategy: 'Strategy', single: 'Single GPU',
@@ -110,7 +110,7 @@ const ru: Record<string, string> = {
   candleArgs: 'Дополнительные аргументы candle-video', candleArgsHint: 'По одному argv в строке; для своей Vulkan-сборки, например --device и vulkan.',
   quality: 'Качество', sizeLimit: 'Лимит размера', mb: 'МБ', high: 'Высокое', medium: 'Среднее', compressed: 'Максимальное сжатие',
   format: 'Формат', fit: 'Вписывание', contain: 'Вписать (поля)', cover: 'Заполнить (обрезка)', source: 'Исходное',
-  estimate: 'Оценка', vram: 'VRAM', time: 'Время', size: 'Размер', segments: 'Сегменты', warnings: 'Предупреждения',
+  estimate: 'Оценка', vram: 'VRAM', fitVram: 'Подогнать под VRAM', fitVramBusy: 'Подбираю…', fitVramResult: 'Применено: {dims}, {sec} с → ~{gb} ГБ VRAM', fitVramFailed: 'Даже минимальное разрешение не влезает; нужен offload или модель поменьше.', time: 'Время', size: 'Размер', segments: 'Сегменты', warnings: 'Предупреждения',
   generateButton: 'Сгенерировать видео', generating: 'Запуск…',
   gpu: 'GPU', gpuNone: 'CUDA GPU не найдена', gpuHint: 'Без GPU видео может создать только Mock-раннер.',
   totalMemory: 'Всего', usedMemory: 'Занято', gpuStrategy: 'Стратегия', single: 'Одна GPU',
@@ -779,6 +779,73 @@ const Panel = {
       ]),
     ])
 
+    // RU: Бюджет VRAM: явный лимит из настроек либо самая большая выбранная карта.
+    // EN: VRAM budget: explicit setting, otherwise the largest selected GPU.
+    const vramBudgetGB = computed(() => {
+      const configured = Number(state.value.settings?.gpu?.vramBudgetGB ?? 0)
+      if (configured > 0) return configured
+      const ids = state.value.settings?.gpu?.ids ?? []
+      const selected = (state.value.gpu.gpus ?? []).filter((gpu: any) => !ids.length || ids.includes(gpu.index))
+      return selected.length ? Math.max(...selected.map((gpu: any) => gpu.totalMB / 1024)) : 0
+    })
+
+    const snap32 = (value: number) => Math.max(64, Math.round(value / 32) * 32)
+
+    // RU: Подбирает максимальное разрешение (и при необходимости длительность),
+    //     которое укладывается в бюджет VRAM, и применяет его к форме.
+    // EN: Finds the largest resolution (and duration if needed) within the VRAM
+    //     budget and applies it to the form.
+    async function fitToVram() {
+      const budget = vramBudgetGB.value
+      if (!budget || !modelEntry.value) return
+      busy.value = 'fit'
+      try {
+        const base = { ...form.value, runner: runner.value === 'auto' ? undefined : runner.value }
+        const heights = [768, 704, 640, 576, 512, 448, 384, 320, 256, 224, 192]
+        const durations = Array.from(new Set([
+          form.value.targetDurationSec,
+          Math.min(4, modelEntry.value.durationSec.max),
+          3,
+          2,
+          Math.max(1, modelEntry.value.durationSec.min),
+        ])).filter((sec) => sec > 0).sort((a, b) => b - a)
+
+        const tryPlan = async (height: number, sec: number) => {
+          const ratio = form.value.width / Math.max(1, form.value.height)
+          const width = snap32(height * ratio)
+          const snapped = snap32(height)
+          const planResult = await api('/plan', {
+            method: 'POST',
+            body: JSON.stringify({ ...base, width, height: snapped, targetDurationSec: sec }),
+          })
+          return { width, height: snapped, sec, plan: planResult }
+        }
+
+        let best: any = null
+        for (const height of heights) {
+          const result = await tryPlan(height, form.value.targetDurationSec)
+          if (result.plan.vramFit) { best = result; break }
+        }
+        if (!best) {
+          const small = heights[heights.length - 1] ?? 192
+          for (const sec of durations) {
+            const result = await tryPlan(small, sec)
+            if (result.plan.vramFit) { best = result; break }
+          }
+        }
+        if (!best) throw new Error(t('fitVramFailed'))
+        patch({ width: best.width, height: best.height, targetDurationSec: best.sec })
+        notice.value = t('fitVramResult')
+          .replace('{dims}', `${best.width}×${best.height}`)
+          .replace('{sec}', String(best.sec))
+          .replace('{gb}', String(best.plan.estimatedVramGB))
+      } catch (err: any) {
+        error.value = err.message
+      } finally {
+        busy.value = ''
+      }
+    }
+
     const estimate = () => h(Card, { title: t('estimate'), hint: planError.value || null }, [
       plan.value
         ? h('div', { class: 'gv-flex gv-flex-col gv-gap-2' }, [
@@ -789,6 +856,13 @@ const Panel = {
               h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-2' }, [h('div', { class: 'gv-text-muted' }, t('size')), h('div', { class: 'gv-font-semibold' }, plan.value.transcode.estimatedBytes ? fmtBytes(plan.value.transcode.estimatedBytes) : '—')]),
             ]),
             h('div', { class: 'gv-hint' }, `${plan.value.width}×${plan.value.height} · ${plan.value.fps} fps · ${fmtDuration(plan.value.totalSec)} · ${plan.value.availableRunner ?? '—'}`),
+            h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
+              h('span', { class: plan.value.vramFit ? 'gv-text-[11.5px] gv-text-ok' : 'gv-text-[11.5px] gv-text-warn' },
+                `${plan.value.estimatedVramGB} GB / ${Math.round(vramBudgetGB.value * 10) / 10} GB`),
+              h('button', {
+                type: 'button', class: 'gv-btn gv-h-8 gv-px-3', disabled: Boolean(busy.value), onClick: () => void fitToVram(),
+              }, busy.value === 'fit' ? t('fitVramBusy') : t('fitVram')),
+            ]),
             plan.value.warnings.length
               ? h('ul', { class: 'gv-list-disc gv-space-y-1 gv-pl-5 gv-text-[11.5px] gv-text-warn' }, plan.value.warnings.map((warning: any, index: number) => h('li', { key: index }, warning.message)))
               : null,
