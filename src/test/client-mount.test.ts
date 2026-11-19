@@ -27,6 +27,7 @@ function fixtureState() {
       python: { ok: true, path: 'python3', version: '3.14' },
       venv: { ok: false, path: '/tmp/venv', torch: null, diffusers: null, cuda: false },
       cargo: { ok: false, path: 'cargo', version: null },
+      candle: { ok: false, path: '' },
       comfyui: { ok: false, url: '', error: 'not configured' },
       disk: { freeGB: 10, totalGB: 20 },
       checkedAt: Date.now(),

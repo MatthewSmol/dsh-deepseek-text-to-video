@@ -43,7 +43,11 @@ const en: Record<string, string> = {
   gpu: 'GPU', gpuNone: 'No CUDA GPU detected', gpuHint: 'Only the Mock runner can produce video without a GPU.',
   totalMemory: 'Total', usedMemory: 'Used', gpuStrategy: 'Strategy', single: 'Single GPU',
   roundRobin: 'Round-robin', tensorParallel: 'Tensor parallel',
-  tools: 'Tools', ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', python: 'Python', venv: 'Venv', cargo: 'Cargo',
+  tools: 'Tools', enginesNote: 'The plugin downloads models and starts engines automatically when it can. Everything below is an optional override, not required setup.',
+  candleVideo: 'candle-video', candleNotFound: 'Not found; auto-checked in PATH and ./candle-video/target/release/examples/ltx-video',
+  cargoHint: 'Needed only to build candle-video; Python and ComfyUI do not require Rust.',
+  advancedEngines: 'Advanced: external engine overrides', advancedHint: 'Empty values mean auto-detect.', autoHint: 'Empty = auto-detect.',
+  ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', python: 'Python', venv: 'Venv', cargo: 'Cargo',
   comfyui: 'ComfyUI', path: 'Path', test: 'Test', installFfmpeg: 'Install ffmpeg', installPython: 'Install Python engine',
   outputDir: 'Output folder', modelsDir: 'Models folder', language: 'Language', english: 'English', russian: 'Русский',
   defaults: 'Defaults', service: 'MCP service', uptime: 'Uptime', unavailable: 'Unavailable',
@@ -93,7 +97,11 @@ const ru: Record<string, string> = {
   gpu: 'GPU', gpuNone: 'CUDA GPU не найдена', gpuHint: 'Без GPU видео может создать только Mock-раннер.',
   totalMemory: 'Всего', usedMemory: 'Занято', gpuStrategy: 'Стратегия', single: 'Одна GPU',
   roundRobin: 'По очереди', tensorParallel: 'Tensor parallel',
-  tools: 'Инструменты', ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', python: 'Python', venv: 'Окружение', cargo: 'Cargo',
+  tools: 'Инструменты', enginesNote: 'Плагин сам скачивает модели и по возможности запускает движки. Всё ниже — необязательное переопределение, а не обязательная настройка.',
+  candleVideo: 'candle-video', candleNotFound: 'Не найден; проверяется PATH и ./candle-video/target/release/examples/ltx-video',
+  cargoHint: 'Нужен только для сборки candle-video; Python и ComfyUI не требуют Rust.',
+  advancedEngines: 'Дополнительно: переопределения внешних движков', advancedHint: 'Пустое значение = автоопределение.', autoHint: 'Пусто = автоопределение.',
+  ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', python: 'Python', venv: 'Окружение', cargo: 'Cargo',
   comfyui: 'ComfyUI', path: 'Путь', test: 'Проверить', installFfmpeg: 'Установить ffmpeg', installPython: 'Установить Python-движок',
   outputDir: 'Папка результатов', modelsDir: 'Папка моделей', language: 'Язык', english: 'English', russian: 'Русский',
   defaults: 'Значения по умолчанию', service: 'MCP-сервис', uptime: 'Аптайм', unavailable: 'Недоступен',
@@ -461,10 +469,29 @@ const Panel = {
       }
     }
 
+    // RU: Прогресс/ошибка скачивания конкретной модели из живых job-событий.
+    // EN: Live download progress/failure for a specific model from job events.
+    const downloadProgress = (id: string) => {
+      const active = jobs.value.find((job: any) => job.kind === 'download' && job.params?.modelId === id && (job.status === 'running' || job.status === 'queued'))
+      if (!active) return null
+      return h('div', { class: 'gv-mt-2' }, [
+        h(Progress, { percent: active.percent }),
+        h('div', { class: 'gv-hint gv-mt-1' }, `${active.percent}% · ${active.message}`),
+      ])
+    }
+    const downloadFailure = (id: string) => {
+      const failed = jobs.value.find((job: any) => job.kind === 'download' && job.params?.modelId === id && job.status === 'failed')
+      if (!failed) return null
+      return h('div', { class: 'gv-mt-2 gv-text-[11.5px] gv-text-danger' }, `${failed.error?.code ?? 'download-failed'}: ${failed.error?.message ?? failed.message}`)
+    }
+    const hasActiveDownload = (id: string) =>
+      jobs.value.some((job: any) => job.kind === 'download' && job.params?.modelId === id && (job.status === 'running' || job.status === 'queued'))
+
     async function installModel(modelId: string) {
       busy.value = `install-${modelId}`
       try {
-        await api('/models/install', { method: 'POST', body: JSON.stringify({ modelId }) })
+        const job = await api('/models/install', { method: 'POST', body: JSON.stringify({ modelId }) })
+        liveJobs.value = { ...liveJobs.value, [job.id]: job }
         notice.value = t('modelInstalled')
         await refresh()
       } catch (err: any) {
@@ -590,7 +617,15 @@ const Panel = {
         source.value.onmessage = (event: MessageEvent) => {
           try {
             const payload = JSON.parse(event.data)
-            if (payload.kind === 'job') liveJobs.value = { ...liveJobs.value, [payload.job.id]: payload.job }
+            if (payload.kind === 'job') {
+              liveJobs.value = { ...liveJobs.value, [payload.job.id]: payload.job }
+              // RU: После завершения скачивания обновляем карточки моделей.
+              // EN: Refresh model cards once a download finishes.
+              if (payload.job.kind === 'download' && ['done', 'failed', 'cancelled'].includes(payload.job.status)) {
+                if (refreshTimer) clearTimeout(refreshTimer)
+                refreshTimer = setTimeout(() => void refresh(), 300)
+              }
+            }
             if (payload.kind === 'state') {
               if (refreshTimer) clearTimeout(refreshTimer)
               refreshTimer = setTimeout(() => void refresh(), 400)
@@ -958,6 +993,8 @@ const Panel = {
         h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-gap-1.5' },
           (['t2v', 'i2v', 'v2v', 'audio'] as const).map((capability) =>
             h(Badge, { key: capability, tone: item.entry.capabilities[capability] ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-line gv-bg-surface-2 gv-text-muted' }, capability.toUpperCase()))),
+        downloadProgress(item.entry.id),
+        downloadFailure(item.entry.id),
         item.updateAvailable || (item.newerCandidates ?? []).length
           ? h('div', { class: 'gv-mt-2 gv-rounded-lg gv-border gv-border-warn-soft gv-bg-warn-soft gv-p-2 gv-text-[11.5px] gv-text-warn' }, [
               h('div', null, t('newerVersion')),
@@ -966,7 +1003,7 @@ const Panel = {
           : null,
         h('div', { class: 'gv-mt-3 gv-flex gv-items-center gv-gap-2' }, [
           h('button', {
-            type: 'button', class: 'gv-btn gv-btn-primary', disabled: Boolean(busy.value) || item.installed || !item.entry.repo,
+            type: 'button', class: 'gv-btn gv-btn-primary', disabled: Boolean(busy.value) || item.installed || !item.entry.repo || hasActiveDownload(item.entry.id),
             onClick: () => void installModel(item.entry.id),
           }, busy.value === `install-${item.entry.id}` ? t('installing') : item.installed ? t('installed') : t('installModel')),
           item.missingFiles?.length ? h('span', { class: 'gv-hint' }, `${item.missingFiles.length} file(s) missing`) : null,
@@ -1029,6 +1066,7 @@ const Panel = {
     ])
 
     const toolsSection = () => h(Card, { title: t('tools') }, [
+      h('p', { class: 'gv-hint gv-mb-2' }, t('enginesNote')),
       h('div', { class: 'gv-flex gv-flex-col' }, [
         h(Row, { label: t('ffmpeg'), hint: state.value.deps.ffmpeg.version ?? '' }, [
           h(Badge, { tone: state.value.deps.ffmpeg.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, state.value.deps.ffmpeg.ok ? state.value.deps.ffmpeg.path : t('unavailable')),
@@ -1043,10 +1081,16 @@ const Panel = {
             state.value.deps.venv.ok ? `torch ${state.value.deps.venv.torch} · diffusers ${state.value.deps.venv.diffusers}` : t('notInstalled')),
           h('button', { type: 'button', class: 'gv-btn', onClick: installPython }, t('installPython')),
         ]),
-        h(Row, { label: t('cargo') }, [h(Badge, null, state.value.deps.cargo.version ?? t('unavailable'))]),
-        h(Row, { label: t('comfyui'), hint: state.value.deps.comfyui.error ?? '' }, [h(Badge, null, state.value.deps.comfyui.url || t('notInstalled'))]),
+        h(Row, { label: t('candleVideo'), hint: state.value.deps.candle.ok ? state.value.deps.candle.path : t('candleNotFound') }, [
+          h(Badge, { tone: state.value.deps.candle.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' },
+            state.value.deps.candle.ok ? state.value.deps.candle.path : t('notInstalled')),
+        ]),
+        h(Row, { label: t('comfyui'), hint: state.value.deps.comfyui.error ?? '' }, [h(Badge, { tone: state.value.deps.comfyui.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' }, state.value.deps.comfyui.url || t('notInstalled'))]),
       ]),
-      h('div', { class: 'gv-mt-3 gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
+      h('details', { class: 'gv-mt-3' }, [
+        h('summary', { class: 'gv-cursor-pointer gv-text-[11.5px] gv-text-muted' }, t('advancedEngines')),
+        h('p', { class: 'gv-hint gv-mt-1' }, t('advancedHint')),
+        h('div', { class: 'gv-mt-2 gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
         h(Field, { label: `${t('comfyui')} URL`, hint: t('comfyuiHint') }, [
           h('input', {
             class: 'gv-input', value: settings.value.deps.comfyuiUrl,
@@ -1081,6 +1125,8 @@ const Panel = {
             onInput: (event: any) => (settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, ffprobePath: event.target.value } }),
           }),
         ]),
+        ]),
+        h('p', { class: 'gv-hint gv-mt-2' }, `${t('cargo')}: ${state.value.deps.cargo.version ?? t('unavailable')} — ${t('cargoHint')}`),
       ]),
       h('div', { class: 'gv-mt-3' }, [h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('test'))]),
     ])

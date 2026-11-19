@@ -76,7 +76,18 @@ async function proxy(req, res, path) {
     const method = req.method ?? 'GET';
     const hasBody = method !== 'GET' && method !== 'HEAD';
     const controller = new AbortController();
-    req.on('close', () => controller.abort());
+    // RU: Нельзя вешать abort на req 'close': для POST он срабатывает сразу после
+    //     отправки тела и обрывает запрос к сервису (кнопки установки/сохранения
+    //     «не работали»). Отменяем fetch только если ответ оборвался, не успев
+    //     завершиться, то есть клиент действительно ушёл.
+    // EN: Do not abort on req 'close': for POST it fires right after the body is
+    //     sent and kills the upstream request (install/save buttons "did nothing").
+    //     Abort the fetch only when the response closes before finishing, i.e. the
+    //     client really disconnected.
+    res.on('close', () => {
+        if (!res.writableFinished)
+            controller.abort();
+    });
     try {
         const response = await fetch(target, {
             method,

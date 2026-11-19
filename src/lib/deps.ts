@@ -6,10 +6,11 @@
  *     diffusers, cargo (for candle), ComfyUI and free disk space. ffmpeg is
  *     installed only on an explicit user action.
  */
-import { existsSync } from 'node:fs'
-import { join } from 'node:path'
+import { accessSync, constants, existsSync } from 'node:fs'
+import { delimiter, join } from 'node:path'
+import { homedir } from 'node:os'
 import type { DepsStatus, Settings } from './types.js'
-import { genvideoHome, freeDiskGB } from './paths.js'
+import { genvideoHome, freeDiskGB, packageRoot, workdir } from './paths.js'
 import { firstWorking, runCommand } from './proc.js'
 
 /** RU: Python окружение, созданное плагином. EN: Python environment created by the plugin. */
@@ -24,7 +25,60 @@ export function venvPython(): string {
 
 /** RU: Каталог python-воркера в пакете. EN: Python worker directory inside the package. */
 export function workerScriptPath(): string {
-  return join(genvideoHome(), '..', '..', 'TextToVideo', 'python', 'genvideo_worker.py')
+  return join(packageRoot(), 'python', 'genvideo_worker.py')
+}
+
+/** RU: Ищет исполняемый candle-video: настройка, env, PATH и типовые места.
+ *  EN: Finds the candle-video executable: setting, env, PATH and common places. */
+export function findCandleBinary(configured: string): string | null {
+  const candidates = [
+    configured,
+    process.env.CANDLE_VIDEO_BIN || '',
+    ...(process.env.PATH || '').split(delimiter).filter(Boolean).map((dir) => join(dir, 'candle-video')),
+    '/usr/local/bin/candle-video',
+    '/usr/bin/candle-video',
+    join(homedir(), '.cargo', 'bin', 'candle-video'),
+    join(workdir(), 'candle-video', 'target', 'release', 'examples', 'ltx-video'),
+    join(workdir(), 'candle-video', 'target', 'release', 'candle-video'),
+    join(workdir(), 'tools', 'candle-video'),
+  ].filter(Boolean)
+  for (const candidate of candidates) {
+    try {
+      accessSync(candidate, constants.X_OK)
+      return candidate
+    } catch {
+      /* try the next candidate */
+    }
+  }
+  return null
+}
+
+/** RU: Кэш проверки ComfyUI, чтобы /state не сканировал порты постоянно.
+ *  EN: ComfyUI probe cache so /state does not scan ports on every refresh. */
+let comfyCache: { at: number; key: string; value: { ok: boolean; url: string; error: string | null } } | null = null
+
+/** RU: Ищет запущенный ComfyUI: явный URL или типовые локальные порты.
+ *  EN: Finds a running ComfyUI: explicit URL or common local ports. */
+export async function detectComfyUi(configured: string): Promise<{ ok: boolean; url: string; error: string | null }> {
+  const key = configured.trim()
+  if (comfyCache && comfyCache.key === key && Date.now() - comfyCache.at < 5000) return comfyCache.value
+  const probes = key ? [key] : ['http://127.0.0.1:8188', 'http://127.0.0.1:8189', 'http://127.0.0.1:8000']
+  for (const probe of probes) {
+    const result = await comfyuiStatus(probe)
+    if (result.ok) {
+      comfyCache = { at: Date.now(), key, value: result }
+      return result
+    }
+  }
+  const value = {
+    ok: false,
+    url: key,
+    error: key
+      ? `ComfyUI is not reachable at ${key}`
+      : 'ComfyUI is not running (auto-probed 127.0.0.1:8188, 8189 and 8000)',
+  }
+  comfyCache = { at: Date.now(), key, value }
+  return value
 }
 
 /** RU: Кандидаты ffmpeg/ffprobe. EN: ffmpeg/ffprobe candidates. */
@@ -50,11 +104,11 @@ async function ffmpegEncoders(path: string): Promise<string[]> {
 }
 
 /** RU: Состояние ComfyUI по HTTP. EN: ComfyUI state over HTTP. */
-async function comfyuiStatus(url: string): Promise<{ ok: boolean; url: string; error: string | null }> {
+async function comfyuiStatus(url: string, timeoutMs = 1200): Promise<{ ok: boolean; url: string; error: string | null }> {
   const base = url.trim().replace(/\/+$/, '')
   if (!base) return { ok: false, url: '', error: 'ComfyUI URL is not configured' }
   try {
-    const response = await fetch(`${base}/system_stats`, { signal: AbortSignal.timeout(3000) })
+    const response = await fetch(`${base}/system_stats`, { signal: AbortSignal.timeout(timeoutMs) })
     if (!response.ok) return { ok: false, url: base, error: `HTTP ${response.status}` }
     return { ok: true, url: base, error: null }
   } catch (error) {
@@ -95,8 +149,9 @@ export async function detectDeps(settings: Settings): Promise<DepsStatus> {
     }
   }
 
-  const cargo = await firstWorking([settings.deps.candleBinary ? 'cargo' : 'cargo'], ['--version'])
-  const comfy = await comfyuiStatus(settings.deps.comfyuiUrl)
+  const candlePath = findCandleBinary(settings.deps.candleBinary)
+  const cargo = await firstWorking(['cargo'], ['--version'])
+  const comfy = await detectComfyUi(settings.deps.comfyuiUrl)
   const disk = await freeDiskGB(genvideoHome())
 
   return {
@@ -105,6 +160,7 @@ export async function detectDeps(settings: Settings): Promise<DepsStatus> {
     python: { ok: Boolean(python), path: python?.path ?? '', version: python?.version ?? null },
     venv,
     cargo: { ok: Boolean(cargo), path: 'cargo', version: cargo?.version ?? null },
+    candle: { ok: Boolean(candlePath), path: candlePath ?? '' },
     comfyui: comfy,
     disk,
     checkedAt,
@@ -143,7 +199,7 @@ export async function installFfmpeg(): Promise<{ ok: boolean; message: string; c
 export function pythonEngineCommand(settings: Settings, cuda: boolean): string[] {
   const index = cuda ? 'https://download.pytorch.org/whl/cu124' : 'https://download.pytorch.org/whl/cpu'
   return [
-    'python3', '-m', 'venv', venvDir(),
+    settings.deps.pythonPath || 'python3', '-m', 'venv', venvDir(),
     '&&', venvPython(), '-m', 'pip', 'install', '--upgrade', 'pip',
     '&&', venvPython(), '-m', 'pip', 'install', '--index-url', index, 'torch',
     '&&', venvPython(), '-m', 'pip', 'install', 'diffusers', 'transformers', 'accelerate', 'safetensors', 'sentencepiece', 'imageio', 'imageio-ffmpeg',

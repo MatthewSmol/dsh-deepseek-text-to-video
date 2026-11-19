@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { available, unavailable } from './types.js';
 import { GenVideoError } from '../errors.js';
 import { modelsDirOf } from '../store.js';
+import { detectComfyUi } from '../deps.js';
 /** RU: Где искать workflow. EN: Where to look for the workflow. */
 export function workflowPath(modelId, modelsDir) {
     return process.env.GENVIDEO_COMFY_WORKFLOW || join(modelsDir, modelId, 'workflow.json');
@@ -36,12 +37,13 @@ export const comfyuiRunner = {
         if (!input.model.runtimes.includes('comfyui'))
             return unavailable('This model has no ComfyUI path', 'Use a command template or the diffusers path');
         if (!input.deps.comfyui.ok) {
-            return unavailable('ComfyUI is not reachable', 'Start ComfyUI and set its URL in Settings → ComfyUI, then press Test');
+            return unavailable('ComfyUI is not reachable', 'Start ComfyUI; the plugin probes 127.0.0.1:8188, 8189 and 8000 automatically, or set a URL in Settings → Advanced');
         }
         return available();
     },
     async run(input) {
-        const base = (input.settings.deps.comfyuiUrl || '').replace(/\/+$/, '');
+        const detected = await detectComfyUi(input.settings.deps.comfyuiUrl);
+        const base = (input.settings.deps.comfyuiUrl || detected.url || '').replace(/\/+$/, '');
         if (!base)
             throw new GenVideoError('comfyui-missing', 'ComfyUI URL is not configured');
         const wfPath = workflowPath(input.model.id, modelsDirOf(input.settings));

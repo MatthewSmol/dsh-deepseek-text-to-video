@@ -15,6 +15,7 @@ import { available, unavailable } from './types.js'
 import { runStreaming } from '../proc.js'
 import { GenVideoError } from '../errors.js'
 import { modelsDirOf } from '../store.js'
+import { findCandleBinary } from '../deps.js'
 
 const VIDEO_EXT = /\.(mp4|webm|mkv|mov)$/i
 
@@ -48,16 +49,16 @@ export const candleRunner: Runner = {
   availability(input: RunnerAvailabilityInput) {
     if (!input.model.runtimes.includes('candle')) return unavailable('This model has no Candle path', 'Use the Command runner with a custom template')
     if (!input.deps.ffmpeg.ok) return unavailable('ffmpeg is not available', 'Install ffmpeg from Settings → Tools')
-    if (!input.settings.deps.candleBinary) {
+    if (!findCandleBinary(input.settings.deps.candleBinary)) {
       return unavailable(
-        'The candle-video binary path is not configured',
-        'Build https://github.com/FerrisMind/candle-video (cargo build --release --features flash-attn,cudnn) and set the binary path in Settings → Python & engines',
+        'candle-video was not found',
+        'Build https://github.com/FerrisMind/candle-video (cargo build --release --features flash-attn,cudnn) and put the binary on PATH; the plugin also checks ./candle-video/target/release/examples/ltx-video.',
       )
     }
     return available()
   },
   async run(input: RunnerRunInput): Promise<RunnerResult> {
-    const binary = input.settings.deps.candleBinary
+    const binary = findCandleBinary(input.settings.deps.candleBinary) ?? input.settings.deps.candleBinary
     if (!(await executable(binary))) {
       throw new GenVideoError('candle-missing', `candle-video binary is not executable: ${binary}`)
     }
