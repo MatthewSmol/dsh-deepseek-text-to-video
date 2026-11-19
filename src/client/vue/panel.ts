@@ -378,6 +378,7 @@ const Panel = {
     const language = ref('en')
     const modelsTab = ref<'installed' | 'explore'>('installed')
     const runners = ref<any[]>([])
+    let runnerRequest = 0
     const explore = ref<any>(null)
     const explorePage = ref(1)
     const exploreBusy = ref(false)
@@ -433,13 +434,22 @@ const Panel = {
     /** RU: Доступность всех раннеров для выбранной модели.
      *  EN: Availability of every runner for the selected model. */
     async function refreshRunners(modelId = form.value.modelId) {
+      const request = ++runnerRequest
       try {
         const list = await api(`/runners?modelId=${encodeURIComponent(modelId)}`)
-        if (Array.isArray(list)) runners.value = list
+        if (request === runnerRequest && Array.isArray(list)) runners.value = list
       } catch {
         /* keep the previous list */
       }
     }
+
+    // RU: Пояснение, почему выбранный раннер недоступен для этой модели.
+    // EN: Why the selected runner is unavailable for this model.
+    const runnerHint = computed(() => {
+      const item = runners.value.find((entry: any) => entry.id === form.value.runner)
+      if (!item || item.available !== false) return ''
+      return [item.reason, item.hint].filter(Boolean).join(' — ')
+    })
 
     async function refreshLibrary() {
       try {
@@ -796,7 +806,7 @@ const Panel = {
                 },
               }, models.value.map((item: any) => h('option', { key: item.entry.id, value: item.entry.id }, `${item.entry.title}${item.installed ? ' ✓' : ''}`))),
             ]),
-            h(Field, { label: t('runner') }, [
+            h(Field, { label: t('runner'), hint: runnerHint.value }, [
               h('select', { class: 'gv-select', value: runner.value, onChange: (event: any) => patch({ runner: event.target.value }) }, [
                 h('option', { value: 'auto' }, t('auto')),
                 ...(runners.value.length
