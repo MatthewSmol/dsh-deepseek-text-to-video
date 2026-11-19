@@ -850,54 +850,54 @@ const Panel = {
             ]),
           ]),
         ]),
-        h(Card, { title: t('referenceInput'), hint: t('inputHint') }, [
-          !modelEntry.value?.capabilities?.i2v
-            ? h('div', { class: 'gv-mb-2 gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
-                h('span', { class: 'gv-hint' }, t('i2vHint')),
-                h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', onClick: () => { tab.value = 'models' } }, t('switchToI2v')),
-              ])
-            : null,
-          h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
-            h(Field, { label: t('imageInput'), hint: modelEntry.value?.capabilities?.i2v ? t('inputHint') : t('i2vHint') }, [
-              h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
-                h('button', {
-                  type: 'button', class: 'gv-btn', disabled: !modelEntry.value?.capabilities?.i2v || uploading.value === 'inputImageId',
-                  onClick: () => {
-                    const input = document.createElement('input')
-                    input.type = 'file'
-                    input.accept = 'image/*'
-                    input.onchange = () => {
-                      const file = input.files?.[0]
-                      if (file) void upload(file, 'inputImageId')
-                    }
-                    input.click()
-                  },
-                }, uploading.value === 'inputImageId' ? t('uploading') : t('chooseFile')),
-                form.value.inputImageId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputImageId.slice(0, 28)) : null,
-                form.value.inputImageId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputImageId: '' }) }, t('removeFile')) : null,
+        (modelEntry.value?.capabilities?.i2v || modelEntry.value?.capabilities?.v2v)
+          ? h(Card, { title: t('referenceInput'), hint: t('inputHint') }, [
+              h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
+                modelEntry.value?.capabilities?.i2v
+                  ? h(Field, { label: t('imageInput'), hint: t('inputHint') }, [
+                      h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
+                        h('button', {
+                          type: 'button', class: 'gv-btn', disabled: uploading.value === 'inputImageId',
+                          onClick: () => {
+                            const input = document.createElement('input')
+                            input.type = 'file'
+                            input.accept = 'image/*'
+                            input.onchange = () => {
+                              const file = input.files?.[0]
+                              if (file) void upload(file, 'inputImageId')
+                            }
+                            input.click()
+                          },
+                        }, uploading.value === 'inputImageId' ? t('uploading') : t('chooseFile')),
+                        form.value.inputImageId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputImageId.slice(0, 28)) : null,
+                        form.value.inputImageId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputImageId: '' }) }, t('removeFile')) : null,
+                      ]),
+                    ])
+                  : null,
+                modelEntry.value?.capabilities?.v2v
+                  ? h(Field, { label: t('videoInput'), hint: t('inputHint') }, [
+                      h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
+                        h('button', {
+                          type: 'button', class: 'gv-btn', disabled: uploading.value === 'inputVideoId',
+                          onClick: () => {
+                            const input = document.createElement('input')
+                            input.type = 'file'
+                            input.accept = 'video/*'
+                            input.onchange = () => {
+                              const file = input.files?.[0]
+                              if (file) void upload(file, 'inputVideoId')
+                            }
+                            input.click()
+                          },
+                        }, uploading.value === 'inputVideoId' ? t('uploading') : t('chooseFile')),
+                        form.value.inputVideoId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputVideoId.slice(0, 28)) : null,
+                        form.value.inputVideoId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputVideoId: '' }) }, t('removeFile')) : null,
+                      ]),
+                    ])
+                  : null,
               ]),
-            ]),
-            h(Field, { label: t('videoInput'), hint: modelEntry.value?.capabilities?.v2v ? t('inputHint') : t('v2vHint') }, [
-              h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
-                h('button', {
-                  type: 'button', class: 'gv-btn', disabled: !modelEntry.value?.capabilities?.v2v || uploading.value === 'inputVideoId',
-                  onClick: () => {
-                    const input = document.createElement('input')
-                    input.type = 'file'
-                    input.accept = 'video/*'
-                    input.onchange = () => {
-                      const file = input.files?.[0]
-                      if (file) void upload(file, 'inputVideoId')
-                    }
-                    input.click()
-                  },
-                }, uploading.value === 'inputVideoId' ? t('uploading') : t('chooseFile')),
-                form.value.inputVideoId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputVideoId.slice(0, 28)) : null,
-                form.value.inputVideoId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputVideoId: '' }) }, t('removeFile')) : null,
-              ]),
-            ]),
-          ]),
-        ]),
+            ])
+          : null,
         h(Card, { title: t('duration') }, [
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-3' }, [
             h(Field, { label: t('duration'), hint: t('durationHint') }, [
