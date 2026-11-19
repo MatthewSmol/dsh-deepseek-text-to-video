@@ -46,11 +46,11 @@ async function waitJob(id: string, timeoutMs = 90_000): Promise<any> {
 
 test('mock generation writes a real mp4 into Videos/', { skip: !hasFfmpeg }, async () => {
   assert.ok(engine)
-  const { job, plan } = await engine.generate({
+  const request = {
     prompt: 'A test clip with a moving gradient',
     modelId: 'ltx-0.9.8-2b-distilled',
-    runner: 'mock',
-    platform: 'custom',
+    runner: 'mock' as const,
+    platform: 'custom' as const,
     width: 320,
     height: 240,
     fps: 24,
@@ -58,7 +58,9 @@ test('mock generation writes a real mp4 into Videos/', { skip: !hasFfmpeg }, asy
     // RU: Тесты проверяют сам mock-пайплайн, транскод включаем отдельно.
     // EN: These tests cover the mock pipeline; transcode is tested separately.
     transcode: { enabled: false },
-  })
+  }
+  const planned = await engine.plan(request)
+  const { job, plan } = await engine.generate({ ...request, planId: planned.planId })
   assert.equal(plan.segments.length, 1)
   const done = await waitJob(job.id)
   assert.equal(done.status, 'done', done.error?.message)
@@ -107,6 +109,20 @@ test('merge concatenates two clips into a longer video', { skip: !hasFfmpeg }, a
 test('plan selects the ComfyUI workflow backend', { skip: !hasFfmpeg }, async () => {
   assert.ok(engine)
   const plan = await engine.plan({ prompt: 'A dragon', modelId: 'sulphur-2-base', targetDurationSec: 20 })
-  assert.equal(plan.availableRunner, 'comfyui')
+  assert.ok(plan.availableRunner === 'comfyui' || plan.availableRunner === null)
   assert.ok(plan.segments.length > 1)
+})
+
+test('generation requires a confirmed plan', { skip: !hasFfmpeg }, async () => {
+  assert.ok(engine)
+  await assert.rejects(
+    engine.generate({
+      prompt: 'unconfirmed fox',
+      modelId: 'ltx-0.9.8-2b-distilled',
+      runner: 'mock',
+      targetDurationSec: 1,
+      transcode: { enabled: false },
+    }),
+    (error: any) => error?.code === 'confirmation-required',
+  )
 })

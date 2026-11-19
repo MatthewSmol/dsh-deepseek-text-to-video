@@ -22,7 +22,8 @@ There is no MCP server, no stdio transport and no `endpoint.json`. The plugin st
 
 ### Tabs
 
-- **Generate** — numbered sections (Scene → References → Output → Encoding), actions at the top, prompt/negative, reference image and video, prompt mode, duration/clip/platform/aspect/resolution/FPS and ffmpeg transcode settings.
+- **Generate** — numbered sections (Scene → References → Output → Encoding); prompt/negative, reference image and video, duration, **Format** (Horizontal 16:9 / Vertical 9:16), **FPS** (15/24/30/60), continuity and ffmpeg transcode. Clip length is chosen automatically from VRAM.
+- **Generation preview** — Generate opens a plan with output/base size, fps, auto clip, frames, clips and warnings; the job starts only after **Confirm generation**.
 - **Jobs** — the active job with progress, segments, log and result, plus recent jobs.
 - **Gallery** — finished videos from `Videos/`; preview, download/open, delete, select and merge.
 - **Environment** — read-only status: ComfyUI, workflow path, ffmpeg/ffprobe, available agent tools, and the parsed workflow model, text encoder, VAE and upscalers.
@@ -137,7 +138,8 @@ MCP-сервера, stdio-транспорта и `endpoint.json` больше �
 
 ### Вкладки
 
-- **Generate** — пронумерованные секции (Сцена → Референсы → Выход → Кодирование), действия сверху, промпт/негатив, референс-картинка и видео, режим промпта, длительность/клип/платформа/аспект/разрешение/FPS и настройки транскода.
+- **Generate** — пронумерованные секции (Сцена → Референсы → Выход → Кодирование); промпт/негатив, референс-картинка и видео, длительность, **Format** (Horizontal 16:9 / Vertical 9:16), **FPS** (15/24/30/60), непрерывность и транскод. Длина клипа выбирается автоматически по VRAM.
+- **Предпросмотр** — Generate сначала строит план: итоговый/base размер, fps, auto clip, кадры, число клипов и warnings; job создаётся только после **Confirm generation**.
 - **Jobs** — активная генерация с прогрессом, сегментами, логом и результатом; ниже последние задания.
 - **Gallery** — готовые ролики из `Videos/`: просмотр, скачивание/открытие, удаление, выбор и склейка.
 - **Environment** — статус только для чтения: ComfyUI, путь workflow, ffmpeg/ffprobe, доступные tools, а также модель, текстовый энкодер, VAE и апскейлеры из workflow.
@@ -168,7 +170,7 @@ $DSH_HOME/genvideo/workflow.json
 
 Переопределяется через `GENVIDEO_COMFY_WORKFLOW`. Для image-to-video используется `workflow-image.json` рядом, для video-to-video — `workflow-video.json`.
 
-Поддерживаемые плейсхолдеры: `{{prompt}}`, `{{negative}}`, `{{width}}`, `{{height}}`, `{{frames}}`, `{{fps}}`, `{{seed}}`, `{{image}}`, `{{video}}`.
+Поддерживаемые плейсхолдеры: `{{prompt}}`, `{{negative}}`, `{{baseWidth}}`, `{{baseHeight}}`, `{{outWidth}}`, `{{outHeight}}`, `{{frames}}`, `{{fps}}`, `{{seed}}`, `{{image}}`, `{{video}}`.
 
 Если референс загружен, а плейсхолдера в workflow нет — генерация завершится ошибкой до отправки в ComfyUI.
 

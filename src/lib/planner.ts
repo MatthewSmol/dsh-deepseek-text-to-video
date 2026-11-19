@@ -6,7 +6,7 @@
  *     prompts, whether VRAM fits and how long it takes. The plan explains
  *     "what the model can do" before the run.
  */
-import type { GpuStatus, ModelEntry, Plan, PlannedSegment, PromptMode, RunnerId, SegmentMode, Settings } from './types.js'
+import type { GpuStatus, ModelEntry, Orientation, Plan, PlannedSegment, PromptMode, RunnerId, SegmentMode, Settings } from './types.js'
 
 /** RU: Вход планировщика. EN: Planner input. */
 export interface PlanInput {
@@ -20,6 +20,7 @@ export interface PlanInput {
   promptMode?: PromptMode
   segmentPrompts?: string[]
   continuity?: 'none' | 'last-frame'
+  orientation?: Orientation
   segmentMode?: SegmentMode
   width?: number
   height?: number
@@ -206,6 +207,14 @@ export function fitPlanToBudget(input: {
   return null
 }
 
+/** RU: Авто-длина клипа по VRAM. EN: Auto clip length by VRAM. */
+export function autoClipSec(vramGB: number, fps: number): number {
+  const base = vramGB >= 16 ? 8 : vramGB >= 10 ? 6 : 4
+  const frames = Math.round(base * fps + 1)
+  if (frames <= 257) return base
+  return Math.max(1, Math.floor((257 - 1) / fps))
+}
+
 /** RU: Собирает полный план. EN: Builds the full plan. */
 export function planGeneration(input: PlanInput): Plan {
   const { settings, model, gpu } = input
@@ -214,7 +223,17 @@ export function planGeneration(input: PlanInput): Plan {
   const width = input.width && input.width > 0 ? input.width : model.width
   const height = input.height && input.height > 0 ? input.height : model.height
   const target = Math.max(0.5, input.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended)
-  const clipRequested = Math.min(input.clipSec ?? settings.clipSec ?? model.durationSec.recommended, model.durationSec.max)
+  const selectedGpu = gpu.available ? gpu.gpus.filter((item) => !settings.gpu.ids.length || settings.gpu.ids.includes(item.index)) : []
+  const vram = settings.gpu.vramBudgetGB > 0
+    ? settings.gpu.vramBudgetGB
+    : selectedGpu.length
+      ? Math.max(...selectedGpu.map((item) => item.totalMB / 1024))
+      : 0
+  const autoClip = !input.clipSec || input.clipSec <= 0
+  const clipRequested = Math.min(
+    autoClip ? autoClipSec(vram, fps) : (input.clipSec as number),
+    model.durationSec.max,
+  )
   const promptMode: PromptMode = input.promptMode ?? 'full'
   const segmentMode: SegmentMode = input.segmentMode ?? 'fixed'
   const requestedSegments = Math.ceil(target / Math.max(0.5, clipRequested))
@@ -294,6 +313,10 @@ export function planGeneration(input: PlanInput): Plan {
     runtimes: model.runtimes,
     availableRunner: input.runner,
     clipSec: segments[0]?.durationSec ?? target,
+    autoClip,
+    orientation: input.orientation ?? (width >= height ? 'landscape' : 'portrait'),
+    baseWidth: width >= height ? 768 : 512,
+    baseHeight: width >= height ? 512 : 768,
     promptMode,
     continuity,
     segments,

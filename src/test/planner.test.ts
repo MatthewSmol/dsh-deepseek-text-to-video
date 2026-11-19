@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { buildSegmentPrompts, computeSegments, fitPlanToBudget, splitPrompt, estimateVramGB, planGeneration } from '../lib/planner.js'
+import { autoClipSec, buildSegmentPrompts, computeSegments, fitPlanToBudget, splitPrompt, estimateVramGB, planGeneration } from '../lib/planner.js'
 import { DEFAULT_SETTINGS } from '../lib/store.js'
 import type { ModelEntry } from '../lib/types.js'
 
@@ -189,4 +189,37 @@ test('plan uses segment prompts and last-frame continuity', () => {
   assert.equal(plan.continuity, 'last-frame')
   assert.match(plan.segments[0]?.prompt ?? '', /holds the pole/)
   assert.match(plan.segments[1]?.prompt ?? '', /previous frame/)
+})
+
+test('auto clip length follows VRAM and fps cap', () => {
+  assert.equal(autoClipSec(8, 30), 4)
+  assert.equal(autoClipSec(12, 30), 6)
+  assert.equal(autoClipSec(24, 30), 8)
+  assert.equal(autoClipSec(24, 60), 4)
+  assert.equal(autoClipSec(8, 60), 4)
+})
+
+test('auto clip and orientation drive plan sizes', () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  settings.gpu.vramBudgetGB = 8
+  const plan = planGeneration({
+    settings,
+    model,
+    runner: 'comfyui',
+    gpu: { available: true, gpus: [{ index: 0, name: 'GPU', totalMB: 8192, usedMB: 0, driver: '', computeCap: '8.6' }], error: null, hints: [], checkedAt: Date.now() },
+    prompt: 'A dancer.',
+    targetDurationSec: 60,
+    clipSec: 0,
+    orientation: 'portrait',
+    width: 720,
+    height: 1280,
+    fps: 30,
+  })
+  assert.equal(plan.autoClip, true)
+  assert.equal(plan.clipSec, 4)
+  assert.equal(plan.orientation, 'portrait')
+  assert.equal(plan.baseWidth, 512)
+  assert.equal(plan.baseHeight, 768)
+  assert.equal(plan.frames, 121)
+  assert.equal(plan.segments.length, 15)
 })

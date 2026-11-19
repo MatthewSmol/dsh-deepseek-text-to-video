@@ -139,3 +139,18 @@
 .gv-generate { max-width: 1080px; }
 .gv-actions { padding-top: 4px; }
 .gv-actions .gv-btn-primary { min-width: 150px; }
+
+.gv-modal-backdrop {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(10, 14, 20, .45);
+  backdrop-filter: blur(2px);
+}
+.gv-modal {
+  width: min(460px, calc(100vw - 32px));
+  border-radius: 16px;
+  border: 1px solid var(--dsw-alias-border-l1, #e3e6ea);
+  background: var(--dsw-alias-bg-layer-1, #fff);
+  padding: 18px;
+  box-shadow: 0 24px 64px rgba(16, 24, 40, .28);
+}

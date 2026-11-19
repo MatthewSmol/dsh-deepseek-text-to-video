@@ -105,6 +105,9 @@ export const comfyuiRunner: Runner = {
       .replace(/\n/g, '\\n')
       .replace(/\r/g, '\\r')
       .replace(/\t/g, '\\t')
+    const landscape = input.width >= input.height
+    const baseWidth = landscape ? 768 : 512
+    const baseHeight = landscape ? 512 : 768
     const workflowText = substituteWorkflow(template, {
       prompt: escapeJson(input.prompt),
       negative: escapeJson(input.negativePrompt),
@@ -116,6 +119,10 @@ export const comfyuiRunner: Runner = {
       steps: String(Math.max(0, input.steps)),
       image: uploadedImage,
       video: uploadedVideo,
+      baseWidth: String(baseWidth),
+      baseHeight: String(baseHeight),
+      outWidth: String(input.width),
+      outHeight: String(input.height),
       model: input.model.id,
     })
     let workflow: unknown

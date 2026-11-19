@@ -28,6 +28,7 @@ export const DEFAULT_SETTINGS = {
     seed: -1,
     continuity: 'none',
     promptMode: 'full',
+    orientation: 'landscape',
     transcode: {
         enabled: true,
         mode: 'quality',
@@ -178,6 +179,7 @@ export function sanitizeSettings(raw) {
         seed: int(source.seed, -1, 2_147_483_647, -1),
         continuity: oneOf(source.continuity, ['none', 'last-frame'], 'none'),
         promptMode: oneOf(source.promptMode, ['split', 'full', 'shots'], 'full'),
+        orientation: oneOf(source.orientation, ['landscape', 'portrait'], 'landscape'),
         transcode: {
             enabled: bool(transcodeRaw.enabled, true),
             mode: oneOf(transcodeRaw.mode, ['quality', 'size'], 'quality'),

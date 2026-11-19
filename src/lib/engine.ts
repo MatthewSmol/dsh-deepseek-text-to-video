@@ -101,6 +101,7 @@ export class Engine {
   private gpuStatus: GpuStatus | null = null
   private depsStatus: DepsStatus | null = null
   private readonly listeners = new Set<(event: ServerEvent) => void>()
+  private readonly plans = new Map<string, { plan: Plan; request: GenerateRequest; createdAt: number }>()
 
   constructor(
     readonly settingsStore = new SettingsStore(),
@@ -250,10 +251,10 @@ export class Engine {
 
   /** RU: Размеры кадра из запроса и пресета. EN: Frame size from the request and preset. */
   private frameSize(request: GenerateRequest, model: ModelEntry, settings: Settings): { width: number; height: number; fps: number } {
-    const preset = request.platform && request.platform !== 'custom' ? PLATFORM_PRESETS[request.platform] : null
-    const width = Math.max(64, Math.round(request.width ?? preset?.width ?? settings.width ?? model.width))
-    const height = Math.max(64, Math.round(request.height ?? preset?.height ?? settings.height ?? model.height))
-    const fps = Math.max(1, Math.round(request.fps ?? preset?.fps ?? settings.fps ?? model.fps[0] ?? 24))
+    const portrait = request.orientation === 'portrait'
+    const width = request.orientation ? (portrait ? 720 : 1280) : Math.max(64, Math.round(request.width ?? 1280))
+    const height = request.orientation ? (portrait ? 1280 : 720) : Math.max(64, Math.round(request.height ?? 720))
+    const fps = [15, 24, 30, 60].includes(Number(request.fps)) ? Number(request.fps) : 30
     return { width, height, fps }
   }
 
@@ -274,7 +275,7 @@ export class Engine {
     let { width, height } = this.frameSize(request, model, settings)
     const { fps } = this.frameSize(request, model, settings)
     const target = Math.max(0.5, request.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended)
-    let clipSec = request.clipSec ?? settings.clipSec
+    let clipSec = request.clipSec ?? 0
     let autoFitNote: string | null = null
     if (request.autoFit && !request.width && !request.height) {
       const selected = selectGpus(gpu, settings.gpu.ids)
@@ -327,7 +328,12 @@ export class Engine {
     })
     plan.warnings.push(...this.runtimeWarnings(model, variant, runner, deps, gpu, settings))
     if (autoFitNote) plan.warnings.push({ code: 'auto-fit', message: autoFitNote })
-    return plan
+    const planId = randomUUID()
+    this.plans.set(planId, { plan, request: { ...request, planId }, createdAt: Date.now() })
+    for (const [id, entry] of this.plans) {
+      if (Date.now() - entry.createdAt > 15 * 60_000) this.plans.delete(id)
+    }
+    return { ...plan, planId }
   }
 
   /** RU: Предупреждения о доступности инструментов и памяти. EN: Toolchain and memory warnings. */
@@ -371,6 +377,15 @@ export class Engine {
     const prompt = String(request.prompt ?? '').trim()
     if (!prompt) throw new GenVideoError('empty-prompt', 'A prompt is required')
     if (prompt.length > 8000) throw new GenVideoError('prompt-too-long', 'The prompt is longer than 8000 characters')
+    if (!request.planId) {
+      const preview = await this.plan(request)
+      throw new GenVideoError('confirmation-required', 'Generation requires confirmation. Show the plan to the user, then call generate with planId.', {
+        status: 409,
+        details: { plan: preview },
+      })
+    }
+    const stored = this.plans.get(request.planId)
+    if (!stored) throw new GenVideoError('plan-expired', 'The confirmed plan expired or is unknown; build a new plan.', { status: 409 })
     const { model, variant, runner } = await this.resolveModel(request)
     if (!runner) {
       const deps = await this.deps()
@@ -402,7 +417,11 @@ export class Engine {
         details: { hint: runner.availability.hint, runner: runner.runner.id },
       })
     }
-    const plan = await this.plan(request)
+    if (stored.request.prompt !== prompt) {
+      throw new GenVideoError('plan-mismatch', 'The prompt changed after the plan was confirmed.', { status: 409 })
+    }
+    const plan = stored.plan
+    this.plans.delete(String(request.planId))
     const settings = this.settings
     const transcode = this.transcodeOptions(request)
     const totalDuration = plan.totalSec

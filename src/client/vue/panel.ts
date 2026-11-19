@@ -34,7 +34,7 @@ const en: Record<string, string> = {
   referenceInput: 'Reference input', switchToI2v: 'Choose i2v model',
   v2vHint: 'No built-in model supports video input yet.',
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
-  clipLength: 'Clip length', clipLengthHint: 'Length of one generated clip. The last clip may be shorter.', promptMode: 'Prompt mode',
+  clipLength: 'Clip length', videoFormat: 'Format', clipLengthHint: 'Length of one generated clip. The last clip may be shorter.', promptMode: 'Prompt mode',
   promptFull: 'Full scene in every clip', promptSplit: 'Split by sentences', promptShots: 'Shot prompts', shotPrompts: 'Shot prompts (one per line)', shotPromptsHint: 'One prompt per clip. The agent or you can write N different actions; empty lines are ignored.',
   promptModeHint: 'Full scene repeats the whole description in every clip (best for one continuous scene).',
   promptModeHintShots: 'One prompt per clip. Write N different actions; best for long storyboarded videos.',
@@ -108,7 +108,7 @@ const ru: Record<string, string> = {
   referenceInput: 'Опорный вход', switchToI2v: 'Выбрать i2v-модель',
   v2vHint: 'Встроенные модели пока не поддерживают видео-вход.',
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
-  clipLength: 'Длина клипа', clipLengthHint: 'Длительность одного клипа. Последний может быть короче.', promptMode: 'Режим промпта',
+  clipLength: 'Длина клипа', videoFormat: 'Формат', clipLengthHint: 'Длительность одного клипа. Последний может быть короче.', promptMode: 'Режим промпта',
   promptFull: 'Полная сцена в каждом клипе', promptSplit: 'Разбить по предложениям', promptShots: 'Промпты по кадрам', shotPrompts: 'Промпты по клипам (по одному в строке)', shotPromptsHint: 'Один промпт на клип. Агент или вы пишете N разных действий; пустые строки игнорируются.',
   promptModeHint: 'Полная сцена повторяет всё описание в каждом клипе (лучше для одной непрерывной сцены).',
   promptModeHintShots: 'Один промпт на клип. Напишите N разных действий; лучший вариант для длинной раскадровки.',
@@ -247,11 +247,12 @@ function emptyForm(settings?: any) {
     runner: 'comfyui',
     platform: settings?.platform ?? 'youtube',
     aspect: settings?.aspect ?? '16:9',
-    width: settings?.width ?? 1280,
-    height: settings?.height ?? 720,
-    fps: settings?.fps ?? 30,
+    width: settings?.orientation === 'portrait' ? 720 : 1280,
+    height: settings?.orientation === 'portrait' ? 1280 : 720,
+    fps: [15, 24, 30, 60].includes(settings?.fps) ? settings.fps : 30,
     targetDurationSec: settings?.targetDurationSec ?? 60,
-    clipSec: settings?.clipSec ?? 9,
+    clipSec: 0,
+    orientation: settings?.orientation ?? 'landscape',
     promptMode: 'full',
     segmentPrompts: '',
     continuity: settings?.continuity ?? 'last-frame',
@@ -384,6 +385,7 @@ const Panel = {
     const models = ref<any[]>([])
     const selected = ref<string[]>([])
     const busy = ref('')
+    const preview = ref<any>(null)
     const error = ref('')
     const notice = ref('')
     const uploading = ref('')
@@ -568,15 +570,34 @@ const Panel = {
       }
     }
 
-    async function generate() {
-      busy.value = 'generate'
+    const generationBody = (extra: Record<string, unknown> = {}) => ({
+      ...form.value,
+      segmentPrompts: form.value.segmentPrompts.split(/\n+/).map((line: string) => line.trim()).filter(Boolean),
+      modelId: 'comfyui-workflow',
+      runner: 'comfyui',
+      ...extra,
+    })
+
+    async function requestGenerate() {
+      busy.value = 'plan'
       error.value = ''
       notice.value = ''
       try {
-        const result = await api('/generate', {
-          method: 'POST',
-          body: JSON.stringify({ ...form.value, segmentPrompts: form.value.segmentPrompts.split(/\n+/).map((line: string) => line.trim()).filter(Boolean), modelId: 'comfyui-workflow', runner: 'comfyui' }),
-        })
+        preview.value = await api('/plan', { method: 'POST', body: JSON.stringify(generationBody()) })
+      } catch (err: any) {
+        error.value = err.message
+      } finally {
+        busy.value = ''
+      }
+    }
+
+    async function confirmGenerate() {
+      const planned = preview.value
+      if (!planned?.planId) return
+      preview.value = null
+      busy.value = 'generate'
+      try {
+        const result = await api('/generate', { method: 'POST', body: JSON.stringify(generationBody({ planId: planned.planId })) })
         liveJobs.value = { ...liveJobs.value, [result.job.id]: result.job }
         tab.value = 'jobs'
         notice.value = `${t('queued')}: ${result.plan.segments.length} × ${fmtDuration(result.plan.clipSec)}`
@@ -833,6 +854,32 @@ const Panel = {
       if (pollTimer) clearInterval(pollTimer)
     })
 
+    const previewModal = () => {
+      const p = preview.value
+      if (!p) return null
+      const warn = (p.warnings ?? []).map((item: any) => item.message)
+      return h('div', { class: 'gv-modal-backdrop' }, [
+        h('div', { class: 'gv-modal' }, [
+          h('div', { class: 'gv-text-[15px] gv-font-semibold gv-text-text' }, 'Generation preview'),
+          h('div', { class: 'gv-mt-3 gv-grid gv-grid-cols-2 gv-gap-2 gv-text-[12px]' }, [
+            h('div', { class: 'gv-hint' }, 'Format'), h('div', null, p.orientation === 'portrait' ? 'Vertical · 9:16' : 'Horizontal · 16:9'),
+            h('div', { class: 'gv-hint' }, 'Output'), h('div', null, `${p.width}×${p.height}`),
+            h('div', { class: 'gv-hint' }, 'Base'), h('div', null, `${p.baseWidth}×${p.baseHeight}`),
+            h('div', { class: 'gv-hint' }, t('fps')), h('div', null, String(p.fps)),
+            h('div', { class: 'gv-hint' }, 'Auto clip'), h('div', null, `${p.clipSec}s · ${p.frames} frames`),
+            h('div', { class: 'gv-hint' }, t('segments')), h('div', null, `${p.segments.length} · ${fmtDuration(p.totalSec)}`),
+            h('div', { class: 'gv-hint' }, 'Upscaler'), h('div', null, '2× Nomos → ImageScale'),
+            h('div', { class: 'gv-hint' }, 'ComfyUI'), h('div', null, state.value.deps.comfyui.ok ? 'ready' : 'unavailable'),
+          ]),
+          warn.length ? h('ul', { class: 'gv-mt-3 gv-list-disc gv-pl-5 gv-text-[11.5px] gv-text-warn' }, warn.map((line: string, index: number) => h('li', { key: index }, line))) : null,
+          h('div', { class: 'gv-mt-4 gv-flex gv-justify-end gv-gap-2' }, [
+            h('button', { type: 'button', class: 'gv-btn', onClick: () => (preview.value = null) }, t('cancel')),
+            h('button', { type: 'button', class: 'gv-btn gv-btn-primary', disabled: !state.value.deps.comfyui.ok, onClick: () => void confirmGenerate() }, 'Confirm generation'),
+          ]),
+        ]),
+      ])
+    }
+
     const header = () => h('div', { class: 'gv-header gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-3' }, [
       h('div', { class: 'gv-flex gv-items-center gv-gap-3' }, [
         h('div', { class: 'gv-flex gv-h-9 gv-w-9 gv-items-center gv-justify-center gv-rounded-xl gv-bg-surface-2 gv-text-brand' }, [h(Icon, { size: 20, active: true })]),
@@ -938,7 +985,7 @@ const Panel = {
     const generateView = () => h('div', { class: 'gv-generate gv-flex gv-flex-col gv-gap-4' }, [
       h('div', { class: 'gv-actions gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-3' }, [
         h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-gap-2' }, [
-          h('button', { type: 'button', class: 'gv-btn gv-btn-primary gv-h-10 gv-px-4', disabled: Boolean(busy.value) || !form.value.prompt.trim(), onClick: generate }, busy.value === 'generate' ? t('generating') : t('generateButton')),
+          h('button', { type: 'button', class: 'gv-btn gv-btn-primary gv-h-10 gv-px-4', disabled: Boolean(busy.value) || !form.value.prompt.trim(), onClick: () => void requestGenerate() }, busy.value === 'plan' ? 'Planning…' : busy.value === 'generate' ? t('generating') : t('generateButton')),
           h('button', { type: 'button', class: 'gv-btn', disabled: Boolean(busy.value), onClick: () => void saveGenerateDefaults() }, t('saveDefaults')),
           h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('refresh')),
         ]),
@@ -1005,7 +1052,7 @@ const Panel = {
           ]),
         ]),
         h(Card, { title: `3 · ${t('sectionOutput')}` }, [
-          h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-3' }, [
+          h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2 lg:gv-grid-cols-4' }, [
             h(Field, { label: t('duration'), hint: t('durationHint') }, [
               h('input', { class: 'gv-input', type: 'number', min: 1, max: 600, value: form.value.targetDurationSec, onInput: (event: any) => patch({ targetDurationSec: Number(event.target.value) || 1 }) }),
               h('div', { class: 'gv-mt-1 gv-flex gv-gap-1' }, [30, 60, 120].map((sec) => h('button', {
@@ -1013,39 +1060,22 @@ const Panel = {
                 onClick: () => patch({ targetDurationSec: sec }),
               }, sec >= 60 ? `${sec / 60}m` : `${sec}s`))),
             ]),
-            h(Field, { label: t('clipLength'), hint: t('clipLengthHint') }, [
-              h('input', {
-                class: 'gv-input', type: 'number', min: 1, max: modelEntry.value?.durationSec.max ?? 10.7, step: 0.5,
-                value: form.value.clipSec,
-                onInput: (event: any) => patch({ clipSec: Number(event.target.value) || 1 }),
-              }),
-            ]),
-            h(Field, { label: t('platform') }, [
-              h('select', { class: 'gv-select', value: form.value.platform, onChange: (event: any) => applyPlatform(event.target.value) },
-                ['reels', 'shorts', 'youtube', 'youtube4k', 'cinema', 'square', 'portrait45', 'custom'].map((value) => h('option', { key: value, value }, value === 'custom' ? 'Custom' : value))),
-            ]),
-            h(Field, { label: t('aspect') }, [
-              h('select', { class: 'gv-select', value: form.value.aspect, onChange: (event: any) => applyAspect(event.target.value) },
-                ['16:9', '9:16', '1:1', '4:5', '3:4'].map((value) => h('option', { key: value, value }, value))),
-            ]),
-            h(Field, { label: t('resolution') }, [
-              h('select', {
-                class: 'gv-select', value: `${form.value.width}x${form.value.height}`,
-                onChange: (event: any) => {
-                  const [width, height] = event.target.value.split('x').map(Number)
-                  patch({ width, height })
+            h(Field, { label: t('videoFormat') }, [
+              h(Segmented, {
+                value: form.value.orientation,
+                onChange: (value: string) => {
+                  const horizontal = value !== 'portrait'
+                  patch({ orientation: horizontal ? 'landscape' : 'portrait', width: horizontal ? 1280 : 720, height: horizontal ? 720 : 1280 })
                 },
-              }, Array.from(new Set([
-                `${form.value.width}x${form.value.height}`,
-                ...['480', '720', '1080', '1440', '2160'].map((height) => {
-                  const size = dimsFor(Number(height), form.value.aspect)
-                  return `${size.width}x${size.height}`
-                }),
-              ])).map((value) => h('option', { key: value, value }, value))),
+                options: [
+                  { value: 'landscape', label: 'Horizontal · 16:9' },
+                  { value: 'portrait', label: 'Vertical · 9:16' },
+                ],
+              }),
             ]),
             h(Field, { label: t('fps') }, [
               h('select', { class: 'gv-select', value: String(form.value.fps), onChange: (event: any) => patch({ fps: Number(event.target.value) }) },
-                Array.from(new Set([24, 25, 30, 48, 50, form.value.fps])).sort((a, b) => a - b).map((value) => h('option', { key: value, value }, String(value)))),
+                [15, 24, 30, 60].map((value) => h('option', { key: value, value: String(value) }, String(value)))),
             ]),
             h(Field, { label: t('continuity'), hint: 'Continue each clip from the previous frame. Requires workflow-image.json.' }, [
               h('select', { class: 'gv-select', value: form.value.continuity, onChange: (event: any) => patch({ continuity: event.target.value }) }, [
@@ -1602,6 +1632,7 @@ const Panel = {
               class: `gv-tab gv-relative gv-px-3 gv-py-2 gv-text-[12.5px] gv-font-medium gv-transition-colors ${tab.value === value ? 'gv-tab-active gv-text-text' : 'gv-text-muted'}`,
             }, [label, tab.value === value ? h('span', { class: 'gv-absolute gv-inset-x-2 gv-bottom-0 gv-h-0.5 gv-rounded-t gv-bg-brand' }) : null]))),
         props.surface === 'settings' ? settingsView() : content,
+        preview.value ? previewModal() : null,
       ])
     }
   },

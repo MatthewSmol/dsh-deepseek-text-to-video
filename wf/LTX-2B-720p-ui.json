@@ -48,7 +48,7 @@
   },
   {
    "id": 44,
-   "type": "UNETLoader",
+   "type": "CheckpointLoaderSimple",
    "pos": [
     60,
     40
@@ -69,15 +69,35 @@
      "links": [
       181
      ]
+    },
+    {
+     "name": "CLIP",
+     "type": "CLIP",
+     "links": null
+    },
+    {
+     "name": "VAE",
+     "type": "VAE",
+     "slot_index": 2,
+     "links": [
+      87
+     ]
     }
    ],
    "properties": {
-    "Node name for S&R": "UNETLoader"
+    "Node name for S&R": "CheckpointLoaderSimple",
+    "models": [
+     {
+      "name": "ltx-video-2b-v0.9.safetensors",
+      "url": "https://huggingface.co/Lightricks/LTX-Video/resolve/main/ltx-video-2b-v0.9.safetensors?download=true",
+      "directory": "checkpoints"
+     }
+    ]
    },
    "widgets_values": [
-    "ltxv-2b-0.9.8-distilled-fp8.safetensors",
-    "default"
-   ]
+    "ltxv-2b-0.9.8-distilled-fp8.safetensors"
+   ],
+   "title": "Load LTX 0.9.8 (checkpoint, VAE внутри)"
   },
   {
    "id": 7,
@@ -214,8 +234,8 @@
     "Node name for S&R": "EmptyLTXVLatentVideo"
    },
    "widgets_values": [
-    1024,
-    576,
+    1216,
+    704,
     121,
     1
    ]
@@ -555,38 +575,6 @@
    "bgcolor": "#000"
   },
   {
-   "id": 100,
-   "type": "VAELoader",
-   "pos": [
-    60,
-    420
-   ],
-   "size": [
-    320,
-    60
-   ],
-   "flags": {},
-   "order": 0,
-   "mode": 0,
-   "inputs": [],
-   "outputs": [
-    {
-     "name": "VAE",
-     "type": "VAE",
-     "slot_index": 0,
-     "links": [
-      87
-     ]
-    }
-   ],
-   "widgets_values": [
-    "LTX-Video-VAE-BF16.safetensors"
-   ],
-   "properties": {
-    "Node name for S&R": "VAELoader"
-   }
-  },
-  {
    "id": 102,
    "type": "UpscaleModelLoader",
    "pos": [
@@ -720,7 +708,7 @@
   ],
   [
    87,
-   100,
+   44,
    2,
    8,
    1,

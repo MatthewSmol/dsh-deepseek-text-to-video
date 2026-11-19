@@ -1,0 +1,202 @@
+{
+  "1": {
+    "class_type": "UNETLoader",
+    "inputs": {
+      "unet_name": "ltxv-2b-0.9.8-distilled-fp8.safetensors",
+      "weight_dtype": "default"
+    }
+  },
+  "2": {
+    "class_type": "CLIPLoader",
+    "inputs": {
+      "clip_name": "t5xxl_fp8_e4m3fn.safetensors",
+      "type": "ltxv"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "LTX-Video-VAE-BF16.safetensors"
+    }
+  },
+  "4": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "{{prompt}}",
+      "clip": [
+        "2",
+        0
+      ]
+    }
+  },
+  "5": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "text": "{{negative}}",
+      "clip": [
+        "2",
+        0
+      ]
+    }
+  },
+  "8": {
+    "class_type": "KSamplerSelect",
+    "inputs": {
+      "sampler_name": "euler"
+    }
+  },
+  "9": {
+    "class_type": "LTXVScheduler",
+    "inputs": {
+      "steps": 8,
+      "max_shift": 2.05,
+      "base_shift": 0.95,
+      "stretch": true,
+      "terminal": 0.1
+    }
+  },
+  "10": {
+    "class_type": "CFGGuider",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "6",
+        0
+      ],
+      "negative": [
+        "6",
+        1
+      ],
+      "cfg": 1.0
+    }
+  },
+  "11": {
+    "class_type": "RandomNoise",
+    "inputs": {
+      "noise_seed": {{seed}}
+    }
+  },
+  "12": {
+    "class_type": "SamplerCustomAdvanced",
+    "inputs": {
+      "noise": [
+        "11",
+        0
+      ],
+      "guider": [
+        "10",
+        0
+      ],
+      "sampler": [
+        "8",
+        0
+      ],
+      "sigmas": [
+        "9",
+        0
+      ],
+      "latent_image": [
+        "6",
+        2
+      ]
+    }
+  },
+  "13": {
+    "class_type": "VAEDecodeTiled",
+    "inputs": {
+      "samples": [
+        "12",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "tile_size": 256,
+      "overlap": 64,
+      "temporal_size": 32,
+      "temporal_overlap": 8
+    }
+  },
+  "14": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "2xNomosUni_span_multijpg.safetensors"
+    }
+  },
+  "15": {
+    "class_type": "ImageUpscaleWithModel",
+    "inputs": {
+      "upscale_model": [
+        "14",
+        0
+      ],
+      "image": [
+        "13",
+        0
+      ]
+    }
+  },
+  "16": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": [
+        "15",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "width": {{outWidth}},
+      "height": {{outHeight}},
+      "crop": "disabled"
+    }
+  },
+  "17": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "{{image}}",
+      "upload": "image"
+    }
+  },
+  "6": {
+    "class_type": "LTXVImgToVideo",
+    "inputs": {
+      "positive": [
+        "4",
+        0
+      ],
+      "negative": [
+        "5",
+        0
+      ],
+      "vae": [
+        "3",
+        0
+      ],
+      "image": [
+        "17",
+        0
+      ],
+      "width": {{baseWidth}},
+      "height": {{baseHeight}},
+      "length": {{frames}},
+      "batch_size": 1,
+      "strength": 1.0
+    }
+  },
+  "18": {
+    "class_type": "SaveWEBM",
+    "inputs": {
+      "images": [
+        "16",
+        0
+      ],
+      "filename_prefix": "genvideo",
+      "codec": "vp9",
+      "fps": {{fps}},
+      "crf": 32.0
+    }
+  }
+}

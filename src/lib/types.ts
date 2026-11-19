@@ -169,6 +169,7 @@ export interface Settings {
   seed: number
   continuity: 'none' | 'last-frame'
   promptMode: PromptMode
+  orientation: Orientation
   transcode: TranscodeOptions
   gpu: GpuSettings
   proxy: ProxySettings
@@ -308,6 +309,8 @@ export interface PlannedSegment {
 export type PromptMode = 'split' | 'full' | 'shots'
 /** RU: Как делятся клипы по длительности. EN: How clip durations are split. */
 export type SegmentMode = 'fixed' | 'even'
+/** RU: Ориентация итогового видео. EN: Final video orientation. */
+export type Orientation = 'landscape' | 'portrait'
 
 /** RU: План генерации, который показывает «что модель может».
  *  EN: Generation plan that explains "what the model can do". */
@@ -318,6 +321,11 @@ export interface Plan {
   runtimes: RunnerId[]
   availableRunner: RunnerId | null
   clipSec: number
+  autoClip: boolean
+  orientation: Orientation
+  baseWidth: number
+  baseHeight: number
+  planId?: string
   promptMode: PromptMode
   continuity: 'none' | 'last-frame'
   segments: PlannedSegment[]
@@ -355,6 +363,8 @@ export interface GenerateRequest {
   promptMode?: PromptMode
   segmentPrompts?: string[]
   segmentMode?: SegmentMode
+  orientation?: Orientation
+  planId?: string
   segments?: number
   seed?: number
   steps?: number

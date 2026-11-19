@@ -45,7 +45,7 @@ export const BUILTIN_MODELS: ModelEntry[] = [
   {
     id: 'comfyui-workflow',
     title: 'ComfyUI workflow',
-    family: 'comfyui',
+    family: 'ltx-video',
     repo: '',
     kind: 'comfyui-workflow',
     variants: [{ id: 'workflow', title: 'API workflow', files: [], sizeGB: 0, precision: 'workflow' }],

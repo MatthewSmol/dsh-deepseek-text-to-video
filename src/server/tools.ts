@@ -39,10 +39,12 @@ const promptProps = {
   aspect: { type: 'string' },
   width: { type: 'number' },
   height: { type: 'number' },
-  fps: { type: 'number' },
+  fps: { type: 'number', enum: [15, 24, 30, 60] },
+  orientation: { type: 'string', enum: ['landscape', 'portrait'] },
   inputImageId: { type: 'string' },
   inputVideoId: { type: 'string' },
   outputName: { type: 'string' },
+  planId: { type: 'string', description: 'planId returned by genvideo_plan after the user confirmed the preview.' },
   transcode: { type: 'object', additionalProperties: true },
 }
 
@@ -54,7 +56,7 @@ export function registerGenvideoTools(ctx: any, engine: any): () => void {
     tool('genvideo_plan', 'Plan segment split for a prompt. Returns the clip count N; for N>1 write N different segmentPrompts and pass them to genvideo_generate. Generation runs through the configured ComfyUI workflow.', {
       type: 'object', properties: promptProps, required: ['prompt'], additionalProperties: false,
     }, async (args) => await engine.plan({ ...args, modelId: 'comfyui-workflow', runner: 'comfyui' })),
-    tool('genvideo_generate', 'Generate a video through the configured ComfyUI workflow; long videos are split into clips and merged. For multi-clip videos pass segmentPrompts (one different prompt per clip).', {
+    tool('genvideo_generate', 'Generate a video through the configured ComfyUI workflow. First call genvideo_plan, show the preview to the user and wait for confirmation, then call again with planId. Generation without planId returns confirmation-required.', {
       type: 'object', properties: promptProps, required: ['prompt'], additionalProperties: false,
     }, async (args) => {
       const result = await engine.generate({ ...args, modelId: 'comfyui-workflow', runner: 'comfyui' })
