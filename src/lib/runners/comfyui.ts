@@ -9,7 +9,7 @@
  *     /history and downloads the result through /view.
  */
 import { access, mkdir, writeFile } from 'node:fs/promises'
-import { basename, join } from 'node:path'
+import { basename, dirname, join } from 'node:path'
 import { readFile } from 'node:fs/promises'
 import type { Runner, RunnerAvailabilityInput, RunnerResult, RunnerRunInput } from './types.js'
 import { available, unavailable } from './types.js'
@@ -77,7 +77,13 @@ export const comfyuiRunner: Runner = {
     const detected = await detectComfyUi(input.settings.deps.comfyuiUrl)
     const base = (input.settings.deps.comfyuiUrl || detected.url || '').replace(/\/+$/, '')
     if (!base) throw new GenVideoError('comfyui-missing', 'ComfyUI URL is not configured')
-    const wfPath = workflowPath(input.model.id, modelsDirOf(input.settings))
+    const baseWorkflow = workflowPath(input.model.id, modelsDirOf(input.settings))
+    const variantWorkflow = input.imagePath
+      ? join(dirname(baseWorkflow), 'workflow-image.json')
+      : input.videoPath
+        ? join(dirname(baseWorkflow), 'workflow-video.json')
+        : baseWorkflow
+    const wfPath = (await exists(variantWorkflow)) ? variantWorkflow : baseWorkflow
     if (!(await exists(wfPath))) {
       throw new GenVideoError(
         'comfyui-workflow-missing',
