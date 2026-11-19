@@ -95,6 +95,7 @@ export function toExploreModel(raw) {
         downloads: Number(raw.downloads ?? 0) || 0,
         likes: Number(raw.likes ?? 0) || 0,
         lastModified: String(raw.lastModified ?? ''),
+        createdAt: String(raw.createdAt ?? ''),
         library: raw.library_name ? String(raw.library_name) : null,
         tags,
         paramsB,

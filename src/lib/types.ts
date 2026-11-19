@@ -209,6 +209,8 @@ export interface ModelEntry {
   vramGB: { min: number; recommended: number }
   maxPromptChars: number
   encoder?: EncoderInfo
+  /** RU: Дата публикации репозитория (ISO). EN: Repository publication date (ISO). */
+  releasedAt?: string
   license: string
   notes: string
   /** RU: Дополнительные файлы (текст-энкодер, LoRA), нужные для запуска.

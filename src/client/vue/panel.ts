@@ -43,7 +43,7 @@ const en: Record<string, string> = {
   encoderHint: 'Hardware encoders fall back to libx264 automatically. Vulkan needs an NVIDIA Vulkan ICD; WSL often has none.',
   candleArgs: 'candle-video extra arguments', candleArgsHint: 'One argv per line; for a custom Vulkan build, e.g. --device and vulkan.',
   quality: 'Quality', sizeLimit: 'Size limit', mb: 'MB', high: 'High', medium: 'Medium', compressed: 'Max compression',
-  format: 'Format', fit: 'Fit', contain: 'Contain (bars)', cover: 'Cover (crop)', source: 'Source',
+  format: 'Format', fit: 'Fit', released: 'Released', contain: 'Contain (bars)', cover: 'Cover (crop)', source: 'Source',
   estimate: 'Estimate', vram: 'VRAM', generationTime: 'Generation time', fitVram: 'Fit to VRAM', fitVramBusy: 'Finding a fit…', fitVramResult: 'Applied: {dims}, {sec}s → ~{gb} GB VRAM', fitVramFailed: 'Nothing fits even at the lowest resolution; use CPU offload or a smaller model.', time: 'Time', size: 'Size', segments: 'Segments', warnings: 'Warnings',
   generateButton: 'Generate video', generating: 'Starting…',
   gpu: 'GPU', gpuNone: 'No CUDA GPU detected', gpuHint: 'Only the Mock runner can produce video without a GPU.',
@@ -115,7 +115,7 @@ const ru: Record<string, string> = {
   encoderHint: 'При ошибке аппаратного энкодера автоматически используется libx264. Vulkan требует NVIDIA Vulkan ICD; в WSL его часто нет.',
   candleArgs: 'Дополнительные аргументы candle-video', candleArgsHint: 'По одному argv в строке; для своей Vulkan-сборки, например --device и vulkan.',
   quality: 'Качество', sizeLimit: 'Лимит размера', mb: 'МБ', high: 'Высокое', medium: 'Среднее', compressed: 'Максимальное сжатие',
-  format: 'Формат', fit: 'Вписывание', contain: 'Вписать (поля)', cover: 'Заполнить (обрезка)', source: 'Исходное',
+  format: 'Формат', fit: 'Вписывание', released: 'Вышла', contain: 'Вписать (поля)', cover: 'Заполнить (обрезка)', source: 'Исходное',
   estimate: 'Оценка', vram: 'VRAM', generationTime: 'Время генерации', fitVram: 'Подогнать под VRAM', fitVramBusy: 'Подбираю…', fitVramResult: 'Применено: {dims}, {sec} с → ~{gb} ГБ VRAM', fitVramFailed: 'Даже минимальное разрешение не влезает; нужен offload или модель поменьше.', time: 'Время', size: 'Размер', segments: 'Сегменты', warnings: 'Предупреждения',
   generateButton: 'Сгенерировать видео', generating: 'Запуск…',
   gpu: 'GPU', gpuNone: 'CUDA GPU не найдена', gpuHint: 'Без GPU видео может создать только Mock-раннер.',
@@ -1248,6 +1248,9 @@ const Panel = {
           h(Badge, null, `${item.entry.vramGB.min}–${item.entry.vramGB.recommended} GB`),
           h(Badge, null, `${item.entry.durationSec.min}–${item.entry.durationSec.max}s`),
           h(Badge, null, item.entry.runtimes.join(' · ')),
+          item.entry.releasedAt
+            ? h(Badge, { tone: 'gv-border-line gv-bg-surface-2 gv-text-muted' }, `${t('released')}: ${item.entry.releasedAt.slice(0, 10)}`)
+            : null,
           item.entry.encoder
             ? h(Badge, {
                 tone: item.entry.encoder.sizeGB !== null && item.entry.encoder.sizeGB > 8
@@ -1334,6 +1337,7 @@ const Panel = {
                 }, fitsVram(model.vramGB, limit) ? `${limit} GB ✓` : `${limit} GB ✗`),
                 model.paramsB ? h(Badge, null, `${model.paramsB}B`) : null,
                 model.encoder ? h(Badge, { tone: 'gv-border-line gv-bg-surface-2 gv-text-muted' }, `${t('encoder')}: ${model.encoder}`) : null,
+                model.createdAt ? h(Badge, { tone: 'gv-border-line gv-bg-surface-2 gv-text-muted' }, `${t('released')}: ${String(model.createdAt).slice(0, 10)}`) : null,
                 h(Badge, null, `${fmtCount(model.downloads)} ${t('downloadsLabel')}`),
                 h(Badge, null, `♥ ${fmtCount(model.likes)}`),
               ]),
