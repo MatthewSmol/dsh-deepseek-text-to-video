@@ -20,12 +20,24 @@ import { genvideoHome } from '../paths.js'
 
 /** RU: Загружает референс в input ComfyUI и возвращает имя для LoadImage/LoadVideo.
  *  EN: Uploads a reference into ComfyUI's input folder and returns its node name. */
+/** RU: Сетевой вызов ComfyUI с понятной ошибкой, если сервер остановлен.
+ *  EN: ComfyUI request with a clear error when the server is down. */
+async function comfyFetch(url: string, init: RequestInit, signal: AbortSignal): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal })
+  } catch (error) {
+    if (signal.aborted || (error instanceof Error && error.name === 'AbortError')) throw error
+    const detail = error instanceof Error ? error.message : String(error)
+    throw new GenVideoError('comfyui-unreachable', `ComfyUI is unreachable (${detail}). Start ComfyUI and retry; the plugin probes 127.0.0.1:8188, 8189 and 8000.`, { status: 503 })
+  }
+}
+
 async function uploadInput(base: string, filePath: string, signal: AbortSignal): Promise<string> {
   const data = await readFile(filePath)
   const form = new FormData()
   form.append('image', new Blob([data]), basename(filePath))
   form.append('type', 'input')
-  const response = await fetch(`${base}/upload/image`, { method: 'POST', body: form, signal })
+  const response = await comfyFetch(`${base}/upload/image`, { method: 'POST', body: form }, signal)
   if (!response.ok) {
     throw new GenVideoError('comfyui-upload-failed', `ComfyUI rejected the reference upload: HTTP ${response.status}`)
   }
@@ -135,12 +147,12 @@ export const comfyuiRunner: Runner = {
 
     input.log('ComfyUI workflow: sample → decode → 2× upscale → download')
     input.onProgress({ phase: 'encoding_prompt', percent: 5, message: 'Submitting to ComfyUI' })
-    const response = await fetch(`${base}/prompt`, {
+    const response = await comfyFetch(`${base}/prompt`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ prompt: workflow, client_id: `genvideo-${Date.now()}` }),
       signal: input.signal,
-    })
+    }, input.signal)
     if (!response.ok) {
       throw new GenVideoError('comfyui-rejected', `ComfyUI returned HTTP ${response.status}: ${(await response.text()).slice(0, 400)}`)
     }
@@ -159,7 +171,7 @@ export const comfyuiRunner: Runner = {
       await new Promise((resolve) => setTimeout(resolve, 1500))
       const percent = Math.min(90, 5 + Math.round(((Date.now() - started) / estimateMs) * 85))
       input.onProgress({ phase: 'sampling', percent, message: 'ComfyUI is rendering' })
-      const historyResponse = await fetch(`${base}/history/${promptId}`, { signal: input.signal })
+      const historyResponse = await comfyFetch(`${base}/history/${promptId}`, {}, input.signal)
       if (!historyResponse.ok) continue
       const history = (await historyResponse.json()) as Record<string, HistoryEntry>
       entry = history[promptId] ?? null
@@ -185,7 +197,7 @@ export const comfyuiRunner: Runner = {
       subfolder: file.subfolder ?? '',
       type: file.type ?? 'output',
     })
-    const download = await fetch(`${base}/view?${query.toString()}`, { signal: input.signal })
+    const download = await comfyFetch(`${base}/view?${query.toString()}`, {}, input.signal)
     if (!download.ok || !download.body) {
       throw new GenVideoError('comfyui-no-output', `Could not download the result: HTTP ${download.status}`)
     }

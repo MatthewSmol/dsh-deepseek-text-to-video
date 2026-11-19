@@ -28,6 +28,8 @@ The engine runs in-process inside the Host plugin. The panel is served over `/ge
 - **Modes** — no references: T2V then last-frame I2V for later clips; reference image: I2V from it, then last-frame; reference video: one V2V clip without the frame chain. Image and video references are mutually exclusive.
 - **Sharpness** — after the 2× upscale and final `ImageScale`, every workflow runs `ImageSharpen` (radius 1, sigma 1.0, alpha 0.8); `SaveWEBM` uses crf 24 instead of 32.
 - **V2V** — a reference video is loaded through `LoadVideo → GetVideoComponents → VAEEncodeTiled`, denoised with `SplitSigmasDenoise` (0.3–0.8, default 0.6), then upscaled and saved. V2V is one clip, cropped to 8n+1 frames (max 257).
+- **Troubleshooting** — if ComfyUI stops mid-job, the plugin reports `comfyui-unreachable` instead of a bare `fetch failed`; restart ComfyUI and retry. The Environment state is refreshed before each plan.
+- **Диагностика** — если ComfyUI остановился во время job, плагин сообщает `comfyui-unreachable` вместо голого `fetch failed`; перезапустите ComfyUI и повторите. Состояние Environment обновляется перед каждым планом.
 - **Jobs** — the active job with progress, segments, log and result, plus recent jobs.
 - **Gallery** — finished videos from `Videos/`; preview, download/open, delete, select and merge.
 - **Environment** — read-only status: ComfyUI, workflow path, ffmpeg/ffprobe, available agent tools, and the parsed workflow model, text encoder, VAE and upscalers.

@@ -273,6 +273,7 @@ export class Engine {
     }
     const settings = this.settings
     const { model, variant, runner } = await this.resolveModel(request)
+    await this.refresh()
     const deps = await this.deps()
     const gpu = await this.gpu()
     let { width, height } = this.frameSize(request, model, settings)
