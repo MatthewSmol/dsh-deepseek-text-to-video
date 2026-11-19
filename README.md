@@ -8,6 +8,8 @@
 
 GenVideo is a DeepSeek Harness plugin that drives a local **ComfyUI** server. It adds a left-sidebar Vue 3 panel and native `genvideo_*` tools for the agent. Models and text encoders live inside ComfyUI; the plugin does not download or manage them.
 
+The design target was an **NVIDIA RTX 3060 Ti with 8 GB VRAM**. A full LTX/Wan pipeline does not fit into 8 GB, so **ComfyUI was chosen as the backend**: it loads quantized **GGUF** diffusion models and text encoders (Q4/Q5) and can offload components, which makes a 5B-class model usable on this card.
+
 ### Architecture
 
 ```
@@ -109,6 +111,8 @@ npm test          # 45 tests, including ffmpeg mock e2e
 ## Русский
 
 GenVideo — плагин DeepSeek Harness, который работает с локальным сервером **ComfyUI**. Он добавляет панель в левом сайдбаре и нативные инструменты `genvideo_*` для агента. Модели и текстовые энкодеры находятся в ComfyUI; плагин их не скачивает и не устанавливает.
+
+Ориентиром была **NVIDIA RTX 3060 Ti с 8 ГБ VRAM**. Полный пайплайн LTX/Wan в 8 ГБ не помещается, поэтому бэкендом выбран **ComfyUI**: он умеет загружать квантованные **GGUF**-модели и текстовые энкодеры (Q4/Q5) и выгружать компоненты, благодаря чему модель класса 5B реально работает на этой карте.
 
 ### Архитектура
 
