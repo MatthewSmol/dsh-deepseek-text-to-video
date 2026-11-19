@@ -35,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
     quality: 'medium',
     targetSizeMB: 25,
     format: 'mp4',
+    encoder: 'auto',
     width: 0,
     height: 0,
     fps: 0,
@@ -50,6 +51,7 @@ export const DEFAULT_SETTINGS: Settings = {
     ffprobePath: '',
     pythonPath: '',
     candleBinary: '',
+    candleArgs: [],
     comfyuiUrl: '',
   },
   runners: {
@@ -161,6 +163,7 @@ export function sanitizeSettings(raw: unknown): Settings {
       quality: oneOf(transcodeRaw.quality, ['high', 'medium', 'compressed'] as const, 'medium'),
       targetSizeMB: num(transcodeRaw.targetSizeMB, 0.1, 20_000, 25),
       format: oneOf(transcodeRaw.format, ['mp4', 'webm', 'gif'] as const, 'mp4'),
+      encoder: oneOf(transcodeRaw.encoder, ['auto', 'cpu', 'vulkan', 'nvenc'] as const, 'auto'),
       width: int(transcodeRaw.width, 0, 4096, 0),
       height: int(transcodeRaw.height, 0, 4096, 0),
       fps: int(transcodeRaw.fps, 0, 120, 0),
@@ -176,6 +179,9 @@ export function sanitizeSettings(raw: unknown): Settings {
       ffprobePath: str(depsRaw.ffprobePath, 1000, ''),
       pythonPath: str(depsRaw.pythonPath, 1000, ''),
       candleBinary: str(depsRaw.candleBinary, 1000, ''),
+      candleArgs: Array.isArray(depsRaw.candleArgs)
+        ? depsRaw.candleArgs.filter((arg): arg is string => typeof arg === 'string' && arg.length > 0).slice(0, 32).map((arg) => arg.slice(0, 500))
+        : [],
       comfyuiUrl: str(depsRaw.comfyuiUrl, 1000, ''),
     },
     runners: {

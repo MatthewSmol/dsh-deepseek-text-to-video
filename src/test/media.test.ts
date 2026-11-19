@@ -51,6 +51,20 @@ test('qualityArgs uses H.264 and the selected preset', () => {
   const gif = qualityArgs(normalizeTranscode({ format: 'gif' }, 5))
   assert.ok(gif.includes('-loop'))
 })
+test('hardware encoders map to h264_vulkan/h264_nvenc and webm stays VP9', () => {
+  const vulkan = normalizeTranscode({ mode: 'quality', format: 'mp4', encoder: 'vulkan' }, 5)
+  assert.equal(vulkan.encoder, 'vulkan')
+  assert.ok(qualityArgs(vulkan).includes('h264_vulkan'))
+
+  const nvenc = normalizeTranscode({ mode: 'quality', format: 'mp4', encoder: 'nvenc' }, 5)
+  assert.ok(qualityArgs(nvenc).includes('h264_nvenc'))
+
+  const webm = normalizeTranscode({ mode: 'quality', format: 'webm', encoder: 'vulkan' }, 5)
+  assert.ok(qualityArgs(webm).includes('libvpx-vp9'))
+
+  assert.equal(normalizeTranscode({ encoder: 'bogus' as never }, 5).encoder, 'auto')
+})
+
 
 test('sizeArgs produces two passes with a passlog', () => {
   const options = normalizeTranscode({ mode: 'size', targetSizeMB: 4, format: 'mp4' }, 8)

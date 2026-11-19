@@ -32,6 +32,9 @@ const en: Record<string, string> = {
   imageInput: 'Reference image (image-to-video)', videoInput: 'Reference video (video-to-video)',
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
   transcode: 'Transcode after generation', transcodeHint: 'Quality tiers OR a size limit, never both.',
+  encoder: 'Encoder', encoderAuto: 'Auto (CPU fallback)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
+  encoderHint: 'Hardware encoders fall back to libx264 automatically. Vulkan needs an NVIDIA Vulkan ICD; WSL often has none.',
+  candleArgs: 'candle-video extra arguments', candleArgsHint: 'One argv per line; for a custom Vulkan build, e.g. --device and vulkan.',
   quality: 'Quality', sizeLimit: 'Size limit', mb: 'MB', high: 'High', medium: 'Medium', compressed: 'Max compression',
   format: 'Format', fit: 'Fit', contain: 'Contain (bars)', cover: 'Cover (crop)', source: 'Source',
   estimate: 'Estimate', vram: 'VRAM', time: 'Time', size: 'Size', segments: 'Segments', warnings: 'Warnings',
@@ -78,6 +81,9 @@ const ru: Record<string, string> = {
   imageInput: 'Опорная картинка (image-to-video)', videoInput: 'Опорное видео (video-to-video)',
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
   transcode: 'Перекодировать после генерации', transcodeHint: 'Либо уровни качества, либо лимит размера — не одновременно.',
+  encoder: 'Энкодер', encoderAuto: 'Авто (fallback на CPU)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
+  encoderHint: 'При ошибке аппаратного энкодера автоматически используется libx264. Vulkan требует NVIDIA Vulkan ICD; в WSL его часто нет.',
+  candleArgs: 'Дополнительные аргументы candle-video', candleArgsHint: 'По одному argv в строке; для своей Vulkan-сборки, например --device и vulkan.',
   quality: 'Качество', sizeLimit: 'Лимит размера', mb: 'МБ', high: 'Высокое', medium: 'Среднее', compressed: 'Максимальное сжатие',
   format: 'Формат', fit: 'Вписывание', contain: 'Вписать (поля)', cover: 'Заполнить (обрезка)', source: 'Исходное',
   estimate: 'Оценка', vram: 'VRAM', time: 'Время', size: 'Размер', segments: 'Сегменты', warnings: 'Предупреждения',
@@ -195,6 +201,7 @@ function emptyForm(settings?: any) {
       quality: settings?.transcode?.quality ?? 'medium',
       targetSizeMB: settings?.transcode?.targetSizeMB ?? 25,
       format: settings?.transcode?.format ?? 'mp4',
+      encoder: settings?.transcode?.encoder ?? 'auto',
       width: settings?.transcode?.width ?? 0,
       height: settings?.transcode?.height ?? 0,
       fps: settings?.transcode?.fps ?? 0,
@@ -772,7 +779,7 @@ const Panel = {
               onChange: (mode: string) => patchTranscode({ mode, enabled: mode === 'size' ? true : form.value.transcode.enabled }),
               options: [{ value: 'quality', label: t('qualityMode') }, { value: 'size', label: t('sizeMode') }],
             }),
-            h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-3' }, [
+            h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2 lg:gv-grid-cols-4' }, [
               form.value.transcode.mode === 'quality'
                 ? h(Field, { label: t('quality') }, [
                     h('select', { class: 'gv-select', value: form.value.transcode.quality, onChange: (event: any) => patchTranscode({ quality: event.target.value }) }, [
@@ -784,6 +791,14 @@ const Panel = {
                 : h(Field, { label: `${t('sizeLimit')} (${t('mb')})` }, [
                     h('input', { class: 'gv-input', type: 'number', min: 1, max: 20000, value: form.value.transcode.targetSizeMB, onInput: (event: any) => patchTranscode({ targetSizeMB: Number(event.target.value) || 1 }) }),
                   ]),
+              h(Field, { label: t('encoder'), hint: t('encoderHint') }, [
+                h('select', { class: 'gv-select', value: form.value.transcode.encoder, onChange: (event: any) => patchTranscode({ encoder: event.target.value }) }, [
+                  h('option', { value: 'auto' }, t('encoderAuto')),
+                  h('option', { value: 'cpu' }, t('encoderCpu')),
+                  h('option', { value: 'nvenc' }, t('encoderNvenc')),
+                  h('option', { value: 'vulkan' }, t('encoderVulkan')),
+                ]),
+              ]),
               h(Field, { label: t('format') }, [
                 h('select', { class: 'gv-select', value: form.value.transcode.format, onChange: (event: any) => patchTranscode({ format: event.target.value }) },
                   ['mp4', 'webm', 'gif'].map((value) => h('option', { key: value, value }, value.toUpperCase()))),
@@ -1033,6 +1048,16 @@ const Panel = {
           h('input', {
             class: 'gv-input', value: settings.value.deps.candleBinary,
             onInput: (event: any) => (settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, candleBinary: event.target.value } }),
+          }),
+        ]),
+        h(Field, { label: t('candleArgs'), hint: t('candleArgsHint') }, [
+          h('textarea', {
+            class: 'gv-input gv-h-16 gv-py-2',
+            value: (settings.value.deps.candleArgs ?? []).join('\n'),
+            onInput: (event: any) => {
+              const candleArgs = String(event.target.value).split('\n').map((line: string) => line.trim()).filter(Boolean)
+              settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, candleArgs } }
+            },
           }),
         ]),
         h(Field, { label: 'ffmpeg path' }, [

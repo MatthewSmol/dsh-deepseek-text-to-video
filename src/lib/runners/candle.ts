@@ -80,6 +80,9 @@ export const candleRunner: Runner = {
     ]
     if (input.negativePrompt) args.push('--negative-prompt', input.negativePrompt)
     if (input.steps > 0) args.push('--steps', String(input.steps))
+    // RU: Пользовательские аргументы (например, --device vulkan для своей сборки).
+    // EN: User-provided arguments (for example, --device vulkan for a custom build).
+    if (input.settings.deps.candleArgs.length) args.push(...input.settings.deps.candleArgs)
     if (!input.gpuIds.length) args.push('--cpu')
 
     input.onProgress({ phase: 'loading_model', percent: 5, message: 'Loading Candle weights' })

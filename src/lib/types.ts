@@ -66,12 +66,19 @@ export type JobKind = 'generate' | 'download' | 'merge' | 'transcode' | 'install
 export type TranscodeKind = 'quality' | 'size'
 
 /** RU: Настройки перекодирования. EN: Transcode settings. */
+/** RU: Видео-энкодер: auto/cpu = libx264, nvenc = NVIDIA, vulkan = Vulkan Video.
+ *  EN: Video encoder: auto/cpu = libx264, nvenc = NVIDIA, vulkan = Vulkan Video. */
+export type VideoEncoder = 'auto' | 'cpu' | 'vulkan' | 'nvenc'
+
 export interface TranscodeOptions {
   enabled: boolean
   mode: TranscodeKind
   quality: QualityTier
   targetSizeMB: number
   format: OutputFormat
+  /** RU: Энкодер ffmpeg; при ошибке плагин повторяет попытку на libx264.
+   *  EN: ffmpeg encoder; on failure the plugin retries with libx264. */
+  encoder: VideoEncoder
   /** RU: Пусто = исходное разрешение. EN: Empty = source resolution. */
   width: number
   height: number
@@ -93,6 +100,9 @@ export interface DepsSettings {
   ffprobePath: string
   pythonPath: string
   candleBinary: string
+  /** RU: Дополнительные argv для candle-video (например, --device vulkan).
+   *  EN: Extra argv for candle-video (for example, --device vulkan). */
+  candleArgs: string[]
   comfyuiUrl: string
 }
 

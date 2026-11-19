@@ -17,6 +17,26 @@ export const QUALITY_PRESETS = {
     medium: { crf: 23, preset: 'medium' },
     compressed: { crf: 28, preset: 'veryfast' },
 };
+/** RU: Битрейты для Vulkan Video (он не умеет CRF).
+ *  EN: Bitrates for Vulkan Video (it does not support CRF). */
+const VULKAN_BITRATES = {
+    high: '12M',
+    medium: '6M',
+    compressed: '2M',
+};
+/** RU: Какой кодек использовать для формата и энкодера.
+ *  EN: Which codec to use for a format and encoder. */
+export function videoCodecFor(format, encoder) {
+    if (format === 'webm')
+        return { codec: 'libvpx-vp9', hardware: false };
+    if (format === 'gif')
+        return { codec: 'libx264', hardware: false };
+    if (encoder === 'vulkan')
+        return { codec: 'h264_vulkan', hardware: true };
+    if (encoder === 'nvenc')
+        return { codec: 'h264_nvenc', hardware: true };
+    return { codec: 'libx264', hardware: false };
+}
 /** RU: Человекочитаемый размер. EN: Human-readable size. */
 export function formatBytes(bytes) {
     const value = Number(bytes) || 0;
@@ -105,6 +125,7 @@ export function normalizeTranscode(raw, durationSec) {
     const height = Math.max(0, Math.round(Number(source.height) || 0));
     const fps = Math.max(0, Math.round(Number(source.fps) || 0));
     const fit = source.fit === 'cover' ? 'cover' : 'contain';
+    const encoder = source.encoder === 'vulkan' || source.encoder === 'nvenc' ? source.encoder : source.encoder === 'cpu' ? 'cpu' : 'auto';
     if ((width > 0) !== (height > 0)) {
         throw new GenVideoError('bad-resolution', 'Width and height must be set together, or both left empty');
     }
@@ -119,7 +140,7 @@ export function normalizeTranscode(raw, durationSec) {
         }
         videoKbps = bitrateForSize(targetSizeMB, durationSec, audioKbps);
     }
-    return { mode, quality, targetSizeMB, format, width, height, fps, fit, videoKbps };
+    return { mode, quality, targetSizeMB, format, width, height, fps, fit, encoder, videoKbps };
 }
 /** RU: Видео-фильтры масштабирования и частоты кадров.
  *  EN: Scale/pad/crop and frame-rate video filters. */
@@ -150,7 +171,34 @@ export function qualityArgs(options) {
     if (options.format === 'webm') {
         return [...vf, '-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-row-mt', '1', '-c:a', 'libopus', '-b:a', '96k'];
     }
+    const { codec, hardware } = videoCodecFor(options.format, options.encoder);
+    // RU: Аппаратные энкодеры требуют yuv420p; добавляем format в цепочку фильтров.
+    // EN: Hardware encoders require yuv420p; append format to the filter chain.
+    const hwFilters = hardware ? [...filters, 'format=yuv420p'] : filters;
+    const hwVf = hwFilters.length ? ['-vf', hwFilters.join(',')] : [];
     const preset = QUALITY_PRESETS[options.quality];
+    if (codec === 'h264_vulkan') {
+        return [
+            ...hwVf,
+            '-c:v', 'h264_vulkan',
+            '-b:v', VULKAN_BITRATES[options.quality],
+            '-pix_fmt', 'yuv420p',
+            '-movflags', '+faststart',
+            '-c:a', 'aac', '-b:a', '128k',
+        ];
+    }
+    if (codec === 'h264_nvenc') {
+        return [
+            ...hwVf,
+            '-c:v', 'h264_nvenc',
+            '-preset', 'p5',
+            '-cq', String(preset.crf),
+            '-b:v', '0',
+            '-pix_fmt', 'yuv420p',
+            '-movflags', '+faststart',
+            '-c:a', 'aac', '-b:a', '128k',
+        ];
+    }
     return [
         ...vf,
         '-c:v', 'libx264',
@@ -225,12 +273,26 @@ export async function transcodeFile(input) {
     const options = normalizeTranscode(input.transcode, info.durationSec);
     await mkdir(dirname(input.target), { recursive: true });
     if (options.mode === 'quality' || options.format === 'gif') {
-        const args = ['-i', input.source, ...qualityArgs(options), input.target];
-        await runFfmpeg(input.ffmpeg, args, {
-            durationSec: info.durationSec,
-            signal: input.signal,
-            onProgress: (percent) => input.onProgress?.(percent, 'transcoding_pass2'),
-        });
+        const run = async (transcodeOptions) => {
+            await runFfmpeg(input.ffmpeg, ['-i', input.source, ...qualityArgs(transcodeOptions), input.target], {
+                durationSec: info.durationSec,
+                signal: input.signal,
+                onProgress: (percent) => input.onProgress?.(percent, 'transcoding_pass2'),
+            });
+        };
+        try {
+            await run(options);
+        }
+        catch (error) {
+            // RU: Vulkan/NVENC может быть объявлен, но не работать (нет ICD/драйвера).
+            //     Повторяем на libx264, чтобы транскод не падал целиком.
+            // EN: Vulkan/NVENC may be advertised but unusable (no ICD/driver). Retry
+            //     with libx264 so the transcode does not fail completely.
+            if (!(options.format === 'mp4' && (options.encoder === 'vulkan' || options.encoder === 'nvenc')))
+                throw error;
+            input.onProgress?.(0, 'transcoding_pass2');
+            await run({ ...options, encoder: 'cpu' });
+        }
         return probeFile(input.ffprobe, input.target);
     }
     const passlog = join(dirname(input.target), `.pass-${randomUUID().slice(0, 8)}`);
