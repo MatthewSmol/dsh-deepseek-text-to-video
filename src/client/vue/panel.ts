@@ -31,7 +31,7 @@ const en: Record<string, string> = {
   negative: 'Negative prompt', continuity: 'Continuity', none: 'None', lastFrame: 'Last frame → next clip',
   imageInput: 'Reference image (image-to-video)', videoInput: 'Reference video (video-to-video)',
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
-  transcode: 'Transcode after generation', transcodeHint: 'Quality tiers OR a size limit, never both.',
+  transcode: 'Transcode after generation', transcodeHint: 'Pick one: no transcode, quality tiers, or a size limit.', noTranscode: 'No transcode',
   codec: 'MP4 codec', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'MP4 only; WebM/GIF ignore it. H.265 needs a player with HEVC support.',
   encoder: 'Encoder', encoderAuto: 'Auto (CPU fallback)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
   encoderHint: 'Hardware encoders fall back to libx264 automatically. Vulkan needs an NVIDIA Vulkan ICD; WSL often has none.',
@@ -97,7 +97,7 @@ const ru: Record<string, string> = {
   negative: 'Негативный промпт', continuity: 'Непрерывность', none: 'Нет', lastFrame: 'Последний кадр → следующий клип',
   imageInput: 'Опорная картинка (image-to-video)', videoInput: 'Опорное видео (video-to-video)',
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
-  transcode: 'Перекодировать после генерации', transcodeHint: 'Либо уровни качества, либо лимит размера — не одновременно.',
+  transcode: 'Перекодировать после генерации', transcodeHint: 'Один режим: без перекодирования, уровни качества или лимит размера.', noTranscode: 'Без перекодирования',
   codec: 'Кодек MP4', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'Только для MP4; WebM/GIF игнорируют. Для H.265 нужен плеер с поддержкой HEVC.',
   encoder: 'Энкодер', encoderAuto: 'Авто (fallback на CPU)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
   encoderHint: 'При ошибке аппаратного энкодера автоматически используется libx264. Vulkan требует NVIDIA Vulkan ICD; в WSL его часто нет.',
@@ -243,13 +243,13 @@ function emptyForm(settings?: any) {
     inputImageId: '',
     inputVideoId: '',
     transcode: {
-      enabled: Boolean(settings?.transcode?.enabled),
+      enabled: settings?.transcode?.enabled ?? true,
       mode: settings?.transcode?.mode ?? 'quality',
-      quality: settings?.transcode?.quality ?? 'medium',
+      quality: settings?.transcode?.quality ?? 'high',
       targetSizeMB: settings?.transcode?.targetSizeMB ?? 25,
       format: settings?.transcode?.format ?? 'mp4',
-      codec: settings?.transcode?.codec ?? 'h264',
-      encoder: settings?.transcode?.encoder ?? 'auto',
+      codec: settings?.transcode?.codec ?? 'h265',
+      encoder: settings?.transcode?.encoder ?? 'nvenc',
       width: settings?.transcode?.width ?? 0,
       height: settings?.transcode?.height ?? 0,
       fps: settings?.transcode?.fps ?? 0,
@@ -885,19 +885,22 @@ const Panel = {
           ]),
         ]),
         h(Card, { title: t('transcode'), hint: t('transcodeHint') }, [
-          h(Toggle, {
-            checked: form.value.transcode.enabled,
-            label: t('transcode'),
-            hint: form.value.transcode.mode === 'size' ? t('sizeMode') : t('qualityMode'),
-            onChange: (value: boolean) => patchTranscode({ enabled: value }),
-          }),
-          h('div', { class: 'gv-mt-2 gv-flex gv-flex-col gv-gap-3' }, [
+          h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
             h(Segmented, {
-              value: form.value.transcode.mode,
-              onChange: (mode: string) => patchTranscode({ mode, enabled: mode === 'size' ? true : form.value.transcode.enabled }),
-              options: [{ value: 'quality', label: t('qualityMode') }, { value: 'size', label: t('sizeMode') }],
+              value: form.value.transcode.enabled ? form.value.transcode.mode : 'off',
+              onChange: (value: string) => patchTranscode(
+                value === 'off'
+                  ? { enabled: false }
+                  : { enabled: true, mode: value === 'size' ? 'size' : 'quality' },
+              ),
+              options: [
+                { value: 'off', label: t('noTranscode') },
+                { value: 'quality', label: t('qualityMode') },
+                { value: 'size', label: t('sizeMode') },
+              ],
             }),
-            h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2 lg:gv-grid-cols-3' }, [
+            form.value.transcode.enabled
+              ? h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2 lg:gv-grid-cols-3' }, [
               form.value.transcode.mode === 'quality'
                 ? h(Field, { label: t('quality') }, [
                     h('select', { class: 'gv-select', value: form.value.transcode.quality, onChange: (event: any) => patchTranscode({ quality: event.target.value }) }, [
@@ -933,7 +936,8 @@ const Panel = {
                   h('option', { value: 'cover' }, t('cover')),
                 ]),
               ]),
-            ]),
+                ])
+              : null,
           ]),
         ]),
         h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [

@@ -55,6 +55,9 @@ test('mock generation writes a real mp4 into Videos/', { skip: !hasFfmpeg }, asy
     height: 240,
     fps: 24,
     targetDurationSec: 1,
+    // RU: Тесты проверяют сам mock-пайплайн, транскод включаем отдельно.
+    // EN: These tests cover the mock pipeline; transcode is tested separately.
+    transcode: { enabled: false },
   })
   assert.equal(plan.segments.length, 1)
   const done = await waitJob(job.id)

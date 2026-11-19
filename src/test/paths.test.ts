@@ -52,7 +52,7 @@ test('sanitizeSettings clamps and normalizes every field', () => {
   assert.equal(settings.gpu.strategy, 'single')
   assert.equal(settings.gpu.vramBudgetGB, 0)
   assert.equal(settings.transcode.mode, 'size')
-  assert.equal(settings.transcode.quality, 'medium')
+  assert.equal(settings.transcode.quality, 'high')
   assert.equal(settings.transcode.targetSizeMB, 0.1)
   assert.equal(settings.transcode.format, 'mp4')
   assert.equal(settings.transcode.fit, 'contain')
