@@ -1042,20 +1042,7 @@ const Panel = {
                   h(Progress, { percent: gpu.totalMB ? (gpu.usedMB / gpu.totalMB) * 100 : 0, tone: 'gv-bg-warn' }),
                 ]),
               ])),
-            h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
-              h('span', { class: 'gv-hint' }, t('gpuSelect')),
-              h(Segmented, {
-                value: settings.value.gpu.strategy,
-                onChange: (strategy: string) => (settingsDraft.value = { ...settings.value, gpu: { ...settings.value.gpu, strategy } }),
-                options: [{ value: 'single', label: t('single') }, { value: 'round-robin', label: t('roundRobin') }, { value: 'tensor-parallel', label: t('tensorParallel') }],
-              }),
-            ]),
-            h(Field, { label: `${t('vram')} budget, GB`, hint: t('budgetHint') }, [
-              h('input', {
-                class: 'gv-input', type: 'number', min: 0, value: settings.value.gpu.vramBudgetGB,
-                onInput: (event: any) => (settingsDraft.value = { ...settings.value, gpu: { ...settings.value.gpu, vramBudgetGB: Number(event.target.value) || 0 } }),
-              }),
-            ]),
+            h('span', { class: 'gv-hint' }, t('gpuSelect')),
           ])
         : h('div', { class: 'gv-flex gv-flex-col gv-gap-2' }, [
             h('div', { class: 'gv-text-[12.5px] gv-font-medium gv-text-danger' }, t('gpuNone')),
@@ -1087,48 +1074,7 @@ const Panel = {
         ]),
         h(Row, { label: t('comfyui'), hint: state.value.deps.comfyui.error ?? '' }, [h(Badge, { tone: state.value.deps.comfyui.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' }, state.value.deps.comfyui.url || t('notInstalled'))]),
       ]),
-      h('details', { class: 'gv-mt-3' }, [
-        h('summary', { class: 'gv-cursor-pointer gv-text-[11.5px] gv-text-muted' }, t('advancedEngines')),
-        h('p', { class: 'gv-hint gv-mt-1' }, t('advancedHint')),
-        h('div', { class: 'gv-mt-2 gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
-        h(Field, { label: `${t('comfyui')} URL`, hint: t('comfyuiHint') }, [
-          h('input', {
-            class: 'gv-input', value: settings.value.deps.comfyuiUrl,
-            onInput: (event: any) => (settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, comfyuiUrl: event.target.value } }),
-          }),
-        ]),
-        h(Field, { label: 'candle-video binary', hint: t('candleHint') }, [
-          h('input', {
-            class: 'gv-input', value: settings.value.deps.candleBinary,
-            onInput: (event: any) => (settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, candleBinary: event.target.value } }),
-          }),
-        ]),
-        h(Field, { label: t('candleArgs'), hint: t('candleArgsHint') }, [
-          h('textarea', {
-            class: 'gv-input gv-h-16 gv-py-2',
-            value: (settings.value.deps.candleArgs ?? []).join('\n'),
-            onInput: (event: any) => {
-              const candleArgs = String(event.target.value).split('\n').map((line: string) => line.trim()).filter(Boolean)
-              settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, candleArgs } }
-            },
-          }),
-        ]),
-        h(Field, { label: 'ffmpeg path' }, [
-          h('input', {
-            class: 'gv-input', value: settings.value.deps.ffmpegPath,
-            onInput: (event: any) => (settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, ffmpegPath: event.target.value } }),
-          }),
-        ]),
-        h(Field, { label: 'ffprobe path' }, [
-          h('input', {
-            class: 'gv-input', value: settings.value.deps.ffprobePath,
-            onInput: (event: any) => (settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, ffprobePath: event.target.value } }),
-          }),
-        ]),
-        ]),
-        h('p', { class: 'gv-hint gv-mt-2' }, `${t('cargo')}: ${state.value.deps.cargo.version ?? t('unavailable')} — ${t('cargoHint')}`),
-      ]),
-      h('div', { class: 'gv-mt-3' }, [h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('test'))]),
+      h('div', { class: 'gv-mt-3' }, [h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('refresh'))]),
     ])
 
     const pathsSection = () => h(Card, { title: t('defaults'), hint: t('settingsHint') }, [
