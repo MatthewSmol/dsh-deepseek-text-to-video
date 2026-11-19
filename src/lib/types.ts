@@ -113,6 +113,7 @@ export interface DepsSettings {
   comfyuiUrl: string
   comfyuiAutoStart: boolean
   comfyuiDir: string
+  comfyuiGpu: number
 }
 
 /** RU: Поведение раннеров. EN: Runner behaviour. */

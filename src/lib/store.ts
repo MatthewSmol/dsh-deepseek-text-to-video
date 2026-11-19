@@ -63,6 +63,7 @@ export const DEFAULT_SETTINGS: Settings = {
     comfyuiUrl: '',
     comfyuiAutoStart: false,
     comfyuiDir: '',
+    comfyuiGpu: -1,
   },
   runners: {
     mockDelayMs: 120,
@@ -220,6 +221,7 @@ export function sanitizeSettings(raw: unknown): Settings {
       comfyuiUrl: str(depsRaw.comfyuiUrl, 1000, ''),
       comfyuiAutoStart: bool(depsRaw.comfyuiAutoStart, false),
       comfyuiDir: str(depsRaw.comfyuiDir, 1000, ''),
+      comfyuiGpu: int(depsRaw.comfyuiGpu, -1, 15, -1),
     },
     runners: {
       mockDelayMs: int(runnersRaw.mockDelayMs, 0, 10_000, 120),

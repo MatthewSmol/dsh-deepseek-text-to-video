@@ -192,6 +192,11 @@ export function createApiHandler(engine, token) {
                 ok(res, await engine.gpuProcesses());
                 return;
             }
+            if (path === '/api/comfy/restart' && req.method === 'POST') {
+                const body = JSON.parse((await readBody(req, MAX_JSON)).toString('utf8') || '{}');
+                ok(res, await engine.restartComfyUI(body.gpu));
+                return;
+            }
             if (path === '/api/comfy/start' && req.method === 'POST') {
                 ok(res, await engine.ensureComfyUI(true));
                 return;

@@ -51,7 +51,7 @@ const en: Record<string, string> = {
   gpu: 'GPU', gpuNone: 'No CUDA GPU detected', gpuHint: 'Only the Mock runner can produce video without a GPU.',
   totalMemory: 'Total', usedMemory: 'Used', gpuStrategy: 'Strategy', single: 'Single GPU',
   roundRobin: 'Round-robin', tensorParallel: 'Tensor parallel',
-  tools: 'Tools', comfyAutoStart: 'Start ComfyUI automatically when it is down', comfyDir: 'ComfyUI directory', comfyStart: 'Start now', comfyStarting: 'Starting…',
+  tools: 'Tools', comfyAutoStart: 'Start ComfyUI automatically when it is down', comfyDir: 'ComfyUI directory', comfyStart: 'Start now', comfyStarting: 'Starting…', comfyGpu: 'ComfyUI GPU', comfyRestart: 'Restart on selected GPU', comfyAuto: 'Auto',
   enginesIntro: 'Video generation runs through a ComfyUI server with a model workflow. Mock is always available for a quick check.',
   engineReady: 'Ready', engineMissing: 'Not installed', recommended: 'Recommended',
   pythonEngine: 'Python engine (diffusers)', pythonEngineDesc: 'Diffusers models, including LTX-Video 0.9.8 2B and image-to-video. About 5 GB, no root.',
@@ -125,7 +125,7 @@ const ru: Record<string, string> = {
   gpu: 'GPU', gpuNone: 'CUDA GPU не найдена', gpuHint: 'Без GPU видео может создать только Mock-раннер.',
   totalMemory: 'Всего', usedMemory: 'Занято', gpuStrategy: 'Стратегия', single: 'Одна GPU',
   roundRobin: 'По очереди', tensorParallel: 'Tensor parallel',
-  tools: 'Инструменты', comfyAutoStart: 'Поднимать ComfyUI автоматически, если он упал', comfyDir: 'Папка ComfyUI', comfyStart: 'Запустить сейчас', comfyStarting: 'Запуск…',
+  tools: 'Инструменты', comfyAutoStart: 'Поднимать ComfyUI автоматически, если он упал', comfyDir: 'Папка ComfyUI', comfyStart: 'Запустить сейчас', comfyStarting: 'Запуск…', comfyGpu: 'GPU для ComfyUI', comfyRestart: 'Перезапустить на выбранной GPU', comfyAuto: 'Авто',
   enginesIntro: 'Генерация идёт через сервер ComfyUI с workflow модели. Mock всегда доступен для быстрой проверки.',
   engineReady: 'Готов', engineMissing: 'Не установлен', recommended: 'Рекомендуется',
   pythonEngine: 'Python-движок (diffusers)', pythonEngineDesc: 'Модели diffusers, включая LTX-Video 0.9.8 2B и image-to-video. Около 5 ГБ, без sudo.',
@@ -1691,6 +1691,19 @@ const Panel = {
                   onInput: (event: any) => (settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, comfyuiDir: event.target.value } }),
                 }),
               ]),
+              h('div', { class: 'gv-min-w-[150px]' }, [
+                h('div', { class: 'gv-hint gv-mb-1' }, t('comfyGpu')),
+                h('select', {
+                  class: 'gv-select', value: String(settings.value.deps?.comfyuiGpu ?? -1),
+                  onChange: (event: any) => {
+                    settingsDraft.value = { ...settings.value, deps: { ...settings.value.deps, comfyuiGpu: Number(event.target.value) } }
+                    void saveSettings(settingsDraft.value)
+                  },
+                }, [
+                  h('option', { value: '-1' }, t('comfyAuto')),
+                  ...(state.value.gpu?.gpus ?? []).map((gpu: any) => h('option', { key: gpu.index, value: String(gpu.index) }, `${gpu.index} · ${gpu.name}`)),
+                ]),
+              ]),
               h('button', { type: 'button', class: 'gv-btn', onClick: () => void saveSettings(settingsDraft.value) }, t('save')),
               h('button', {
                 type: 'button', class: 'gv-btn gv-btn-primary', disabled: busy.value === 'comfy-start',
@@ -1703,6 +1716,17 @@ const Panel = {
                   } catch (err: any) { error.value = err.message } finally { busy.value = '' }
                 },
               }, busy.value === 'comfy-start' ? t('comfyStarting') : t('comfyStart')),
+              h('button', {
+                type: 'button', class: 'gv-btn', disabled: busy.value === 'comfy-restart',
+                onClick: async () => {
+                  busy.value = 'comfy-restart'
+                  try {
+                    const result = await api('/comfy/restart', { method: 'POST', body: JSON.stringify({ gpu: settings.value.deps?.comfyuiGpu ?? -1 }) })
+                    notice.value = result.ok ? `ComfyUI: ${result.url}` : (result.error ?? t('unavailable'))
+                    await refresh()
+                  } catch (err: any) { error.value = err.message } finally { busy.value = '' }
+                },
+              }, busy.value === 'comfy-restart' ? t('comfyStarting') : t('comfyRestart')),
             ]),
           ]),
           h('div', { class: 'gv-mt-4' }, [

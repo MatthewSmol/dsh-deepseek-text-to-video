@@ -98,6 +98,10 @@ export function buildToolsStatus() {
 /** RU: Кэш проверки ComfyUI, чтобы /state не сканировал порты постоянно.
  *  EN: ComfyUI probe cache so /state does not scan ports on every refresh. */
 let comfyCache = null;
+/** RU: Сбрасывает кэш проверки ComfyUI. EN: Clears the ComfyUI probe cache. */
+export function clearComfyUiCache() {
+    comfyCache = null;
+}
 /** RU: Ищет запущенный ComfyUI: явный URL или типовые локальные порты.
  *  EN: Finds a running ComfyUI: explicit URL or common local ports. */
 export async function detectComfyUi(configured) {

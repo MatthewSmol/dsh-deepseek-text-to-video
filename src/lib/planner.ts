@@ -231,8 +231,12 @@ export function planGeneration(input: PlanInput): Plan {
   const totalVram = selectedGpu.length
     ? Math.max(...selectedGpu.map((item) => item.totalMB / 1024))
     : 0
-  const freeVram = selectedGpu.length
-    ? Math.min(...selectedGpu.map((item) => (item.totalMB - item.usedMB) / 1024))
+  const comfyGpu = Number(settings.deps?.comfyuiGpu ?? -1)
+  const autoGpu = comfyGpu >= 0 && selectedGpu.some((item) => item.index === comfyGpu)
+    ? selectedGpu.filter((item) => item.index === comfyGpu)
+    : selectedGpu
+  const freeVram = autoGpu.length
+    ? Math.min(...autoGpu.map((item) => (item.totalMB - item.usedMB) / 1024))
     : 0
   const vram = settings.gpu.vramBudgetGB > 0 ? settings.gpu.vramBudgetGB : totalVram
   const autoBudget = freeVram > 0 ? Math.min(vram || freeVram, freeVram) : vram

@@ -18,7 +18,7 @@ import { GenVideoError, toApiError } from './errors.js';
 import { SettingsStore, resolveDirs } from './store.js';
 import { JobManager } from './jobs.js';
 import { detectGpus, selectGpus } from './gpu.js';
-import { buildToolsStatus, detectComfyUi, detectDeps, findNvcc } from './deps.js';
+import { buildToolsStatus, clearComfyUiCache, detectComfyUi, detectDeps, findNvcc } from './deps.js';
 import { allModels, findModel, findVariant, formatGB, snapFrames } from './models.js';
 import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes } from './media.js';
 import { fitPlanToBudget, planGeneration } from './planner.js';
@@ -63,6 +63,7 @@ export class Engine {
     depsStatus = null;
     listeners = new Set();
     plans = new Map();
+    comfyChildPid = null;
     comfyStarting = null;
     constructor(settingsStore = new SettingsStore(), jobs = new JobManager()) {
         this.settingsStore = settingsStore;
@@ -749,9 +750,13 @@ export class Engine {
             try {
                 const gpuTotal = this.gpuStatus?.gpus?.length ? Math.max(...this.gpuStatus.gpus.map((gpu) => gpu.totalMB / 1024)) : 0;
                 const memoryArgs = gpuTotal > 0 && gpuTotal <= 12 ? ['--reserve-vram', '1'] : [];
+                const env = { ...process.env };
+                if (this.settings.deps.comfyuiGpu >= 0)
+                    env.CUDA_VISIBLE_DEVICES = String(this.settings.deps.comfyuiGpu);
                 const child = spawn(python, [main, '--listen', '127.0.0.1', '--port', port, ...memoryArgs], {
-                    cwd: dir, detached: true, stdio: ['ignore', fd, fd], env: process.env,
+                    cwd: dir, detached: true, stdio: ['ignore', fd, fd], env,
                 });
+                this.comfyChildPid = child.pid ?? null;
                 child.unref();
                 console.log(`genvideo: auto-starting ComfyUI from ${dir} (pid ${child.pid ?? '?'})`);
             }
@@ -773,6 +778,40 @@ export class Engine {
             return { ok: false, started: false, url: '', error: `ComfyUI did not start within 60s. See ${logPath}.`, logTail };
         })().finally(() => { this.comfyStarting = null; });
         return await this.comfyStarting;
+    }
+    /** RU: Перезапускает ComfyUI на выбранной GPU. EN: Restarts ComfyUI on the selected GPU. */
+    async restartComfyUI(gpu) {
+        if (gpu !== undefined && gpu >= -1) {
+            await this.updateSettings({ deps: { ...this.settings.deps, comfyuiGpu: gpu } });
+        }
+        const info = await this.gpuProcesses();
+        const pids = new Set();
+        if (this.comfyChildPid)
+            pids.add(this.comfyChildPid);
+        for (const app of info.apps ?? []) {
+            if (app.pid && /ComfyUI[\/]main\.py/.test(app.command ?? ''))
+                pids.add(app.pid);
+        }
+        for (const pid of pids) {
+            try {
+                process.kill(pid, 'SIGTERM');
+            }
+            catch { /* already gone */ }
+        }
+        clearComfyUiCache();
+        if (pids.size) {
+            const started = Date.now();
+            while (Date.now() - started < 15_000) {
+                await new Promise((resolve) => setTimeout(resolve, 500));
+                if (!(await detectComfyUi(this.settings.deps.comfyuiUrl).then((item) => item.ok).catch(() => false)))
+                    break;
+            }
+        }
+        this.comfyChildPid = null;
+        this.comfyStarting = null;
+        this.depsStatus = null;
+        clearComfyUiCache();
+        return await this.ensureComfyUI(true);
     }
     /** RU: Процессы на GPU через nvidia-smi. EN: GPU processes via nvidia-smi. */
     async gpuProcesses() {

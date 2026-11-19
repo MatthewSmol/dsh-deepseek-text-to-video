@@ -107,6 +107,11 @@ export function buildToolsStatus(): { pkgConfig: boolean; openssl: boolean } {
  *  EN: ComfyUI probe cache so /state does not scan ports on every refresh. */
 let comfyCache: { at: number; key: string; value: { ok: boolean; url: string; error: string | null } } | null = null
 
+/** RU: Сбрасывает кэш проверки ComfyUI. EN: Clears the ComfyUI probe cache. */
+export function clearComfyUiCache(): void {
+  comfyCache = null
+}
+
 /** RU: Ищет запущенный ComfyUI: явный URL или типовые локальные порты.
  *  EN: Finds a running ComfyUI: explicit URL or common local ports. */
 export async function detectComfyUi(configured: string): Promise<{ ok: boolean; url: string; error: string | null }> {
