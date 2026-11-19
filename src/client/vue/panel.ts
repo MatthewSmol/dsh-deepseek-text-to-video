@@ -30,6 +30,8 @@ const en: Record<string, string> = {
   platform: 'Platform', aspect: 'Aspect', resolution: 'Resolution', fps: 'FPS', seed: 'Seed', random: 'random',
   negative: 'Negative prompt', continuity: 'Continuity', none: 'None', lastFrame: 'Last frame → next clip',
   imageInput: 'Reference image (image-to-video)', videoInput: 'Reference video (video-to-video)',
+  i2vHint: 'Needs the diffusers LTX-Video 0.9.8 2B (i2v) model and the Python engine; the Candle build is text-to-video only.',
+  v2vHint: 'No built-in model supports video input yet.',
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
   transcode: 'Transcode after generation', transcodeHint: 'Pick one: no transcode, quality tiers, or a size limit.', noTranscode: 'No transcode',
   codec: 'MP4 codec', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'MP4 only; WebM/GIF ignore it. H.265 needs a player with HEVC support.',
@@ -96,6 +98,8 @@ const ru: Record<string, string> = {
   platform: 'Платформа', aspect: 'Аспект', resolution: 'Разрешение', fps: 'Кадры/с', seed: 'Seed', random: 'случайно',
   negative: 'Негативный промпт', continuity: 'Непрерывность', none: 'Нет', lastFrame: 'Последний кадр → следующий клип',
   imageInput: 'Опорная картинка (image-to-video)', videoInput: 'Опорное видео (video-to-video)',
+  i2vHint: 'Нужна diffusers-модель LTX-Video 0.9.8 2B (i2v) и Python-движок; Candle-сборка умеет только text-to-video.',
+  v2vHint: 'Встроенные модели пока не поддерживают видео-вход.',
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
   transcode: 'Перекодировать после генерации', transcodeHint: 'Один режим: без перекодирования, уровни качества или лимит размера.', noTranscode: 'Без перекодирования',
   codec: 'Кодек MP4', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'Только для MP4; WebM/GIF игнорируют. Для H.265 нужен плеер с поддержкой HEVC.',
@@ -846,7 +850,7 @@ const Panel = {
             ]),
           ]),
           h('div', { class: 'gv-mt-3 gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
-            h(Field, { label: t('imageInput'), hint: modelEntry.value?.capabilities?.i2v ? t('inputHint') : t('unavailable') }, [
+            h(Field, { label: t('imageInput'), hint: modelEntry.value?.capabilities?.i2v ? t('inputHint') : t('i2vHint') }, [
               h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
                 h('button', {
                   type: 'button', class: 'gv-btn', disabled: !modelEntry.value?.capabilities?.i2v || uploading.value === 'inputImageId',
@@ -861,10 +865,11 @@ const Panel = {
                     input.click()
                   },
                 }, uploading.value === 'inputImageId' ? t('uploading') : t('chooseFile')),
+                form.value.inputImageId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputImageId.slice(0, 28)) : null,
                 form.value.inputImageId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputImageId: '' }) }, t('removeFile')) : null,
               ]),
             ]),
-            h(Field, { label: t('videoInput'), hint: modelEntry.value?.capabilities?.v2v ? t('inputHint') : t('unavailable') }, [
+            h(Field, { label: t('videoInput'), hint: modelEntry.value?.capabilities?.v2v ? t('inputHint') : t('v2vHint') }, [
               h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
                 h('button', {
                   type: 'button', class: 'gv-btn', disabled: !modelEntry.value?.capabilities?.v2v || uploading.value === 'inputVideoId',
@@ -879,6 +884,7 @@ const Panel = {
                     input.click()
                   },
                 }, uploading.value === 'inputVideoId' ? t('uploading') : t('chooseFile')),
+                form.value.inputVideoId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputVideoId.slice(0, 28)) : null,
                 form.value.inputVideoId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputVideoId: '' }) }, t('removeFile')) : null,
               ]),
             ]),
