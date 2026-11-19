@@ -61,6 +61,16 @@ const TOOLS: ToolDefinition[] = [
     annotations: readOnly,
   }),
   tool({
+    name: 'explore_models',
+    description: 'Browse popular Hugging Face text-to-video models, 10 per page, sorted by estimated VRAM ascending. Heuristic quality notes; not a benchmark.',
+    inputSchema: {
+      type: 'object',
+      properties: { page: { type: 'number' } },
+      additionalProperties: false,
+    },
+    annotations: readOnly,
+  }),
+  tool({
     name: 'install_model',
     description: 'Start downloading a model variant from Hugging Face into the project models/ folder. Returns a job id; poll it with the job tool.',
     inputSchema: {
@@ -270,6 +280,9 @@ async function callTool(engine: Engine, name: string, args: Record<string, unkno
     case 'models': {
       if (args.refresh === true) await engine.refresh(true)
       return await engine.modelStates()
+    }
+    case 'explore_models': {
+      return await engine.exploreModels(Number(args.page ?? 1))
     }
     case 'install_model': {
       requireArgs(args, ['modelId'])

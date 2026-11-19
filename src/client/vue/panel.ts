@@ -170,6 +170,19 @@ function fmtDuration(seconds: number): string {
   return `${Math.floor(total / 60)}m ${String(total % 60).padStart(2, '0')}s`
 }
 
+/** RU: Помещается ли оценка VRAM в лимит. EN: Whether the VRAM estimate fits the limit. */
+function fitsVram(vramGB: number | null, limitGB: number): boolean {
+  return vramGB !== null && vramGB > 0 && vramGB <= limitGB
+}
+
+/** RU: Компактное число (1.2K, 3.4M). EN: Compact count (1.2K, 3.4M). */
+function fmtCount(value: number): string {
+  const n = Number(value) || 0
+  if (n >= 1e6) return `${(n / 1e6).toFixed(1)}M`
+  if (n >= 1e3) return `${(n / 1e3).toFixed(1)}K`
+  return String(n)
+}
+
 /** RU: Время ЧЧ:ММ. EN: HH:MM time. */
 function fmtTime(timestamp: number): string {
   try {
@@ -355,6 +368,11 @@ const Panel = {
     const settingsDraft = ref<any>(null)
     const custom = ref<any>(emptyCustom())
     const language = ref('en')
+    const modelsTab = ref<'installed' | 'explore'>('installed')
+    const explore = ref<any>(null)
+    const explorePage = ref(1)
+    const exploreBusy = ref(false)
+    const exploreVram = ref(8)
     const source = ref<any>(null)
     let refreshTimer: any = null
     let planTimer: any = null
@@ -407,6 +425,19 @@ const Panel = {
         library.value = await api('/library')
       } catch (err: any) {
         error.value = err.message
+      }
+    }
+
+    /** RU: Загружает страницу обзора HF. EN: Loads a page of the HF overview. */
+    async function loadExplore(page: number) {
+      exploreBusy.value = true
+      try {
+        explore.value = await api(`/models/explore?page=${Math.max(1, page)}`)
+        explorePage.value = explore.value.page
+      } catch (err: any) {
+        error.value = err.message
+      } finally {
+        exploreBusy.value = false
       }
     }
 
@@ -1023,7 +1054,7 @@ const Panel = {
       ]),
     ])
 
-    const modelsView = () => h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
+    const installedModelsView = () => h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
       h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
         h('p', { class: 'gv-hint' }, `${t('modelsDir')}: ${state.value.paths.modelsDir}`),
         h('button', { type: 'button', class: 'gv-btn', onClick: checkUpdates }, t('checkUpdates')),
@@ -1063,6 +1094,82 @@ const Panel = {
         ]),
       ])),
       customCard(),
+    ])
+
+    // RU: Строка обзора HF: VRAM, параметры, популярность и эвристики качества.
+    // EN: HF overview row: VRAM, parameters, popularity and quality heuristics.
+    const exploreView = () => {
+      const page = explore.value?.page ?? explorePage.value
+      const total = explore.value?.total ?? 0
+      const pages = Math.max(1, Math.ceil(total / 10))
+      const qualityText = (reasons: string[]) =>
+        reasons.map((code) => t(`q_${code.replace(/-/g, '_')}`)).join(' · ')
+      const limit = exploreVram.value
+      return h('div', { class: 'gv-flex gv-flex-col gv-gap-2' }, [
+        h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
+          h('p', { class: 'gv-hint gv-max-w-[520px]' }, `${t('exploreHint')} ${t('targetHint')}`),
+          h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
+            h('span', { class: 'gv-hint' }, `${t('vramTarget')}:`),
+            h(Segmented, {
+              value: String(exploreVram.value),
+              onChange: (value: string) => { exploreVram.value = Number(value) || 8 },
+              options: [{ value: '8', label: '8 GB' }, { value: '16', label: '16 GB' }, { value: '24', label: '24 GB' }],
+            }),
+            h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', disabled: exploreBusy.value, onClick: () => void loadExplore(page) }, t('exploreRefresh')),
+          ]),
+        ]),
+        exploreBusy.value && !explore.value
+          ? h('div', { class: 'gv-card gv-p-4 gv-hint' }, t('loading'))
+          : null,
+        ...(explore.value?.items ?? []).map((model: any) =>
+          h('div', { key: model.id, class: 'gv-flex gv-flex-col gv-gap-1 gv-rounded-xl gv-border gv-border-line gv-bg-surface-2 gv-p-3' }, [
+            h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
+              h('a', {
+                href: `https://huggingface.co/${model.id}`, target: '_blank', rel: 'noreferrer',
+                class: 'gv-break-all gv-text-[12.5px] gv-font-semibold gv-text-brand',
+              }, model.id),
+              h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-gap-1.5' }, [
+                h(Badge, { tone: model.vramGB !== null ? 'gv-border-brand-soft gv-bg-brand-soft gv-text-brand' : '' },
+                  model.vramGB !== null ? `~${model.vramGB} GB VRAM` : t('vramUnknown')),
+                h(Badge, {
+                  tone: fitsVram(model.vramGB, limit)
+                    ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok'
+                    : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn',
+                }, fitsVram(model.vramGB, limit) ? `${limit} GB ✓` : `${limit} GB ✗`),
+                model.paramsB ? h(Badge, null, `${model.paramsB}B`) : null,
+                h(Badge, null, `${fmtCount(model.downloads)} ${t('downloadsLabel')}`),
+                h(Badge, null, `♥ ${fmtCount(model.likes)}`),
+              ]),
+            ]),
+            h('div', { class: 'gv-hint' }, qualityText(model.reasons ?? [])),
+            h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-gap-2 gv-text-[10.5px]' }, [
+              h('span', { class: 'gv-text-muted' }, `${t('benchmarks')}:`),
+              h('a', { href: 'https://vchitect.github.io/VBench-project/', target: '_blank', rel: 'noreferrer', class: 'gv-text-brand' }, t('vbenchLeaderboard')),
+              h('span', { class: 'gv-text-muted' }, '·'),
+              h('a', { href: `https://huggingface.co/${model.id}`, target: '_blank', rel: 'noreferrer', class: 'gv-text-brand' }, t('modelCard')),
+            ]),
+            h('div', { class: 'gv-flex gv-flex-wrap gv-gap-1' },
+              (model.tags ?? []).filter((tag: string) => !tag.startsWith('base_model:') && !tag.startsWith('license:') && !tag.startsWith('region:')).slice(0, 6).map((tag: string) =>
+                h('span', { key: tag, class: 'gv-rounded gv-bg-surface-3 gv-px-1.5 gv-py-0.5 gv-text-[10px] gv-text-muted' }, tag))),
+          ])),
+        h('div', { class: 'gv-mt-1 gv-flex gv-items-center gv-justify-between gv-gap-2' }, [
+          h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', disabled: exploreBusy.value || page <= 1, onClick: () => void loadExplore(page - 1) }, t('prevPage')),
+          h('span', { class: 'gv-hint' }, explore.value ? `${page} / ${pages} · ${total}` : '—'),
+          h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', disabled: exploreBusy.value || !explore.value?.hasMore, onClick: () => void loadExplore(page + 1) }, t('nextPage')),
+        ]),
+      ])
+    }
+
+    const modelsView = () => h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
+      h(Segmented, {
+        value: modelsTab.value,
+        onChange: (value: string) => {
+          modelsTab.value = value === 'explore' ? 'explore' : 'installed'
+          if (modelsTab.value === 'explore' && !explore.value) void loadExplore(1)
+        },
+        options: [{ value: 'installed', label: t('installedModels') }, { value: 'explore', label: t('exploreModels') }],
+      }),
+      modelsTab.value === 'installed' ? installedModelsView() : exploreView(),
     ])
 
     const gpuSection = () => h(Card, { title: t('gpu'), hint: state.value.gpu.error ?? null }, [

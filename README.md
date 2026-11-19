@@ -46,6 +46,7 @@ The service publishes `{port, token, pid}` to `$DSH_HOME/genvideo/endpoint.json`
 - **Detailed progress**: phase, diffusion step, segment x/y, ETA, transcode pass 1/2, log tail, cancel.
 - **Transcode encoders**: H.264 or H.265/HEVC in MP4 via CPU (libx264/libx265), NVIDIA NVENC or Vulkan Video, with an automatic CPU retry when the hardware encoder is unavailable.
 - **Custom Candle args**: extra argv (for example `--device vulkan`) for a self-built Vulkan candle-video; the shipped LTX example is CUDA/cuDNN-only.
+- **Models → Explore HF**: 60 popular text-to-video repositories, estimated VRAM (parameters/quantisation), 10 per page sorted by VRAM, target 8/16/24 GB fit badges and VBench/model-card links.
 - **SOCKS proxy checkbox**: Hugging Face downloads and update checks can go through a local SOCKS5/SOCKS5h proxy (uses system `curl`).
 - **One-click Candle engine**: installs rustup, clones candle-video and runs `cargo build --release --example ltx-video --features cuda`; requires the CUDA toolkit (`nvcc`) once, installed with sudo.
 - **Model management**: sizes, install state, download with resume and progress, update detection, newer-version suggestions, custom model form.
@@ -224,6 +225,7 @@ MCP-сервис (один процесс, одно состояние)
 - **Два языка** (EN/RU) и собственный CSS-дизайн на токенах темы, учитывающий светлую/тёмную тему DSH.
 - **Энкодеры транскода**: H.264 или H.265/HEVC в MP4 через CPU (libx264/libx265), NVIDIA NVENC или Vulkan Video; при недоступном аппаратном энкодере автоматически повторяется на CPU.
 - **Свои аргументы Candle**: дополнительные argv (например, `--device vulkan`) для собственной Vulkan-сборки candle-video; официальный пример LTX — только CUDA/cuDNN.
+- **Models → Обзор HF**: 60 популярных text-to-video репозиториев, оценка VRAM (параметры/квантование), по 10 на страницу с сортировкой по VRAM, метки 8/16/24 ГБ и ссылки на VBench/карточку модели.
 - **Галочка SOCKS-прокси**: загрузки и проверки обновлений Hugging Face могут идти через локальный SOCKS5/SOCKS5h-прокси (используется системный `curl`).
 - **Сборка Candle в один клик**: ставит rustup, клонирует candle-video и запускает `cargo build --release --example ltx-video --features cuda`; нужен CUDA toolkit (`nvcc`), устанавливаемый один раз через sudo.
 - **MCP-инструменты для агента** — тот же движок, что и у панели.

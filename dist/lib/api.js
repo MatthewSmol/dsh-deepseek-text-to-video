@@ -119,6 +119,10 @@ export function createApiHandler(engine, token) {
                 ok(res, await engine.modelStates());
                 return;
             }
+            if (path === '/api/models/explore' && req.method === 'GET') {
+                ok(res, await engine.exploreModels(Number(url.searchParams.get('page') ?? '1')));
+                return;
+            }
             if (path === '/api/models/refresh' && req.method === 'POST') {
                 await engine.refresh(true);
                 ok(res, await engine.modelStates());

@@ -23,6 +23,7 @@ import { planGeneration } from './planner.js';
 import { defaultModelsDir, defaultVideosDir, genvideoHome, inputsDir, safeBaseName, scratchDir, assertInside, outputFileName, slugify, ensureDirSync } from './paths.js';
 import { allAvailability, pickRunner } from './runners/index.js';
 import { downloadModelFiles, checkRemoteRevision, findNewerCandidates } from './downloads.js';
+import { fetchExploreModels } from './explore.js';
 import { venvDir } from './deps.js';
 /** RU: Версия сервиса. EN: Service version. */
 export const VERSION = '1.0.0';
@@ -881,6 +882,13 @@ export class Engine {
             ctx.progress({ percent: 100, message: `candle-video built at ${binary}` });
         });
         return job;
+    }
+    /** RU: Обзор популярных text-to-video моделей Hugging Face (по 10 на страницу,
+     *      сортировка по оценке VRAM). EN: Overview of popular Hugging Face
+     *      text-to-video models (10 per page, sorted by estimated VRAM). */
+    async exploreModels(page = 1) {
+        const token = process.env[this.settings.hf.tokenEnv] || process.env.HF_TOKEN || '';
+        return fetchExploreModels({ page, pageSize: 10, token, proxy: this.settings.proxy });
     }
     /** RU: Доступность раннеров для выбранной модели. EN: Runner availability for the selected model. */
     async runnerMatrix(modelId) {

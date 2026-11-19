@@ -66,7 +66,10 @@ async function proxy(req, res, path) {
         unavailable(res, 'The GenVideo MCP service is not running. Enable the genvideo-mcp row (or restart DSH) and refresh this page.');
         return;
     }
-    const target = `http://127.0.0.1:${endpoint.port}${path || '/'}`;
+    const url = new URL(req.url ?? '/', 'http://127.0.0.1');
+    // RU: поисковая строка (?page=2, ?id=…) обязательна для GET-ручек.
+    // EN: the query string (?page=2, ?id=…) is required for GET handlers.
+    const target = `http://127.0.0.1:${endpoint.port}${path || '/'}${url.search}`;
     const headers = { 'x-genvideo-token': endpoint.token };
     for (const header of ['range', 'content-type', 'x-file-name', 'accept']) {
         const value = req.headers[header];

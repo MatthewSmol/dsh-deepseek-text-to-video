@@ -43,6 +43,17 @@ async function curlText(url, token, proxy) {
     }
     return result.stdout;
 }
+// RU: Универсальный GET JSON к Hugging Face (с прокси и токеном).
+// EN: Generic JSON GET to Hugging Face (proxy and token aware).
+export async function hfGetJson(url, token, proxy) {
+    if (proxyUrlFor(proxy))
+        return JSON.parse(await curlText(url, token, proxy));
+    const response = await fetch(url, { headers: authHeaders(token), signal: AbortSignal.timeout(20_000) });
+    if (!response.ok) {
+        throw new GenVideoError('hf-request-failed', `Hugging Face returned HTTP ${response.status}`, { status: 502 });
+    }
+    return (await response.json());
+}
 /** RU: Читает метаданные репозитория через API HF. EN: Reads repository metadata through the HF API. */
 export async function fetchRemoteModel(repo, token, proxy) {
     const url = `${HF}/api/models/${repo}?blobs=true`;
