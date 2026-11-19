@@ -233,17 +233,29 @@
       "crop": "disabled"
     }
   },
+  "23": {
+    "class_type": "ImageSharpen",
+    "inputs": {
+      "image": [
+        "21",
+        0
+      ],
+      "sharpen_radius": 1,
+      "sigma": 1.0,
+      "alpha": 0.8
+    }
+  },
   "22": {
     "class_type": "SaveWEBM",
     "inputs": {
       "images": [
-        "21",
+        "23",
         0
       ],
       "filename_prefix": "genvideo",
       "codec": "vp9",
       "fps": {{fps}},
-      "crf": 32.0
+      "crf": 24.0
     }
   }
 }

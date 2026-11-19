@@ -153,6 +153,15 @@
       "crop": "disabled"
     }
   },
+  "19": {
+    "class_type": "ImageSharpen",
+    "inputs": {
+      "image": ["16", 0],
+      "sharpen_radius": 1,
+      "sigma": 1.0,
+      "alpha": 0.8
+    }
+  },
   "17": {
     "class_type": "LoadImage",
     "inputs": {
@@ -196,7 +205,7 @@
       "filename_prefix": "genvideo",
       "codec": "vp9",
       "fps": {{fps}},
-      "crf": 32.0
+      "crf": 24.0
     }
   }
 }

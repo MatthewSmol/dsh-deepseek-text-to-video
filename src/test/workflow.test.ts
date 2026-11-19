@@ -18,7 +18,7 @@ function load(file: string, image = false): Record<string, any> {
 test('LTXV workflow has the expected sampler, decoder and upscaler chain', () => {
   const graph = load(files[0]!)
   const classes = Object.values(graph).map((node: any) => node.class_type)
-  for (const name of ['UNETLoader', 'CLIPLoader', 'VAELoader', 'LTXVConditioning', 'EmptyLTXVLatentVideo', 'KSamplerSelect', 'LTXVScheduler', 'CFGGuider', 'RandomNoise', 'SamplerCustomAdvanced', 'VAEDecodeTiled', 'UpscaleModelLoader', 'ImageUpscaleWithModel', 'ImageScale', 'SaveWEBM']) {
+  for (const name of ['UNETLoader', 'CLIPLoader', 'VAELoader', 'LTXVConditioning', 'EmptyLTXVLatentVideo', 'KSamplerSelect', 'LTXVScheduler', 'CFGGuider', 'RandomNoise', 'SamplerCustomAdvanced', 'VAEDecodeTiled', 'UpscaleModelLoader', 'ImageUpscaleWithModel', 'ImageScale', 'ImageSharpen', 'SaveWEBM']) {
     assert.ok(classes.includes(name), `${name} missing`)
   }
   assert.ok(JSON.stringify(graph).includes('ltxv-2b-0.9.8-distilled-fp8'))

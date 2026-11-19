@@ -24,6 +24,7 @@ The engine runs in-process inside the Host plugin. The panel is served over `/ge
 
 - **Generate** — numbered sections (Scene → References → Output → Encoding); prompt/negative, reference image and video, duration, **Format** (Horizontal 16:9 / Vertical 9:16), **FPS** (15/24/30/60), continuity and ffmpeg transcode. Clip length is chosen automatically from VRAM.
 - **Generation preview** — Generate opens a plan with output/base size, fps, auto clip, frames, clips and warnings; the job starts only after **Confirm generation**.
+- **Sharpness** — after the 2× upscale and final `ImageScale`, every workflow runs `ImageSharpen` (radius 1, sigma 1.0, alpha 0.8); `SaveWEBM` uses crf 24 instead of 32.
 - **V2V** — a reference video is loaded through `LoadVideo → GetVideoComponents → VAEEncodeTiled`, denoised with `SplitSigmasDenoise` (0.3–0.8, default 0.6), then upscaled and saved. V2V is one clip, cropped to 8n+1 frames (max 257).
 - **Jobs** — the active job with progress, segments, log and result, plus recent jobs.
 - **Gallery** — finished videos from `Videos/`; preview, download/open, delete, select and merge.
@@ -141,6 +142,7 @@ Vue 3 панель ── /genvideo/api ──┐
 
 - **Generate** — пронумерованные секции (Сцена → Референсы → Выход → Кодирование); промпт/негатив, референс-картинка и видео, длительность, **Format** (Horizontal 16:9 / Vertical 9:16), **FPS** (15/24/30/60), непрерывность и транскод. Длина клипа выбирается автоматически по VRAM.
 - **Предпросмотр** — Generate сначала строит план: итоговый/base размер, fps, auto clip, кадры, число клипов и warnings; job создаётся только после **Confirm generation**.
+- **Резкость** — после 2× апскейла и финального `ImageScale` каждый workflow прогоняет `ImageSharpen` (radius 1, sigma 1.0, alpha 0.8); `SaveWEBM` пишет crf 24 вместо 32.
 - **V2V** — опорное видео проходит `LoadVideo → GetVideoComponents → VAEEncodeTiled`, перерисовывается через `SplitSigmasDenoise` (0.3–0.8, по умолчанию 0.6), затем апскейл и сохранение. V2V — один клип, обрезается до 8n+1 кадров (максимум 257).
 - **Jobs** — активная генерация с прогрессом, сегментами, логом и результатом; ниже последние задания.
 - **Gallery** — готовые ролики из `Videos/`: просмотр, скачивание/открытие, удаление, выбор и склейка.
