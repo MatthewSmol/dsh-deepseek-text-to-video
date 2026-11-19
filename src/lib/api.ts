@@ -199,6 +199,10 @@ export function createApiHandler(engine: Engine, token: string): (req: IncomingM
         ok(res, await engine.workflowDetails())
         return
       }
+      if (path === '/api/gpu/processes' && req.method === 'GET') {
+        ok(res, await engine.gpuProcesses())
+        return
+      }
       if (path === '/api/comfy/start' && req.method === 'POST') {
         ok(res, await engine.ensureComfyUI(true))
         return

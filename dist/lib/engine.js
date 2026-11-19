@@ -9,7 +9,8 @@
  */
 import { access, copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { closeSync, existsSync, openSync, readFileSync } from 'node:fs';
-import { spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
+import { promisify } from 'node:util';
 import { homedir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
 import { randomInt, randomUUID } from 'node:crypto';
@@ -772,6 +773,35 @@ export class Engine {
             return { ok: false, started: false, url: '', error: `ComfyUI did not start within 60s. See ${logPath}.`, logTail };
         })().finally(() => { this.comfyStarting = null; });
         return await this.comfyStarting;
+    }
+    /** RU: Процессы на GPU через nvidia-smi. EN: GPU processes via nvidia-smi. */
+    async gpuProcesses() {
+        try {
+            const run = promisify(execFile);
+            const [gpuOut, appOut] = await Promise.all([
+                run('nvidia-smi', ['--query-gpu=index,uuid,name,memory.total,memory.used,memory.free', '--format=csv,noheader,nounits']),
+                run('nvidia-smi', ['--query-compute-apps=gpu_uuid,pid,process_name,used_memory', '--format=csv,noheader,nounits']),
+            ]);
+            const gpus = gpuOut.stdout.trim().split('\n').filter(Boolean).map((line) => {
+                const [index, uuid, ...rest] = line.split(', ');
+                const name = rest.slice(0, -3).join(', ');
+                return { index: Number(index), uuid, name, totalMB: Number(rest.at(-3)), usedMB: Number(rest.at(-2)), freeMB: Number(rest.at(-1)) };
+            });
+            const apps = appOut.stdout.trim().split('\n').filter(Boolean).map((line) => {
+                const [uuid, pid, ...rest] = line.split(', ');
+                const used = rest.at(-1);
+                return { uuid, pid: Number(pid), name: rest.slice(0, -1).join(', '), usedMB: Number(used) };
+            });
+            const names = new Map(gpus.map((gpu) => [gpu.uuid, gpu.name]));
+            const details = await Promise.all(apps.map(async (app) => {
+                const ps = await run('ps', ['-p', String(app.pid), '-o', 'args=']).then((r) => r.stdout.trim()).catch(() => '');
+                return { ...app, gpu: names.get(app.uuid) ?? app.uuid, command: ps.slice(0, 300) };
+            }));
+            return { gpus, apps: details };
+        }
+        catch (error) {
+            return { error: error instanceof Error ? error.message : String(error), gpus: [], apps: [] };
+        }
     }
     /** RU: Разбирает ComfyUI-workflow и показывает модели/энкодер/VAE/апскейлер.
      *  EN: Parses the ComfyUI workflow and reports models, encoder, VAE and upscalers. */
