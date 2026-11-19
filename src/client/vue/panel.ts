@@ -36,7 +36,9 @@ const en: Record<string, string> = {
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
   clipLength: 'Clip length', clipLengthHint: 'Length of one generated clip. The last clip may be shorter.', promptMode: 'Prompt mode',
   promptFull: 'Full scene in every clip', promptSplit: 'Split by sentences', promptShots: 'Shot prompts', shotPrompts: 'Shot prompts (one per line)', shotPromptsHint: 'One prompt per clip. The agent or you can write N different actions; empty lines are ignored.',
-  promptModeHint: 'Full scene repeats the whole description in every clip (recommended for one continuous scene).',
+  promptModeHint: 'Full scene repeats the whole description in every clip (best for one continuous scene).',
+  promptModeHintShots: 'One prompt per clip. Write N different actions; best for long storyboarded videos.',
+  promptModeHintSplit: 'Splits the text by sentences across clips. Action progresses, but scene context may weaken.',
   transcode: 'Transcode after generation', transcodeHint: 'Pick one: no transcode, quality tiers, or a size limit.', noTranscode: 'No transcode',
   codec: 'MP4 codec', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'MP4 only; WebM/GIF ignore it. H.265 needs a player with HEVC support.',
   encoder: 'Encoder for ffmpeg', encoderAuto: 'Auto (CPU fallback)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
@@ -108,7 +110,9 @@ const ru: Record<string, string> = {
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
   clipLength: 'Длина клипа', clipLengthHint: 'Длительность одного клипа. Последний может быть короче.', promptMode: 'Режим промпта',
   promptFull: 'Полная сцена в каждом клипе', promptSplit: 'Разбить по предложениям', promptShots: 'Промпты по кадрам', shotPrompts: 'Промпты по клипам (по одному в строке)', shotPromptsHint: 'Один промпт на клип. Агент или вы пишете N разных действий; пустые строки игнорируются.',
-  promptModeHint: 'Полная сцена повторяет всё описание в каждом клипе (рекомендуется для одной непрерывной сцены).',
+  promptModeHint: 'Полная сцена повторяет всё описание в каждом клипе (лучше для одной непрерывной сцены).',
+  promptModeHintShots: 'Один промпт на клип. Напишите N разных действий; лучший вариант для длинной раскадровки.',
+  promptModeHintSplit: 'Делит текст по предложениям между клипами. Действие меняется, но контекст сцены может размываться.',
   transcode: 'Перекодировать после генерации', transcodeHint: 'Один режим: без перекодирования, уровни качества или лимит размера.', noTranscode: 'Без перекодирования',
   codec: 'Кодек MP4', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'Только для MP4; WebM/GIF игнорируют. Для H.265 нужен плеер с поддержкой HEVC.',
   encoder: 'Энкодер для ffmpeg', encoderAuto: 'Авто (fallback на CPU)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
@@ -931,7 +935,7 @@ const Panel = {
               }),
             ]),
             h('div', { class: 'gv-mt-3' }, [
-              h(Field, { label: t('promptMode'), hint: t('promptModeHint') }, [
+              h(Field, { label: t('promptMode'), hint: form.value.promptMode === 'shots' ? t('promptModeHintShots') : form.value.promptMode === 'split' ? t('promptModeHintSplit') : t('promptModeHint') }, [
                 h(Segmented, {
                   value: form.value.promptMode,
                   onChange: (value: string) => patch({ promptMode: value === 'split' ? 'split' : 'full' }),

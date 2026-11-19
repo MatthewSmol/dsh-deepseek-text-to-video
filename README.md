@@ -27,6 +27,12 @@ There is no MCP server, no stdio transport and no `endpoint.json`. The plugin st
 - **Gallery** — finished videos from `Videos/`; preview, delete, select and merge.
 - **Environment** — read-only status: ComfyUI, workflow path, ffmpeg/ffprobe and available agent tools.
 
+### Prompt modes
+
+- **Shot prompts** — one prompt per line; each clip gets its own action. Best for long storyboarded videos.
+- **Full scene in every clip** — repeats the whole scene in every clip. Best for one continuous scene, but action may repeat.
+- **Split by sentences** — distributes sentences across clips. Action progresses, but scene context may weaken.
+
 ### Workflow
 
 ComfyUI runs an API-format workflow JSON. Default path:
@@ -133,6 +139,18 @@ MCP-сервера, stdio-транспорта и `endpoint.json` больше �
 - **Jobs** — активная генерация с прогрессом, сегментами, логом и результатом; ниже последние задания.
 - **Gallery** — готовые ролики из `Videos/`: просмотр, удаление, выбор и склейка.
 - **Environment** — статус только для чтения: ComfyUI, путь workflow, ffmpeg/ffprobe и доступные tools.
+
+### Prompt modes
+
+- **Shot prompts** — one prompt per line; each clip gets its own action. Best for long storyboarded videos.
+- **Full scene in every clip** — repeats the whole scene in every clip. Best for one continuous scene, but action may repeat.
+- **Split by sentences** — distributes sentences across clips. Action progresses, but scene context may weaken.
+
+### Prompt modes
+
+- **Shot prompts** — один промпт на строку; у каждого клипа своё действие. Лучший вариант для длинной раскадровки.
+- **Full scene in every clip** — повторяет всю сцену в каждом клипе. Лучше для одной непрерывной сцены, но действие может повторяться.
+- **Split by sentences** — распределяет предложения по клипам. Действие меняется, но контекст сцены может размываться.
 
 ### Workflow
 
