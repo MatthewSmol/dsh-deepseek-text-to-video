@@ -4,7 +4,7 @@
  */
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { computeSegments, splitPrompt, estimateVramGB, planGeneration } from '../lib/planner.js'
+import { buildSegmentPrompts, computeSegments, splitPrompt, estimateVramGB, planGeneration } from '../lib/planner.js'
 import { DEFAULT_SETTINGS } from '../lib/store.js'
 import type { ModelEntry } from '../lib/types.js'
 
@@ -93,4 +93,57 @@ test('plan reports the requested size transcode mode', () => {
   })
   assert.equal(plan.transcode.mode, 'size')
   assert.equal(plan.transcode.estimatedBytes, 2_000_000)
+})
+
+
+test('fixed clips follow the requested length and keep the exact total', () => {
+  const minute = computeSegments(60, 9, 10.7)
+  assert.equal(minute.length, 7)
+  assert.deepEqual(minute.slice(0, 6), [9, 9, 9, 9, 9, 9])
+  assert.equal(minute[6], 6)
+  assert.ok(Math.abs(minute.reduce((a, b) => a + b, 0) - 60) < 0.01)
+
+  const twoMinutes = computeSegments(120, 9, 10.7)
+  assert.equal(twoMinutes.length, 14)
+  assert.equal(twoMinutes[13], 3)
+  assert.ok(Math.abs(twoMinutes.reduce((a, b) => a + b, 0) - 120) < 0.01)
+})
+
+test('full-scene mode repeats the whole prompt in every clip', () => {
+  const full = buildSegmentPrompts('A woman dances in a dark hall.', 3, 'full', 2000)
+  assert.equal(full.fallback, false)
+  assert.equal(full.prompts.length, 3)
+  assert.ok(full.prompts.every((value) => value.includes('A woman dances in a dark hall.')))
+  assert.ok(full.prompts[0]?.includes('Part 1/3'))
+
+  const split = buildSegmentPrompts('One. Two. Three.', 3, 'split', 2000)
+  assert.deepEqual(split.prompts, splitPrompt('One. Two. Three.', 3))
+
+  const tooLong = buildSegmentPrompts('x'.repeat(2500), 2, 'full', 2000)
+  assert.equal(tooLong.fallback, true)
+  assert.equal(tooLong.prompts.length, 2)
+})
+
+test('plan uses fixed 9s clips and full-scene prompts for a 60s video', () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  const plan = planGeneration({
+    settings,
+    model,
+    runner: 'mock',
+    gpu: { available: false, gpus: [], error: 'no gpu', hints: [], checkedAt: Date.now() },
+    prompt: 'A full scene with a dancer and a pole.',
+    targetDurationSec: 60,
+    clipSec: 9,
+    promptMode: 'full',
+    segmentMode: 'fixed',
+    width: 768,
+    height: 512,
+    fps: 24,
+  })
+  assert.equal(plan.segments.length, 7)
+  assert.equal(plan.clipSec, 9)
+  assert.equal(plan.promptMode, 'full')
+  assert.equal(plan.totalSec, 60)
+  assert.ok(plan.segments.every((segment) => segment.prompt.includes('A full scene')))
+  assert.equal(plan.segments[6]?.durationSec, 6)
 })

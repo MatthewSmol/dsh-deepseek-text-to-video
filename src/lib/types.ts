@@ -290,6 +290,11 @@ export interface PlannedSegment {
   prompt: string
 }
 
+/** RU: Как распределяется промпт по клипам. EN: How the prompt is distributed across clips. */
+export type PromptMode = 'split' | 'full'
+/** RU: Как делятся клипы по длительности. EN: How clip durations are split. */
+export type SegmentMode = 'fixed' | 'even'
+
 /** RU: План генерации, который показывает «что модель может».
  *  EN: Generation plan that explains "what the model can do". */
 export interface Plan {
@@ -299,6 +304,7 @@ export interface Plan {
   runtimes: RunnerId[]
   availableRunner: RunnerId | null
   clipSec: number
+  promptMode: PromptMode
   segments: PlannedSegment[]
   totalSec: number
   width: number
@@ -331,6 +337,8 @@ export interface GenerateRequest {
   fps?: number
   targetDurationSec?: number
   clipSec?: number
+  promptMode?: PromptMode
+  segmentMode?: SegmentMode
   segments?: number
   seed?: number
   steps?: number

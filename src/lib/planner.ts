@@ -6,7 +6,7 @@
  *     prompts, whether VRAM fits and how long it takes. The plan explains
  *     "what the model can do" before the run.
  */
-import type { GpuStatus, ModelEntry, Plan, PlannedSegment, RunnerId, Settings } from './types.js'
+import type { GpuStatus, ModelEntry, Plan, PlannedSegment, PromptMode, RunnerId, SegmentMode, Settings } from './types.js'
 
 /** RU: Вход планировщика. EN: Planner input. */
 export interface PlanInput {
@@ -17,6 +17,8 @@ export interface PlanInput {
   prompt: string
   targetDurationSec?: number
   clipSec?: number
+  promptMode?: PromptMode
+  segmentMode?: SegmentMode
   width?: number
   height?: number
   fps?: number
@@ -46,19 +48,45 @@ export function estimateSeconds(model: ModelEntry, width: number, height: number
   return Math.round(15 + 0.22 * stepsEffective * pixels * framesScale * 4)
 }
 
-/** RU: Число сегментов и их длительности. Каждый клип ≤ maxClip.
- *  EN: Segment count and durations. Every clip is ≤ maxClip. */
-export function computeSegments(targetDurationSec: number, clipSec: number, maxClipSec: number): number[] {
+/** RU: Предельное число сегментов одного задания. EN: Maximum segments per job. */
+export const MAX_SEGMENTS = 120
+
+/** RU: Число сегментов и их длительности. fixed — клипы полной длины и короткий
+ *      последний; even — прежнее равномерное деление. Сумма всегда равна цели.
+ *  EN: Segment count and durations. fixed keeps full-length clips and a short
+ *      last one; even is the previous uniform split. The sum always equals target. */
+export function computeSegments(
+  targetDurationSec: number,
+  clipSec: number,
+  maxClipSec: number,
+  mode: SegmentMode = 'fixed',
+): number[] {
   const target = Math.max(0.5, Number(targetDurationSec) || 0.5)
-  const clip = Math.min(Math.max(0.5, Number(clipSec) || 0.5), Math.max(0.5, maxClipSec))
-  const count = Math.min(24, Math.max(1, Math.ceil(target / clip)))
-  const base = target / count
-  const durations = Array.from({ length: count }, () => Math.round(base * 100) / 100)
-  // RU: Остаток от округления добавляем последнему сегменту.
-  // EN: Add the rounding remainder to the last segment.
-  const sum = durations.reduce((acc, value) => acc + value, 0)
-  const last = durations[count - 1] ?? base
-  durations[count - 1] = Math.round((last + (target - sum)) * 100) / 100
+  const maxClip = Math.max(0.5, Number(maxClipSec) || 10.7)
+  const clip = Math.min(Math.max(0.5, Number(clipSec) || 0.5), maxClip)
+  if (mode === 'even') {
+    const count = Math.min(MAX_SEGMENTS, Math.max(1, Math.ceil(target / clip)))
+    const base = target / count
+    const durations = Array.from({ length: count }, () => Math.round(base * 100) / 100)
+    const sum = durations.reduce((acc, value) => acc + value, 0)
+    durations[count - 1] = Math.round(((durations[count - 1] ?? base) + (target - sum)) * 100) / 100
+    return durations
+  }
+  let count = Math.max(1, Math.ceil(target / clip))
+  let effective = clip
+  if (count > MAX_SEGMENTS) {
+    count = MAX_SEGMENTS
+    effective = Math.max(clip, target / count)
+  }
+  const durations = Array.from({ length: count }, () => Math.round(effective * 100) / 100)
+  let last = Math.round((target - effective * (count - 1)) * 100) / 100
+  if (count > 1 && last < 0.5) {
+    durations.pop()
+    last = Math.round((effective + last) * 100) / 100
+    durations[durations.length - 1] = last
+  } else {
+    durations[count - 1] = last
+  }
   return durations
 }
 
@@ -88,6 +116,30 @@ export function splitPrompt(prompt: string, count: number): string[] {
   return filled
 }
 
+/** RU: Собирает промпт для каждого клипа. full — вся сцена в каждом клипе,
+ *      split — прежнее деление по предложениям.
+ *  EN: Builds the prompt for every clip. full repeats the whole scene in each
+ *      clip, split keeps the previous sentence distribution. */
+export function buildSegmentPrompts(
+  prompt: string,
+  count: number,
+  mode: PromptMode,
+  maxPromptChars: number,
+): { prompts: string[]; fallback: boolean } {
+  const text = String(prompt ?? '').trim()
+  if (mode !== 'full') return { prompts: splitPrompt(text, count), fallback: false }
+  const base = text || 'An empty scene'
+  const suffix = (index: number) => `\n\nPart ${index + 1}/${count}. Continue the same scene seamlessly.`
+  if (base.length > maxPromptChars) {
+    return { prompts: splitPrompt(base, count), fallback: true }
+  }
+  const withSuffix = Array.from({ length: count }, (_, index) => `${base}${suffix(index)}`)
+  if (withSuffix.every((value) => value.length <= maxPromptChars)) {
+    return { prompts: withSuffix, fallback: false }
+  }
+  return { prompts: Array.from({ length: count }, () => base), fallback: false }
+}
+
 /** RU: Собирает полный план. EN: Builds the full plan. */
 export function planGeneration(input: PlanInput): Plan {
   const { settings, model, gpu } = input
@@ -96,13 +148,34 @@ export function planGeneration(input: PlanInput): Plan {
   const width = input.width && input.width > 0 ? input.width : model.width
   const height = input.height && input.height > 0 ? input.height : model.height
   const target = Math.max(0.5, input.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended)
-  const clipRequested = input.clipSec ?? settings.clipSec ?? model.durationSec.recommended
-  const durations = computeSegments(target, clipRequested, model.durationSec.max)
-  const parts = splitPrompt(input.prompt, durations.length)
+  const clipRequested = Math.min(input.clipSec ?? settings.clipSec ?? model.durationSec.recommended, model.durationSec.max)
+  const promptMode: PromptMode = input.promptMode ?? 'full'
+  const segmentMode: SegmentMode = input.segmentMode ?? 'fixed'
+  const requestedSegments = Math.ceil(target / Math.max(0.5, clipRequested))
+  if (requestedSegments > 30) {
+    warnings.push({
+      code: 'many-segments',
+      message: `${requestedSegments} clips will be generated sequentially; this can take a long time.`,
+    })
+  }
+  if (requestedSegments > MAX_SEGMENTS) {
+    warnings.push({
+      code: 'too-many-segments',
+      message: `A ${target}s video with ${clipRequested}s clips needs ${requestedSegments} segments; the limit is ${MAX_SEGMENTS}. Increase the clip length or shorten the video.`,
+    })
+  }
+  const durations = computeSegments(target, clipRequested, model.durationSec.max, segmentMode)
+  const built = buildSegmentPrompts(input.prompt, durations.length, promptMode, model.maxPromptChars)
+  if (built.fallback) {
+    warnings.push({
+      code: 'prompt-too-long',
+      message: `The full scene is longer than the model limit (${model.maxPromptChars} chars); prompts are split by sentences instead.`,
+    })
+  }
   const segments: PlannedSegment[] = durations.map((durationSec, index) => ({
     index,
     durationSec,
-    prompt: parts[index] ?? input.prompt,
+    prompt: built.prompts[index] ?? input.prompt,
   }))
   const totalSec = Math.round(segments.reduce((acc, segment) => acc + segment.durationSec, 0) * 100) / 100
   const frames = Math.max(9, Math.round(segments[0]?.durationSec ?? 1) * fps + 1)
@@ -154,6 +227,7 @@ export function planGeneration(input: PlanInput): Plan {
     runtimes: model.runtimes,
     availableRunner: input.runner,
     clipSec: segments[0]?.durationSec ?? target,
+    promptMode,
     segments,
     totalSec,
     width,

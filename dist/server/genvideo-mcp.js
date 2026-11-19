@@ -82,6 +82,9 @@ const TOOLS = [
                 fps: { type: 'number' },
                 targetDurationSec: { type: 'number' },
                 clipSec: { type: 'number' },
+                promptMode: { type: 'string', enum: ['split', 'full'] },
+                segmentMode: { type: 'string', enum: ['fixed', 'even'] },
+                continuity: { type: 'string', enum: ['none', 'last-frame'] },
                 inputImageId: { type: 'string' },
                 inputVideoId: { type: 'string' },
                 transcode: {

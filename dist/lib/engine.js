@@ -239,6 +239,8 @@ export class Engine {
             prompt: request.prompt,
             targetDurationSec: target,
             clipSec: request.clipSec ?? settings.clipSec,
+            promptMode: request.promptMode,
+            segmentMode: request.segmentMode,
             width,
             height,
             fps,
@@ -335,6 +337,9 @@ export class Engine {
             height: plan.height,
             fps: plan.fps,
             targetDurationSec: plan.totalSec,
+            clipSec: plan.clipSec,
+            promptMode: plan.promptMode,
+            continuity: request.continuity ?? settings.continuity,
             segments: plan.segments.length,
             transcode,
             seed: request.seed ?? settings.seed,
@@ -417,7 +422,8 @@ export class Engine {
             segmentFiles.push(outputPath);
             // RU: Continuity: последний кадр становится картинкой-условием для i2v.
             // EN: Continuity: the last frame becomes the image condition for i2v.
-            if (settings.continuity === 'last-frame' && index < segments.length - 1 && input.model.capabilities.i2v) {
+            const continuity = input.request.continuity ?? settings.continuity;
+            if (continuity === 'last-frame' && index < segments.length - 1 && input.model.capabilities.i2v) {
                 const framePath = join(scratch, `frame-${index + 1}.jpg`);
                 try {
                     await extractLastFrame(ffmpeg, outputPath, framePath);
@@ -471,6 +477,9 @@ export class Engine {
         }
         ctx.phase('verifying', 'Verifying the output');
         const info = await probeFile(ffprobe, finalPath);
+        if (Math.abs(info.durationSec - input.plan.totalSec) > 0.5) {
+            ctx.log(`duration check: requested ${input.plan.totalSec}s, output ${info.durationSec.toFixed(2)}s`);
+        }
         const bytes = await stat(finalPath).then((item) => item.size).catch(() => info.bytes);
         const artifact = {
             id: finalName,

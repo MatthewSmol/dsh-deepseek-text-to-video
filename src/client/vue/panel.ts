@@ -34,6 +34,9 @@ const en: Record<string, string> = {
   referenceInput: 'Reference input', switchToI2v: 'Choose i2v model',
   v2vHint: 'No built-in model supports video input yet.',
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
+  clipLength: 'Clip length', clipLengthHint: 'Length of one generated clip. The last clip may be shorter.', promptMode: 'Prompt mode',
+  promptFull: 'Full scene in every clip', promptSplit: 'Split by sentences',
+  promptModeHint: 'Full scene repeats the whole description in every clip (recommended for one continuous scene).',
   transcode: 'Transcode after generation', transcodeHint: 'Pick one: no transcode, quality tiers, or a size limit.', noTranscode: 'No transcode',
   codec: 'MP4 codec', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'MP4 only; WebM/GIF ignore it. H.265 needs a player with HEVC support.',
   encoder: 'Encoder', encoderAuto: 'Auto (CPU fallback)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
@@ -103,6 +106,9 @@ const ru: Record<string, string> = {
   referenceInput: 'Опорный вход', switchToI2v: 'Выбрать i2v-модель',
   v2vHint: 'Встроенные модели пока не поддерживают видео-вход.',
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
+  clipLength: 'Длина клипа', clipLengthHint: 'Длительность одного клипа. Последний может быть короче.', promptMode: 'Режим промпта',
+  promptFull: 'Полная сцена в каждом клипе', promptSplit: 'Разбить по предложениям',
+  promptModeHint: 'Полная сцена повторяет всё описание в каждом клипе (рекомендуется для одной непрерывной сцены).',
   transcode: 'Перекодировать после генерации', transcodeHint: 'Один режим: без перекодирования, уровни качества или лимит размера.', noTranscode: 'Без перекодирования',
   codec: 'Кодек MP4', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'Только для MP4; WebM/GIF игнорируют. Для H.265 нужен плеер с поддержкой HEVC.',
   encoder: 'Энкодер', encoderAuto: 'Авто (fallback на CPU)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
@@ -240,8 +246,9 @@ function emptyForm(settings?: any) {
     width: settings?.width ?? 1280,
     height: settings?.height ?? 720,
     fps: settings?.fps ?? 30,
-    targetDurationSec: settings?.targetDurationSec ?? 9,
-    clipSec: settings?.clipSec ?? 4,
+    targetDurationSec: settings?.targetDurationSec ?? 60,
+    clipSec: settings?.clipSec ?? 9,
+    promptMode: 'full',
     seed: settings?.seed ?? -1,
     steps: settings?.steps ?? 0,
     guidance: settings?.guidance ?? 0,
@@ -802,42 +809,27 @@ const Panel = {
       try {
         const base = { ...form.value, runner: runner.value === 'auto' ? undefined : runner.value }
         const heights = [768, 704, 640, 576, 512, 448, 384, 320, 256, 224, 192]
-        const durations = Array.from(new Set([
-          form.value.targetDurationSec,
-          Math.min(4, modelEntry.value.durationSec.max),
-          3,
-          2,
-          Math.max(1, modelEntry.value.durationSec.min),
-        ])).filter((sec) => sec > 0).sort((a, b) => b - a)
-
-        const tryPlan = async (height: number, sec: number) => {
+        const tryPlan = async (height: number) => {
           const ratio = form.value.width / Math.max(1, form.value.height)
           const width = snap32(height * ratio)
           const snapped = snap32(height)
           const planResult = await api('/plan', {
             method: 'POST',
-            body: JSON.stringify({ ...base, width, height: snapped, targetDurationSec: sec }),
+            body: JSON.stringify({ ...base, width, height: snapped }),
           })
-          return { width, height: snapped, sec, plan: planResult }
+          return { width, height: snapped, plan: planResult }
         }
 
         let best: any = null
         for (const height of heights) {
-          const result = await tryPlan(height, form.value.targetDurationSec)
+          const result = await tryPlan(height)
           if (result.plan.vramFit) { best = result; break }
         }
-        if (!best) {
-          const small = heights[heights.length - 1] ?? 192
-          for (const sec of durations) {
-            const result = await tryPlan(small, sec)
-            if (result.plan.vramFit) { best = result; break }
-          }
-        }
         if (!best) throw new Error(t('fitVramFailed'))
-        patch({ width: best.width, height: best.height, targetDurationSec: best.sec })
+        patch({ width: best.width, height: best.height })
         notice.value = t('fitVramResult')
           .replace('{dims}', `${best.width}×${best.height}`)
-          .replace('{sec}', String(best.sec))
+          .replace('{sec}', String(form.value.targetDurationSec))
           .replace('{gb}', String(best.plan.estimatedVramGB))
       } catch (err: any) {
         error.value = err.message
@@ -930,6 +922,15 @@ const Panel = {
                 onInput: (event: any) => patch({ negativePrompt: event.target.value }),
               }),
             ]),
+            h('div', { class: 'gv-mt-3' }, [
+              h(Field, { label: t('promptMode'), hint: t('promptModeHint') }, [
+                h(Segmented, {
+                  value: form.value.promptMode,
+                  onChange: (value: string) => patch({ promptMode: value === 'split' ? 'split' : 'full' }),
+                  options: [{ value: 'full', label: t('promptFull') }, { value: 'split', label: t('promptSplit') }],
+                }),
+              ]),
+            ]),
           ]),
         ]),
         (modelEntry.value?.capabilities?.i2v || modelEntry.value?.capabilities?.v2v)
@@ -984,6 +985,17 @@ const Panel = {
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-3' }, [
             h(Field, { label: t('duration'), hint: t('durationHint') }, [
               h('input', { class: 'gv-input', type: 'number', min: 1, max: 600, value: form.value.targetDurationSec, onInput: (event: any) => patch({ targetDurationSec: Number(event.target.value) || 1 }) }),
+              h('div', { class: 'gv-mt-1 gv-flex gv-gap-1' }, [30, 60, 120].map((sec) => h('button', {
+                key: sec, type: 'button', class: 'gv-btn gv-h-7 gv-px-2 gv-text-[10.5px]',
+                onClick: () => patch({ targetDurationSec: sec }),
+              }, sec >= 60 ? `${sec / 60}m` : `${sec}s`))),
+            ]),
+            h(Field, { label: t('clipLength'), hint: t('clipLengthHint') }, [
+              h('input', {
+                class: 'gv-input', type: 'number', min: 1, max: modelEntry.value?.durationSec.max ?? 10.7, step: 0.5,
+                value: form.value.clipSec,
+                onInput: (event: any) => patch({ clipSec: Number(event.target.value) || 1 }),
+              }),
             ]),
             h(Field, { label: t('platform') }, [
               h('select', { class: 'gv-select', value: form.value.platform, onChange: (event: any) => applyPlatform(event.target.value) },
@@ -1012,7 +1024,18 @@ const Panel = {
               h('select', { class: 'gv-select', value: String(form.value.fps), onChange: (event: any) => patch({ fps: Number(event.target.value) }) },
                 Array.from(new Set([24, 25, 30, 48, 50, form.value.fps])).sort((a, b) => a - b).map((value) => h('option', { key: value, value }, String(value)))),
             ]),
+            modelEntry.value?.capabilities?.i2v
+              ? h(Field, { label: t('continuity') }, [
+                  h('select', { class: 'gv-select', value: form.value.continuity, onChange: (event: any) => patch({ continuity: event.target.value }) }, [
+                    h('option', { value: 'none' }, t('none')),
+                    h('option', { value: 'last-frame' }, t('lastFrame')),
+                  ]),
+                ])
+              : null,
           ]),
+          plan.value
+            ? h('div', { class: 'gv-hint gv-mt-2' }, `${t('segments')}: ${plan.value.segments.length} · ${plan.value.segments.length > 1 ? `${plan.value.segments.length - 1}×${fmtDuration(plan.value.clipSec)} + ${fmtDuration(plan.value.segments[plan.value.segments.length - 1]?.durationSec ?? 0)}` : fmtDuration(plan.value.totalSec)} = ${fmtDuration(plan.value.totalSec)}`)
+            : null,
         ]),
         h(Card, { title: t('transcode'), hint: t('transcodeHint') }, [
           h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
