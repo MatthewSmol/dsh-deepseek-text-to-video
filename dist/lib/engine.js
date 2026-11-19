@@ -11,7 +11,7 @@ import { access, copyFile, mkdir, readdir, rm, stat, writeFile } from 'node:fs/p
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
-import { randomUUID } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { GenVideoError, toApiError } from './errors.js';
 import { SettingsStore, resolveDirs } from './store.js';
 import { JobManager } from './jobs.js';
@@ -262,6 +262,8 @@ export class Engine {
             targetDurationSec: target,
             clipSec,
             promptMode: request.promptMode,
+            segmentPrompts: request.segmentPrompts,
+            continuity: request.continuity,
             segmentMode: request.segmentMode,
             width,
             height,
@@ -363,11 +365,12 @@ export class Engine {
             targetDurationSec: plan.totalSec,
             clipSec: plan.clipSec,
             promptMode: plan.promptMode,
-            continuity: request.continuity ?? settings.continuity,
+            continuity: request.continuity ?? (plan.segments.length > 1 ? 'last-frame' : 'none'),
             segments: plan.segments.length,
             transcode,
             seed: request.seed ?? settings.seed,
             outputName: request.outputName ?? null,
+            segmentPrompts: request.segmentPrompts ?? null,
             inputImageId: request.inputImageId ?? null,
             inputVideoId: request.inputVideoId ?? null,
         };
@@ -421,7 +424,7 @@ export class Engine {
                 fps,
                 frames,
                 durationSec: segment.durationSec,
-                seed: baseSeed >= 0 ? baseSeed + index : -1,
+                seed: baseSeed >= 0 ? baseSeed + index : randomInt(0, 2_147_483_647),
                 steps: input.request.steps ?? settings.steps,
                 guidance: input.request.guidance ?? settings.guidance,
                 gpuIds: input.plan.gpuIds,
@@ -446,7 +449,7 @@ export class Engine {
             segmentFiles.push(outputPath);
             // RU: Continuity: последний кадр становится картинкой-условием для i2v.
             // EN: Continuity: the last frame becomes the image condition for i2v.
-            const continuity = input.request.continuity ?? settings.continuity;
+            const continuity = input.request.continuity ?? (segments.length > 1 ? 'last-frame' : 'none');
             if (continuity === 'last-frame' && index < segments.length - 1 && input.model.capabilities.i2v) {
                 const framePath = join(scratch, `frame-${index + 1}.jpg`);
                 try {
@@ -470,6 +473,7 @@ export class Engine {
                 sources: segmentFiles,
                 target: merged,
                 signal: ctx.signal,
+                forceNormalize: true,
                 onProgress: (percent) => ctx.progress({ percent: 80 + Math.round(percent * 0.08), message: 'Merging segments' }),
             });
         }

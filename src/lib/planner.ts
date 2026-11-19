@@ -18,6 +18,8 @@ export interface PlanInput {
   targetDurationSec?: number
   clipSec?: number
   promptMode?: PromptMode
+  segmentPrompts?: string[]
+  continuity?: 'none' | 'last-frame'
   segmentMode?: SegmentMode
   width?: number
   height?: number
@@ -116,28 +118,54 @@ export function splitPrompt(prompt: string, count: number): string[] {
   return filled
 }
 
-/** RU: Собирает промпт для каждого клипа. full — вся сцена в каждом клипе,
- *      split — прежнее деление по предложениям.
- *  EN: Builds the prompt for every clip. full repeats the whole scene in each
- *      clip, split keeps the previous sentence distribution. */
+/** RU: Собирает промпт для каждого клипа. Приоритет: явные segmentPrompts
+ *      (LLM-раскадровка) → shots → full → split.
+ *  EN: Builds the prompt for every clip. Priority: explicit segmentPrompts
+ *      (LLM storyboard) → shots → full → split. */
 export function buildSegmentPrompts(
   prompt: string,
   count: number,
   mode: PromptMode,
   maxPromptChars: number,
+  segmentPrompts?: string[],
+  continuity: 'none' | 'last-frame' = 'none',
 ): { prompts: string[]; fallback: boolean } {
   const text = String(prompt ?? '').trim()
-  if (mode !== 'full') return { prompts: splitPrompt(text, count), fallback: false }
+  const continuation = continuity === 'last-frame'
+    ? 'Continue seamlessly from the previous frame.'
+    : ''
+  const finish = (values: string[]) => values.map((value, index) => {
+    let out = value.trim()
+    if (index > 0 && continuation && !/previous frame/i.test(out)) out += `\n\n${continuation}`
+    if (out.length > maxPromptChars) out = out.slice(0, maxPromptChars)
+    return out
+  })
+
+  const explicit = (segmentPrompts ?? []).map((value) => String(value ?? '').trim()).filter(Boolean)
+  if (explicit.length) {
+    const values = Array.from({ length: count }, (_, index) => explicit[index] ?? explicit[explicit.length - 1] ?? text)
+    return { prompts: finish(values), fallback: explicit.length < count }
+  }
+
+  if (mode === 'shots') {
+    const shots = text.split(/\n\s*---\s*\n|\n{2,}/u).map((value) => value.trim()).filter(Boolean)
+    if (shots.length) {
+      const values = Array.from({ length: count }, (_, index) => shots[index] ?? shots[shots.length - 1] ?? text)
+      return { prompts: finish(values), fallback: shots.length < count }
+    }
+  }
+
+  if (mode !== 'full') return { prompts: finish(splitPrompt(text, count)), fallback: false }
   const base = text || 'An empty scene'
-  const suffix = (index: number) => `\n\nPart ${index + 1}/${count}. Continue the same scene seamlessly.`
+  const suffix = (index: number) => `\n\nPart ${index + 1}/${count}.${continuation ? ` ${continuation}` : ' Continue the same scene seamlessly.'}`
   if (base.length > maxPromptChars) {
-    return { prompts: splitPrompt(base, count), fallback: true }
+    return { prompts: finish(splitPrompt(base, count)), fallback: true }
   }
   const withSuffix = Array.from({ length: count }, (_, index) => `${base}${suffix(index)}`)
   if (withSuffix.every((value) => value.length <= maxPromptChars)) {
     return { prompts: withSuffix, fallback: false }
   }
-  return { prompts: Array.from({ length: count }, () => base), fallback: false }
+  return { prompts: finish(Array.from({ length: count }, () => base)), fallback: false }
 }
 
 /** RU: Максимальное разрешение и клип, укладывающиеся в бюджет VRAM.
@@ -203,7 +231,8 @@ export function planGeneration(input: PlanInput): Plan {
     })
   }
   const durations = computeSegments(target, clipRequested, model.durationSec.max, segmentMode)
-  const built = buildSegmentPrompts(input.prompt, durations.length, promptMode, model.maxPromptChars)
+  const continuity = input.continuity ?? (durations.length > 1 ? 'last-frame' : 'none')
+  const built = buildSegmentPrompts(input.prompt, durations.length, promptMode, model.maxPromptChars, input.segmentPrompts, continuity)
   if (built.fallback) {
     warnings.push({
       code: 'prompt-too-long',
@@ -266,6 +295,7 @@ export function planGeneration(input: PlanInput): Plan {
     availableRunner: input.runner,
     clipSec: segments[0]?.durationSec ?? target,
     promptMode,
+    continuity,
     segments,
     totalSec,
     width,

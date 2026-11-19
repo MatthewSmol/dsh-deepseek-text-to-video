@@ -406,7 +406,7 @@ export async function concatFiles(input) {
         return probeFile(input.ffprobe, input.target);
     }
     const infos = await Promise.all(input.sources.map((source) => probeFile(input.ffprobe, source)));
-    const direct = canConcatDirectly(infos);
+    const direct = !input.forceNormalize && canConcatDirectly(infos);
     const workDir = join(dirname(input.target), `.concat-${randomUUID().slice(0, 8)}`);
     await mkdir(workDir, { recursive: true });
     const reference = infos[0];

@@ -157,3 +157,36 @@ test('auto-fit finds a multiple-of-32 resolution and clip within the budget', ()
   assert.ok(fit!.estimatedVramGB <= 8 * 0.95)
   assert.ok(fit!.clipSec <= 9)
 })
+
+test('explicit shot prompts drive every clip and add continuity', () => {
+  const shots = ['She holds the pole.', 'She starts spinning.', 'She lands and smiles.']
+  const built = buildSegmentPrompts('A dancer in a dark hall.', 3, 'shots', 2000, shots, 'last-frame')
+  assert.equal(built.prompts.length, 3)
+  assert.match(built.prompts[0] ?? '', /holds the pole/)
+  assert.match(built.prompts[1] ?? '', /starts spinning/)
+  assert.match(built.prompts[1] ?? '', /previous frame/)
+  assert.match(built.prompts[2] ?? '', /lands and smiles/)
+})
+
+test('plan uses segment prompts and last-frame continuity', () => {
+  const settings = structuredClone(DEFAULT_SETTINGS)
+  const plan = planGeneration({
+    settings,
+    model,
+    runner: 'comfyui',
+    gpu: { available: false, gpus: [], error: 'no gpu', hints: [], checkedAt: Date.now() },
+    prompt: 'A dancer in a dark hall.',
+    targetDurationSec: 18,
+    clipSec: 9,
+    promptMode: 'shots',
+    segmentPrompts: ['She holds the pole.', 'She spins and lands.'],
+    continuity: 'last-frame',
+    width: 768,
+    height: 512,
+    fps: 24,
+  })
+  assert.equal(plan.segments.length, 2)
+  assert.equal(plan.continuity, 'last-frame')
+  assert.match(plan.segments[0]?.prompt ?? '', /holds the pole/)
+  assert.match(plan.segments[1]?.prompt ?? '', /previous frame/)
+})

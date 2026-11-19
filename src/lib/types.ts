@@ -305,7 +305,7 @@ export interface PlannedSegment {
 }
 
 /** RU: Как распределяется промпт по клипам. EN: How the prompt is distributed across clips. */
-export type PromptMode = 'split' | 'full'
+export type PromptMode = 'split' | 'full' | 'shots'
 /** RU: Как делятся клипы по длительности. EN: How clip durations are split. */
 export type SegmentMode = 'fixed' | 'even'
 
@@ -319,6 +319,7 @@ export interface Plan {
   availableRunner: RunnerId | null
   clipSec: number
   promptMode: PromptMode
+  continuity: 'none' | 'last-frame'
   segments: PlannedSegment[]
   totalSec: number
   width: number
@@ -352,6 +353,7 @@ export interface GenerateRequest {
   targetDurationSec?: number
   clipSec?: number
   promptMode?: PromptMode
+  segmentPrompts?: string[]
   segmentMode?: SegmentMode
   segments?: number
   seed?: number

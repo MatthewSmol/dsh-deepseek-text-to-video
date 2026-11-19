@@ -30,7 +30,9 @@ function tool(name: string, description: string, parameters: JsonSchema, execute
 const promptProps = {
   prompt: { type: 'string', description: 'Prompt describing the shot.' },
   negativePrompt: { type: 'string', description: 'What to avoid.' },
-  promptMode: { type: 'string', enum: ['split', 'full'] },
+  promptMode: { type: 'string', enum: ['split', 'full', 'shots'] },
+  segmentPrompts: { type: 'array', items: { type: 'string' }, description: 'One prompt per clip. For multi-clip videos write N different prompts that advance the scene and continue from the previous frame.' },
+  continuity: { type: 'string', enum: ['none', 'last-frame'] },
   targetDurationSec: { type: 'number' },
   clipSec: { type: 'number' },
   platform: { type: 'string' },
@@ -49,10 +51,10 @@ export function registerGenvideoTools(ctx: any, engine: any): () => void {
   const definitions = [
     tool('genvideo_status', 'ComfyUI/ffmpeg/jobs status of GenVideo.', { type: 'object', properties: {}, additionalProperties: false },
       async () => await engine.status()),
-    tool('genvideo_plan', 'Plan segment split for a prompt. Generation runs through the configured ComfyUI workflow.', {
+    tool('genvideo_plan', 'Plan segment split for a prompt. Returns the clip count N; for N>1 write N different segmentPrompts and pass them to genvideo_generate. Generation runs through the configured ComfyUI workflow.', {
       type: 'object', properties: promptProps, required: ['prompt'], additionalProperties: false,
     }, async (args) => await engine.plan({ ...args, modelId: 'comfyui-workflow', runner: 'comfyui' })),
-    tool('genvideo_generate', 'Generate a video through the configured ComfyUI workflow; long videos are split into clips and merged.', {
+    tool('genvideo_generate', 'Generate a video through the configured ComfyUI workflow; long videos are split into clips and merged. For multi-clip videos pass segmentPrompts (one different prompt per clip).', {
       type: 'object', properties: promptProps, required: ['prompt'], additionalProperties: false,
     }, async (args) => {
       const result = await engine.generate({ ...args, modelId: 'comfyui-workflow', runner: 'comfyui' })

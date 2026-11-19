@@ -65,6 +65,8 @@ Native DSH tools (no MCP):
 - ComfyUI is the only backend; models, VAEs and text encoders are managed there.
 - Image and video reference uploads are sent to ComfyUI input and substituted into the workflow.
 - Long videos are split into clips; each clip calls ComfyUI, then ffmpeg concatenates and transcodes.
+- **LLM storyboard:** call `genvideo_plan` to get N, write N different prompts, and pass them as `segmentPrompts` to `genvideo_generate`. The UI has a `Shot prompts` field for the same list.
+- **Continuity:** by default each clip starts from the last frame of the previous one (`workflow-image.json` + `{{image}}`); seeds change per clip when `seed=-1`.
 - Transcode: no transcode, quality tiers or a size limit; MP4/WebM/GIF; H.264/H.265; ffmpeg encoder auto/CPU/NVENC/Vulkan.
 - Detailed job progress over SSE; cancel; log tail.
 - English/Russian UI.
@@ -154,6 +156,8 @@ $DSH_HOME/genvideo/workflow.json
 - Единственный бэкенд — ComfyUI; модели, VAE и текстовые энкодеры настраиваются в нём.
 - Референс-картинка и видео загружаются в input ComfyUI и подставляются в workflow.
 - Длинное видео делится на клипы; каждый клип генерируется через ComfyUI, затем ffmpeg склеивает и транскодирует.
+- **LLM-раскадровка:** вызвать `genvideo_plan`, получить N, написать N разных промптов и передать их массивом `segmentPrompts` в `genvideo_generate`. В UI для этого есть поле `Shot prompts`.
+- **Непрерывность:** по умолчанию каждый клип начинается с последнего кадра предыдущего (`workflow-image.json` + `{{image}}`); при `seed=-1` seed меняется для каждого клипа.
 - Транскод: без транскода, уровни качества или лимит размера; MP4/WebM/GIF; H.264/H.265; энкодер ffmpeg auto/CPU/NVENC/Vulkan.
 - Подробный прогресс по SSE, отмена, лог.
 - Интерфейс EN/RU.

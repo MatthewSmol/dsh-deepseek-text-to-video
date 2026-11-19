@@ -461,6 +461,7 @@ export async function concatFiles(input: {
   target: string
   signal?: AbortSignal
   onProgress?: (percent: number) => void
+  forceNormalize?: boolean
 }): Promise<MediaInfo> {
   if (!input.sources.length) throw new GenVideoError('no-inputs', 'No clips to merge')
   await mkdir(dirname(input.target), { recursive: true })
@@ -470,7 +471,7 @@ export async function concatFiles(input: {
   }
 
   const infos = await Promise.all(input.sources.map((source) => probeFile(input.ffprobe, source)))
-  const direct = canConcatDirectly(infos)
+  const direct = !input.forceNormalize && canConcatDirectly(infos)
   const workDir = join(dirname(input.target), `.concat-${randomUUID().slice(0, 8)}`)
   await mkdir(workDir, { recursive: true })
   const reference = infos[0]

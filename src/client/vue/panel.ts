@@ -35,7 +35,7 @@ const en: Record<string, string> = {
   v2vHint: 'No built-in model supports video input yet.',
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
   clipLength: 'Clip length', clipLengthHint: 'Length of one generated clip. The last clip may be shorter.', promptMode: 'Prompt mode',
-  promptFull: 'Full scene in every clip', promptSplit: 'Split by sentences',
+  promptFull: 'Full scene in every clip', promptSplit: 'Split by sentences', promptShots: 'Shot prompts', shotPrompts: 'Shot prompts (one per line)', shotPromptsHint: 'One prompt per clip. The agent or you can write N different actions; empty lines are ignored.',
   promptModeHint: 'Full scene repeats the whole description in every clip (recommended for one continuous scene).',
   transcode: 'Transcode after generation', transcodeHint: 'Pick one: no transcode, quality tiers, or a size limit.', noTranscode: 'No transcode',
   codec: 'MP4 codec', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'MP4 only; WebM/GIF ignore it. H.265 needs a player with HEVC support.',
@@ -107,7 +107,7 @@ const ru: Record<string, string> = {
   v2vHint: 'Встроенные модели пока не поддерживают видео-вход.',
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
   clipLength: 'Длина клипа', clipLengthHint: 'Длительность одного клипа. Последний может быть короче.', promptMode: 'Режим промпта',
-  promptFull: 'Полная сцена в каждом клипе', promptSplit: 'Разбить по предложениям',
+  promptFull: 'Полная сцена в каждом клипе', promptSplit: 'Разбить по предложениям', promptShots: 'Промпты по кадрам', shotPrompts: 'Промпты по клипам (по одному в строке)', shotPromptsHint: 'Один промпт на клип. Агент или вы пишете N разных действий; пустые строки игнорируются.',
   promptModeHint: 'Полная сцена повторяет всё описание в каждом клипе (рекомендуется для одной непрерывной сцены).',
   transcode: 'Перекодировать после генерации', transcodeHint: 'Один режим: без перекодирования, уровни качества или лимит размера.', noTranscode: 'Без перекодирования',
   codec: 'Кодек MP4', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'Только для MP4; WebM/GIF игнорируют. Для H.265 нужен плеер с поддержкой HEVC.',
@@ -248,11 +248,12 @@ function emptyForm(settings?: any) {
     fps: settings?.fps ?? 30,
     targetDurationSec: settings?.targetDurationSec ?? 60,
     clipSec: settings?.clipSec ?? 9,
-    promptMode: settings?.promptMode ?? 'full',
+    promptMode: 'shots',
+    segmentPrompts: '',
+    continuity: 'last-frame',
     seed: settings?.seed ?? -1,
     steps: settings?.steps ?? 0,
     guidance: settings?.guidance ?? 0,
-    continuity: settings?.continuity ?? 'none',
     inputImageId: '',
     inputVideoId: '',
     transcode: {
@@ -498,7 +499,7 @@ const Panel = {
         try {
           plan.value = await api('/plan', {
             method: 'POST',
-            body: JSON.stringify({ ...form.value, modelId: 'comfyui-workflow', runner: 'comfyui' }),
+            body: JSON.stringify({ ...form.value, segmentPrompts: form.value.segmentPrompts.split(/\n+/).map((line: string) => line.trim()).filter(Boolean), modelId: 'comfyui-workflow', runner: 'comfyui' }),
           })
           planError.value = ''
         } catch (err: any) {
@@ -559,7 +560,7 @@ const Panel = {
       try {
         const result = await api('/generate', {
           method: 'POST',
-          body: JSON.stringify({ ...form.value, modelId: 'comfyui-workflow', runner: 'comfyui' }),
+          body: JSON.stringify({ ...form.value, segmentPrompts: form.value.segmentPrompts.split(/\n+/).map((line: string) => line.trim()).filter(Boolean), modelId: 'comfyui-workflow', runner: 'comfyui' }),
         })
         liveJobs.value = { ...liveJobs.value, [result.job.id]: result.job }
         tab.value = 'jobs'
@@ -929,10 +930,21 @@ const Panel = {
                 h(Segmented, {
                   value: form.value.promptMode,
                   onChange: (value: string) => patch({ promptMode: value === 'split' ? 'split' : 'full' }),
-                  options: [{ value: 'full', label: t('promptFull') }, { value: 'split', label: t('promptSplit') }],
+                  options: [{ value: 'shots', label: t('promptShots') }, { value: 'full', label: t('promptFull') }, { value: 'split', label: t('promptSplit') }],
                 }),
               ]),
             ]),
+            form.value.promptMode === 'shots'
+              ? h('div', { class: 'gv-mt-3' }, [
+                  h(Field, { label: t('shotPrompts'), hint: t('shotPromptsHint') }, [
+                    h('textarea', {
+                      class: 'gv-input gv-h-28 gv-resize-y gv-py-2',
+                      value: form.value.segmentPrompts,
+                      onInput: (event: any) => patch({ segmentPrompts: event.target.value }),
+                    }),
+                  ]),
+                ])
+              : null,
           ]),
         ]),
         h(Card, { title: t('referenceInput'), hint: t('inputHint') }, [
@@ -1020,14 +1032,12 @@ const Panel = {
               h('select', { class: 'gv-select', value: String(form.value.fps), onChange: (event: any) => patch({ fps: Number(event.target.value) }) },
                 Array.from(new Set([24, 25, 30, 48, 50, form.value.fps])).sort((a, b) => a - b).map((value) => h('option', { key: value, value }, String(value)))),
             ]),
-            modelEntry.value?.capabilities?.i2v
-              ? h(Field, { label: t('continuity') }, [
-                  h('select', { class: 'gv-select', value: form.value.continuity, onChange: (event: any) => patch({ continuity: event.target.value }) }, [
-                    h('option', { value: 'none' }, t('none')),
-                    h('option', { value: 'last-frame' }, t('lastFrame')),
-                  ]),
-                ])
-              : null,
+            h(Field, { label: t('continuity'), hint: 'Continue each clip from the previous frame. Requires workflow-image.json.' }, [
+              h('select', { class: 'gv-select', value: form.value.continuity, onChange: (event: any) => patch({ continuity: event.target.value }) }, [
+                h('option', { value: 'last-frame' }, t('lastFrame')),
+                h('option', { value: 'none' }, t('none')),
+              ]),
+            ]),
           ]),
           plan.value
             ? h('div', { class: 'gv-hint gv-mt-2' }, `${t('segments')}: ${plan.value.segments.length} · ${plan.value.segments.length > 1 ? `${plan.value.segments.length - 1}×${fmtDuration(plan.value.clipSec)} + ${fmtDuration(plan.value.segments[plan.value.segments.length - 1]?.durationSec ?? 0)}` : fmtDuration(plan.value.totalSec)} = ${fmtDuration(plan.value.totalSec)}`)
