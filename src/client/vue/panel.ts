@@ -252,7 +252,7 @@ function emptyForm(settings?: any) {
     fps: settings?.fps ?? 30,
     targetDurationSec: settings?.targetDurationSec ?? 60,
     clipSec: settings?.clipSec ?? 9,
-    promptMode: settings?.promptMode ?? 'shots',
+    promptMode: 'full',
     segmentPrompts: '',
     continuity: settings?.continuity ?? 'last-frame',
     seed: settings?.seed ?? -1,
@@ -953,26 +953,6 @@ const Panel = {
                 onInput: (event: any) => patch({ negativePrompt: event.target.value }),
               }),
             ]),
-            h('div', { class: 'gv-mt-3' }, [
-              h(Field, { label: t('promptMode'), hint: form.value.promptMode === 'shots' ? t('promptModeHintShots') : form.value.promptMode === 'split' ? t('promptModeHintSplit') : t('promptModeHint') }, [
-                h(Segmented, {
-                  value: form.value.promptMode,
-                  onChange: (value: string) => patch({ promptMode: value === 'split' ? 'split' : 'full' }),
-                  options: [{ value: 'shots', label: t('promptShots') }, { value: 'full', label: t('promptFull') }, { value: 'split', label: t('promptSplit') }],
-                }),
-              ]),
-            ]),
-            form.value.promptMode === 'shots'
-              ? h('div', { class: 'gv-mt-3' }, [
-                  h(Field, { label: t('shotPrompts'), hint: t('shotPromptsHint') }, [
-                    h('textarea', {
-                      class: 'gv-input gv-h-28 gv-resize-y gv-py-2',
-                      value: form.value.segmentPrompts,
-                      onInput: (event: any) => patch({ segmentPrompts: event.target.value }),
-                    }),
-                  ]),
-                ])
-              : null,
           ]),
         ]),
         h(Card, { title: `2 · ${t('sectionReferences')}`, hint: t('inputHint') }, [
