@@ -814,7 +814,7 @@ const Panel = {
                   : (modelEntry.value?.runtimes ?? []).map((id: string) => ({ id, available: true }))
                 ).map((item: any) => h('option', {
                   key: item.id, value: item.id, disabled: item.available === false,
-                }, `${item.id}${item.available === false ? ` (${t('unavailable')})` : ''}`)),
+                }, `${item.id}${item.available === false ? ` — ${item.reason ?? t('unavailable')}` : ''}`)),
               ]),
             ]),
           ]),
