@@ -841,45 +841,82 @@ export class Engine {
     const job = this.jobs.create('install', { target: 'python' })
     this.jobs.start(job, async (ctx) => {
       const deps = await this.deps()
-      if (!deps.python.ok) throw new GenVideoError('no-python', 'python3 is not available on this host')
-      const { runStreaming } = await import('./proc.js')
+      const { runStreaming, firstWorking } = await import('./proc.js')
       const { join: joinPath } = await import('node:path')
-      const python = deps.python.path || 'python3'
       const venv = venvDir()
+      const venvPython = joinPath(venv, 'bin', 'python')
       const cuda = (await this.gpu()).available
-      const pip = joinPath(venv, 'bin', 'python')
-      // RU: CUDA-колёса ставим с PyPI: они несут CUDA-библиотеки и есть под
-      //     новые Python; CPU-вариант берём из индекса PyTorch.
-      // EN: CUDA wheels come from PyPI: they bundle CUDA libraries and exist for
-      //     new Python versions; the CPU variant uses the PyTorch index.
-      const index = 'https://download.pytorch.org/whl/cpu'
-      const steps: Array<{ label: string; command: string; args: string[] }> = [
-        { label: 'Creating the virtual environment', command: python, args: ['-m', 'venv', venv] },
-        { label: 'Upgrading pip', command: pip, args: ['-m', 'pip', 'install', '--upgrade', 'pip'] },
-        { label: cuda ? 'Installing torch (CUDA)' : 'Installing torch (CPU)', command: pip, args: cuda ? ['-m', 'pip', 'install', 'torch'] : ['-m', 'pip', 'install', '--index-url', index, 'torch'] },
-        {
-          label: 'Installing diffusers and helpers',
-          command: pip,
-          args: ['-m', 'pip', 'install', 'diffusers', 'transformers', 'accelerate', 'safetensors', 'sentencepiece', 'imageio', 'imageio-ffmpeg'],
-        },
-      ]
-      for (let indexStep = 0; indexStep < steps.length; indexStep += 1) {
-        const step = steps[indexStep]
-        if (!step) continue
-        ctx.phase('downloading', step.label)
-        ctx.progress({ percent: Math.round((indexStep / steps.length) * 100), message: step.label })
-        await runStreaming(step.command, step.args, {
+      const home = joinPath(genvideoHome(), 'python')
+      const tools = joinPath(home, 'tools')
+      const uvEnv = {
+        UV_PYTHON_INSTALL_DIR: joinPath(home, 'pythons'),
+        UV_CACHE_DIR: joinPath(home, 'cache'),
+      }
+
+      // RU: Любой ненулевой код выхода теперь валит job, а не превращается в "Done".
+      // EN: Any non-zero exit now fails the job instead of silently reporting Done.
+      const runStep = async (label: string, command: string, args: string[], env?: Record<string, string>) => {
+        ctx.phase('downloading', label)
+        ctx.log(`$ ${command} ${args.join(' ')}`)
+        const result = await runStreaming(command, args, {
           signal: ctx.signal,
+          env,
           onLine: (line) => ctx.log(line),
         })
+        if (result.code !== 0) {
+          const tail = result.stderrTail.trim().split('\n').slice(-4).join(' ')
+          throw new GenVideoError('python-install-failed', `${label} failed: ${tail || `exit ${result.code}`}`, { status: 500 })
+        }
       }
+
+      // RU: Системный Python 3.14 не имеет колёс torch. Ищем 3.13/3.12 с venv,
+      //     иначе ставим отдельный Python 3.12 через uv без root.
+      // EN: System Python 3.14 has no torch wheels. Prefer 3.13/3.12 with venv,
+      //     otherwise install a standalone Python 3.12 via uv without root.
+      const host = await firstWorking(['python3.13', 'python3.12'], ['-c', 'import ensurepip'])
+      let uv = ''
+      if (!host) {
+        const existing = [joinPath(tools, 'uv'), joinPath(homedir(), '.local', 'bin', 'uv')]
+        for (const candidate of existing) {
+          if (existsSync(candidate)) { uv = candidate; break }
+        }
+        if (!uv) {
+          await mkdir(tools, { recursive: true })
+          await runStep('Installing uv (Python manager)', 'bash', ['-c', 'curl -LsSf https://astral.sh/uv/install.sh | sh'], { UV_INSTALL_DIR: tools })
+          uv = joinPath(tools, 'uv')
+        }
+        if (!existsSync(uv)) throw new GenVideoError('uv-missing', `uv was not installed at ${uv}`, { status: 500 })
+      }
+
+      await rm(venv, { recursive: true, force: true }).catch(() => undefined)
+      if (host) {
+        await runStep('Creating the virtual environment', host.path, ['-m', 'venv', venv])
+        const pip = venvPython
+        await runStep('Upgrading pip', pip, ['-m', 'pip', 'install', '--upgrade', 'pip'])
+        await runStep(
+          cuda ? 'Installing torch (CUDA)' : 'Installing torch (CPU)',
+          pip,
+          cuda ? ['-m', 'pip', 'install', 'torch'] : ['-m', 'pip', 'install', '--index-url', 'https://download.pytorch.org/whl/cpu', 'torch'],
+        )
+        await runStep('Installing diffusers and helpers', pip, ['-m', 'pip', 'install', 'diffusers', 'transformers', 'accelerate', 'safetensors', 'sentencepiece', 'imageio', 'imageio-ffmpeg'])
+      } else {
+        await runStep('Installing Python 3.12 (uv)', uv, ['python', 'install', '3.12'], uvEnv)
+        await runStep('Creating the virtual environment', uv, ['venv', '--python', '3.12', '--seed', venv], uvEnv)
+        const torchArgs = cuda ? ['torch'] : ['--index-url', 'https://download.pytorch.org/whl/cpu', 'torch']
+        await runStep('Installing torch', uv, ['pip', 'install', '--python', venvPython, ...torchArgs], uvEnv)
+        await runStep('Installing diffusers and helpers', uv, ['pip', 'install', '--python', venvPython, 'diffusers', 'transformers', 'accelerate', 'safetensors', 'sentencepiece', 'imageio', 'imageio-ffmpeg'], uvEnv)
+      }
+
       ctx.phase('verifying', 'Checking the Python environment')
       await this.refresh(true)
+      const after = await this.deps()
+      if (!after.venv.ok) {
+        throw new GenVideoError('python-verify-failed', 'The virtual environment exists but torch/diffusers are still missing', { status: 500 })
+      }
       ctx.progress({ percent: 100, message: 'Python engine installed' })
     })
     return job
   }
-
 
   /** RU: Собирает candle-video из исходников (Rust + CUDA). Rust ставится
    *      автоматически, но CUDA toolkit (nvcc) должен уже быть в системе:
