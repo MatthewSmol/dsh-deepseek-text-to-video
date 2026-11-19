@@ -292,3 +292,11 @@ npm test          # 45 тестов, включая ffmpeg mock e2e
 | `$DSH_HOME/genvideo/settings.json` | output dir, язык, дефолты генерации/транскода |
 | `$DSH_HOME/genvideo/jobs.json`, `logs/` | история заданий и логи |
 | `$DSH_HOME/genvideo/work/` | временные сегменты и скретч склейки |
+
+## Versioning
+
+`package.json` is the single version source; the runtime `VERSION` reads it, so the Environment version always matches the package. Bump the minor version for new behaviour and the patch version for fixes **in the same commit** as the change.
+
+## Версии
+
+`package.json` — единственный источник версии; runtime `VERSION` читает его, поэтому версия в Environment всегда совпадает с пакетом. Новое поведение — minor, исправление — patch, и версия поднимается **в том же коммите**, что и изменение.

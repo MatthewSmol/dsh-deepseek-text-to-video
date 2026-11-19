@@ -1,9 +1,9 @@
 {
   "name": "@local/dsh-genvideo",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
-  "description": "GenVideo — local text-to-video MCP service with a DSH sidebar panel (Sulphur-2 / LTX-Video, ffmpeg, EN/RU).",
+  "description": "GenVideo \u2014 local text-to-video MCP service with a DSH sidebar panel (Sulphur-2 / LTX-Video, ffmpeg, EN/RU).",
   "exports": {
     ".": "./dist/index.js",
     "./client": "./dist/client.js",

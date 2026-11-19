@@ -14,6 +14,7 @@ import { promisify } from 'node:util'
 import { homedir } from 'node:os'
 import { dirname, extname, join } from 'node:path'
 import { randomInt, randomUUID } from 'node:crypto'
+import { createRequire } from 'node:module'
 import type {
   ApiResult,
   DepsStatus,
@@ -46,7 +47,9 @@ import { fetchExploreModels, type ExplorePage } from './explore.js'
 import { venvDir } from './deps.js'
 
 /** RU: Версия сервиса. EN: Service version. */
-export const VERSION = '1.0.0'
+const pkg = createRequire(import.meta.url)('../../package.json') as { version: string }
+/** RU: Версия берётся из package.json. EN: Version comes from package.json. */
+export const VERSION = pkg.version
 
 /** RU: Состояние сервиса для UI. EN: Service state for the UI. */
 export interface EngineStatus {

@@ -14,6 +14,7 @@ import { promisify } from 'node:util';
 import { homedir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
 import { randomInt, randomUUID } from 'node:crypto';
+import { createRequire } from 'node:module';
 import { GenVideoError, toApiError } from './errors.js';
 import { SettingsStore, resolveDirs } from './store.js';
 import { JobManager } from './jobs.js';
@@ -29,7 +30,9 @@ import { downloadModelFiles, checkRemoteRevision, findNewerCandidates } from './
 import { fetchExploreModels } from './explore.js';
 import { venvDir } from './deps.js';
 /** RU: Версия сервиса. EN: Service version. */
-export const VERSION = '1.0.0';
+const pkg = createRequire(import.meta.url)('../../package.json');
+/** RU: Версия берётся из package.json. EN: Version comes from package.json. */
+export const VERSION = pkg.version;
 /** RU: Платформенные пресеты кадра. EN: Frame platform presets. */
 export const PLATFORM_PRESETS = {
     reels: { aspect: '9:16', width: 1080, height: 1920, fps: 30, label: 'Instagram Reels' },
