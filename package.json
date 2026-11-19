@@ -1,0 +1,50 @@
+{
+  "name": "@local/dsh-genvideo",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GenVideo — local text-to-video MCP service with a DSH sidebar panel (Sulphur-2 / LTX-Video, ffmpeg, EN/RU).",
+  "exports": {
+    ".": "./dist/index.js",
+    "./client": "./dist/client.js",
+    "./server": "./dist/server/genvideo-mcp.js",
+    "./locale/*.json": "./locale/*.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "dist/**/*.js",
+    "python/*.py",
+    "python/requirements.txt",
+    "locale/*.json",
+    "icon.svg",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
+    "build:js": "tsc -p tsconfig.json && tsc -p tsconfig.client.json --noEmit",
+    "build": "npm run build:js && npm run build:client && node scripts/build-client.mjs",
+    "test": "npm run build && node --test dist/test/*.test.js",
+    "build:client": "vite build --config vite.config.mjs"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "happy-dom": "^21.0.4",
+    "typescript": "^5.7.2",
+    "vite": "^7.3.8",
+    "vue": "^3.5.45"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "immediately": true,
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-slots",
+        "@deepseek-ai/dsh-client-locale"
+      ]
+    }
+  }
+}

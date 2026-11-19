@@ -1,0 +1,26 @@
+# RU: Слой плагина GenVideo. Сначала Host-прокси, затем MCP-клиент, который
+#     запускает сервис по stdio. Прокси сам ждёт появления endpoint.json.
+# EN: GenVideo plugin layer. The host proxy comes first, then the MCP client
+#     that spawns the stdio service. The proxy waits for endpoint.json itself.
+- insert:
+    - id: genvideo
+      name: "@local/dsh-genvideo"
+    - id: genvideo-mcp
+      name: "@deepseek-ai/dsh-mcp-client"
+      config:
+        serverName: genvideo
+        transport: stdio
+        # RU: process.execPath — абсолютный путь к Node, не зависит от PATH
+        #     в очищенном окружении дочернего процесса.
+        # EN: process.execPath is the absolute Node path and does not depend on
+        #     PATH inside the scrubbed child environment.
+        command: !!js "process.execPath"
+        args:
+          - !!js "(() => { const fs = process.getBuiltinModule('node:fs'); const path = process.getBuiltinModule('node:path'); const candidates = [ process.env.DSH_PROFILE_DIR && path.join(process.env.DSH_PROFILE_DIR, 'node_modules/@local/dsh-genvideo/dist/server/genvideo-mcp.js'), process.env.DSH_HOME && process.env.DSH_PROFILE && path.join(process.env.DSH_HOME, 'profiles', process.env.DSH_PROFILE, 'node_modules/@local/dsh-genvideo/dist/server/genvideo-mcp.js'), '/home/main/.dsh/profiles/web/node_modules/@local/dsh-genvideo/dist/server/genvideo-mcp.js', '/home/main/TextToVideo/dist/server/genvideo-mcp.js' ].filter(Boolean); return candidates.find((candidate) => fs.existsSync(candidate)) || candidates[candidates.length - 1]; })()"
+        cwd: !!js "process.cwd()"
+        env:
+          DSH_HOME: !!js "process.env.DSH_HOME ?? ''"
+        failOnStartupError: false
+        toolCallTimeoutMs: 120000
+        reconnect:
+          enabled: true

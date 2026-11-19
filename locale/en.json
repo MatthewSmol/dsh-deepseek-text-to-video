@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "GenVideo",
+    "description": "Generate video from text with local LTX models through an MCP service, tune GPU usage, quality, size limits, and merge clips into long videos."
+  }
+}

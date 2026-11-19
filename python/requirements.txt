@@ -1,0 +1,20 @@
+# RU: Python-зависимости воркера GenVideo (diffusers + LTX-Video).
+#     torch удобнее ставить отдельной командой с индексом под вашу
+#     CUDA/CPU-сборку (см. Settings → Python & engines в плагине), но
+#     строка ниже подходит и для обычного `pip install -r`.
+# EN: Python dependencies of the GenVideo worker (diffusers + LTX-Video).
+#     torch is best installed separately from the CUDA/CPU index that matches
+#     your host (see Settings → Python & engines in the plugin), but the line
+#     below also works with a plain `pip install -r`.
+
+torch>=2.4.0
+diffusers>=0.33.0
+transformers>=4.44.0
+accelerate>=0.33.0
+safetensors>=0.4.3
+sentencepiece>=0.1.99
+Pillow>=10.0.0
+numpy>=1.26.0
+imageio>=2.34.0
+imageio-ffmpeg>=0.5.1
+huggingface_hub>=0.24.0

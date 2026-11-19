@@ -1,0 +1,14 @@
+node_modules/
+Videos/
+models/
+dist/raw-client/
+dist/test/
+*.mp4
+*.webm
+*.gif
+.pnpm-store/
+.DS_Store
+.test-genvideo/
+dist/vite-client/
+dist/client.meta.json
+.npm-cache/

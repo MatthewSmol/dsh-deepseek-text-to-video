@@ -1,0 +1,839 @@
+/**
+ * RU: Движок GenVideo: единая точка для операций генерации, склейки,
+ *     транскодирования, установки моделей и состояния окружения. HTTP API и
+ *     MCP-инструменты вызывают одни и те же методы, поэтому агент и UI видят
+ *     одинаковый результат.
+ * EN: GenVideo engine: the single entry point for generation, merge, transcode,
+ *     model installs and environment state. HTTP API and MCP tools call the same
+ *     methods, so the agent and the UI see identical results.
+ */
+import { access, copyFile, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { extname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
+import { GenVideoError, toApiError } from './errors.js';
+import { SettingsStore, resolveDirs } from './store.js';
+import { JobManager } from './jobs.js';
+import { detectGpus, selectGpus } from './gpu.js';
+import { detectDeps } from './deps.js';
+import { allModels, findModel, findVariant, formatGB, snapFrames } from './models.js';
+import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes } from './media.js';
+import { planGeneration } from './planner.js';
+import { defaultModelsDir, defaultVideosDir, genvideoHome, inputsDir, safeBaseName, scratchDir, assertInside, outputFileName, slugify, ensureDirSync } from './paths.js';
+import { allAvailability, pickRunner } from './runners/index.js';
+import { downloadModelFiles, checkRemoteRevision, findNewerCandidates } from './downloads.js';
+import { venvDir } from './deps.js';
+/** RU: Версия сервиса. EN: Service version. */
+export const VERSION = '1.0.0';
+/** RU: Платформенные пресеты кадра. EN: Frame platform presets. */
+export const PLATFORM_PRESETS = {
+    reels: { aspect: '9:16', width: 1080, height: 1920, fps: 30, label: 'Instagram Reels' },
+    shorts: { aspect: '9:16', width: 1080, height: 1920, fps: 30, label: 'YouTube Shorts' },
+    youtube: { aspect: '16:9', width: 1920, height: 1080, fps: 30, label: 'YouTube 1080p' },
+    youtube4k: { aspect: '16:9', width: 3840, height: 2160, fps: 30, label: 'YouTube 4K' },
+    cinema: { aspect: '16:9', width: 1920, height: 1080, fps: 24, label: 'Cinema 16:9' },
+    square: { aspect: '1:1', width: 1080, height: 1080, fps: 30, label: 'Square 1:1' },
+    portrait45: { aspect: '4:5', width: 1080, height: 1350, fps: 30, label: 'Portrait 4:5' },
+    custom: { aspect: 'custom', width: 1280, height: 720, fps: 24, label: 'Custom' },
+};
+/** RU: Проверяет наличие файла. EN: Checks that a file exists. */
+async function exists(path) {
+    try {
+        await access(path);
+        return true;
+    }
+    catch {
+        return false;
+    }
+}
+/** RU: Расширение по формату. EN: Extension by format. */
+function extensionFor(format) {
+    return format === 'webm' ? 'webm' : format === 'gif' ? 'gif' : 'mp4';
+}
+export class Engine {
+    settingsStore;
+    jobs;
+    startedAt = Date.now();
+    revision = 0;
+    gpuStatus = null;
+    depsStatus = null;
+    listeners = new Set();
+    constructor(settingsStore = new SettingsStore(), jobs = new JobManager()) {
+        this.settingsStore = settingsStore;
+        this.jobs = jobs;
+        ensureDirSync(genvideoHome());
+        this.jobs.subscribe((event) => this.broadcast(event));
+        const dirs = resolveDirs(this.settingsStore.get());
+        ensureDirSync(dirs.modelsDir);
+        ensureDirSync(dirs.videosDir);
+        void this.refresh(true);
+    }
+    /** RU: Свежие настройки. EN: Current settings. */
+    get settings() {
+        return this.settingsStore.get();
+    }
+    /** RU: Пути моделей и видео. EN: Models and videos paths. */
+    dirs() {
+        return resolveDirs(this.settings);
+    }
+    /** RU: Подписка на события (для HTTP SSE). EN: Event subscription (HTTP SSE). */
+    subscribe(listener) {
+        this.listeners.add(listener);
+        return () => this.listeners.delete(listener);
+    }
+    /** RU: Рассылка события всем подписчикам. EN: Broadcast to every subscriber. */
+    broadcast(event) {
+        for (const listener of this.listeners) {
+            try {
+                listener(event);
+            }
+            catch {
+                /* best effort */
+            }
+        }
+    }
+    /** RU: Уведомляет об изменении состояния. EN: Notifies about a state change. */
+    bump() {
+        this.revision += 1;
+        this.broadcast({ seq: this.revision, kind: 'state', revision: this.revision });
+    }
+    /** RU: Обновляет кэш GPU/зависимостей. EN: Refreshes the GPU/dependency cache. */
+    async refresh(force = false) {
+        const now = Date.now();
+        const stale = force || !this.gpuStatus || !this.depsStatus || now - this.depsStatus.checkedAt > 30_000;
+        if (!stale)
+            return;
+        const [gpu, deps] = await Promise.all([detectGpus(), detectDeps(this.settings)]);
+        this.gpuStatus = gpu;
+        this.depsStatus = deps;
+        this.bump();
+    }
+    /** RU: Текущее состояние. EN: Current state. */
+    async status() {
+        if (!this.gpuStatus || !this.depsStatus)
+            await this.refresh(true);
+        const settings = this.settings;
+        const dirs = this.dirs();
+        return {
+            version: VERSION,
+            startedAt: this.startedAt,
+            settings,
+            gpu: this.gpuStatus ?? { available: false, gpus: [], error: 'Not checked yet', hints: [], checkedAt: Date.now() },
+            deps: this.depsStatus ?? (await detectDeps(settings)),
+            models: await this.modelStates(),
+            jobs: this.jobs.list(30),
+            paths: { videosDir: dirs.videosDir, modelsDir: dirs.modelsDir, genvideoHome: genvideoHome() },
+            revision: this.revision,
+        };
+    }
+    /** RU: Состояние GPU. EN: GPU state. */
+    async gpu() {
+        if (!this.gpuStatus)
+            await this.refresh(true);
+        return this.gpuStatus ?? (await detectGpus());
+    }
+    /** RU: Состояние зависимостей. EN: Dependency state. */
+    async deps() {
+        if (!this.depsStatus)
+            await this.refresh(true);
+        return this.depsStatus ?? (await detectDeps(this.settings));
+    }
+    /** RU: Все модели с состоянием установки. EN: Every model with install state. */
+    async modelStates() {
+        const models = allModels(this.settings.customModels);
+        const dirs = this.dirs();
+        return Promise.all(models.map((entry) => this.modelState(entry, dirs.modelsDir)));
+    }
+    /** RU: Состояние одной модели. EN: One model's state. */
+    async modelState(entry, modelsDir) {
+        const variant = entry.variants[0] ?? null;
+        const required = variant?.files ?? [];
+        const missingFiles = [];
+        let installedBytes = 0;
+        for (const file of required) {
+            const info = await stat(join(modelsDir, entry.id, file)).catch(() => null);
+            if (!info)
+                missingFiles.push(file);
+            else
+                installedBytes += info.size;
+        }
+        const manifest = await this.readManifest(entry.id, modelsDir);
+        return {
+            entry,
+            installed: required.length > 0 && missingFiles.length === 0,
+            installedBytes,
+            requiredBytes: Math.round((variant?.sizeGB ?? entry.variants[0]?.sizeGB ?? 0) * 1e9),
+            variant: manifest?.variant ?? variant?.id ?? null,
+            missingFiles,
+            updateAvailable: false,
+            checkedAt: manifest?.installedAt ?? null,
+            remoteRevision: manifest?.sha ?? null,
+            newerCandidates: [],
+        };
+    }
+    /** RU: Читает манифест модели. EN: Reads a model manifest. */
+    async readManifest(modelId, modelsDir) {
+        try {
+            const text = await (await import('node:fs/promises')).readFile(join(modelsDir, modelId, 'manifest.json'), 'utf8');
+            return JSON.parse(text);
+        }
+        catch {
+            return null;
+        }
+    }
+    /** RU: Разрешает модель/вариант и раннер для запроса. EN: Resolves the model/variant and runner. */
+    async resolveModel(request) {
+        const settings = this.settings;
+        const model = findModel(request.modelId ?? settings.modelId, settings.customModels);
+        if (!model)
+            throw new GenVideoError('model-not-found', `Unknown model: ${request.modelId ?? settings.modelId}`, { status: 404 });
+        const variant = findVariant(model, request.variant ?? settings.variant);
+        if (!variant)
+            throw new GenVideoError('variant-not-found', `Unknown variant for ${model.id}`);
+        const deps = await this.deps();
+        const gpu = await this.gpu();
+        const runner = pickRunner({ settings, deps, gpu, model, variant, preferred: request.runner });
+        return { model, variant, runner };
+    }
+    /** RU: Размеры кадра из запроса и пресета. EN: Frame size from the request and preset. */
+    frameSize(request, model, settings) {
+        const preset = request.platform && request.platform !== 'custom' ? PLATFORM_PRESETS[request.platform] : null;
+        const width = Math.max(64, Math.round(request.width ?? preset?.width ?? settings.width ?? model.width));
+        const height = Math.max(64, Math.round(request.height ?? preset?.height ?? settings.height ?? model.height));
+        const fps = Math.max(1, Math.round(request.fps ?? preset?.fps ?? settings.fps ?? model.fps[0] ?? 24));
+        return { width, height, fps };
+    }
+    /** RU: Транскод-настройки запроса (surface size включает enabled). EN: Request transcode settings. */
+    transcodeOptions(request) {
+        const merged = { ...this.settings.transcode, ...(request.transcode ?? {}) };
+        // RU: Режим size невозможен без перекодирования. EN: Size mode implies transcoding.
+        if (merged.mode === 'size')
+            merged.enabled = true;
+        return merged;
+    }
+    /** RU: Строит план и объясняет ограничения модели. EN: Builds the plan and explains model limits. */
+    async plan(request) {
+        const settings = this.settings;
+        const { model, variant, runner } = await this.resolveModel(request);
+        const deps = await this.deps();
+        const gpu = await this.gpu();
+        const { width, height, fps } = this.frameSize(request, model, settings);
+        const target = Math.max(0.5, request.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended);
+        const transcode = this.transcodeOptions(request);
+        let estimatedBytes = null;
+        if (transcode.enabled) {
+            try {
+                estimatedBytes = estimateOutputBytes(normalizeTranscode(transcode, target), target);
+            }
+            catch {
+                estimatedBytes = null;
+            }
+        }
+        const plan = planGeneration({
+            settings,
+            model,
+            runner: runner?.availability.available ? runner.runner.id : null,
+            gpu,
+            prompt: request.prompt,
+            targetDurationSec: target,
+            clipSec: request.clipSec ?? settings.clipSec,
+            width,
+            height,
+            fps,
+            segments: request.segments,
+            imageInput: Boolean(request.inputImageId) || model.capabilities.i2v,
+            videoInput: Boolean(request.inputVideoId) || model.capabilities.v2v,
+            transcodeEstimatedBytes: estimatedBytes,
+            transcodeMode: transcode.enabled ? transcode.mode : null,
+        });
+        plan.warnings.push(...this.runtimeWarnings(model, variant, runner, deps, gpu, settings));
+        return plan;
+    }
+    /** RU: Предупреждения о доступности инструментов и памяти. EN: Toolchain and memory warnings. */
+    runtimeWarnings(model, _variant, runner, deps, gpu, settings) {
+        const warnings = [];
+        if (!runner) {
+            warnings.push({
+                code: 'no-runner',
+                message: `No runner for ${model.title} is available. Mock can produce a synthetic clip; install the real toolchain to use the model.`,
+            });
+        }
+        else if (!runner.availability.available) {
+            warnings.push({ code: 'runner-unavailable', message: runner.availability.reason ?? 'Runner is unavailable', ...(runner.availability.hint ? { hint: runner.availability.hint } : {}) });
+        }
+        if (!deps.ffmpeg.ok)
+            warnings.push({ code: 'no-ffmpeg', message: 'ffmpeg is required for every output; install it from Settings → Tools.' });
+        if (deps.ffmpeg.ok && (!deps.ffmpeg.encoders.includes('libx264') || !deps.ffmpeg.encoders.includes('aac'))) {
+            warnings.push({ code: 'ffmpeg-codecs', message: 'ffmpeg is missing libx264 or aac; MP4 output may fail.' });
+        }
+        const selected = selectGpus(gpu, settings.gpu.ids);
+        const budget = settings.gpu.vramBudgetGB > 0 ? settings.gpu.vramBudgetGB : selected[0]?.totalMB ? selected[0].totalMB / 1024 : 0;
+        if (budget > 0 && model.vramGB.min > budget) {
+            warnings.push({
+                code: 'model-vram',
+                message: `${model.title} needs at least ${formatGB(model.vramGB.min)} VRAM but the current budget is ${formatGB(budget)}. Use a smaller variant or a lighter model.`,
+            });
+        }
+        if (!gpu.available && (runner?.runner.id === 'candle' || runner?.runner.id === 'diffusers')) {
+            warnings.push({ code: 'no-gpu', message: 'This runner needs a CUDA GPU; CPU generation is possible only for diffusers with "Allow CPU" enabled.' });
+        }
+        return warnings;
+    }
+    /** RU: Запускает генерацию и возвращает задание. EN: Starts generation and returns the job. */
+    async generate(request) {
+        const prompt = String(request.prompt ?? '').trim();
+        if (!prompt)
+            throw new GenVideoError('empty-prompt', 'A prompt is required');
+        if (prompt.length > 8000)
+            throw new GenVideoError('prompt-too-long', 'The prompt is longer than 8000 characters');
+        const { model, variant, runner } = await this.resolveModel(request);
+        if (!runner) {
+            throw new GenVideoError('no-runner', `No runner is available for ${model.title}. Enable Mock or install the toolchain.`, {
+                details: { runtimes: model.runtimes },
+            });
+        }
+        if (!runner.availability.available) {
+            throw new GenVideoError('runner-unavailable', runner.availability.reason ?? 'Runner is unavailable', {
+                details: { hint: runner.availability.hint, runner: runner.runner.id },
+            });
+        }
+        const plan = await this.plan(request);
+        const settings = this.settings;
+        const transcode = this.transcodeOptions(request);
+        const totalDuration = plan.totalSec;
+        if (transcode.enabled)
+            normalizeTranscode(transcode, totalDuration);
+        const jobParams = {
+            prompt,
+            modelId: model.id,
+            variant: variant.id,
+            runner: runner.runner.id,
+            width: plan.width,
+            height: plan.height,
+            fps: plan.fps,
+            targetDurationSec: plan.totalSec,
+            segments: plan.segments.length,
+            transcode,
+            seed: request.seed ?? settings.seed,
+            outputName: request.outputName ?? null,
+            inputImageId: request.inputImageId ?? null,
+            inputVideoId: request.inputVideoId ?? null,
+        };
+        const job = this.jobs.create('generate', jobParams);
+        this.jobs.start(job, (ctx) => this.runGenerate(ctx, { request, plan, model, variant, runner, transcode }));
+        return { job, plan };
+    }
+    /** RU: Исполнитель генерации: сегменты → склейка → транскод → результат.
+     *  EN: Generation executor: segments → merge → transcode → result. */
+    async runGenerate(ctx, input) {
+        const settings = this.settings;
+        const deps = await this.deps();
+        if (!deps.ffmpeg.ok)
+            throw new GenVideoError('no-ffmpeg', 'ffmpeg is required for generation');
+        const ffmpeg = deps.ffmpeg.path || 'ffmpeg';
+        const ffprobe = deps.ffprobe.path || 'ffprobe';
+        const dirs = this.dirs();
+        ensureDirSync(dirs.videosDir);
+        const scratch = join(scratchDir(), ctx.job.id);
+        ensureDirSync(scratch);
+        const segments = input.plan.segments;
+        ctx.segments(segments.length);
+        ctx.phase('checking', `Preparing ${input.model.title}`);
+        ctx.progress({ percent: 1, message: input.runner.runner.id === 'mock' ? 'Mock runner (demo)' : `Runner: ${input.runner.runner.id}` });
+        const imageInput = input.request.inputImageId ? await this.resolveInput(input.request.inputImageId) : null;
+        const videoInput = input.request.inputVideoId ? await this.resolveInput(input.request.inputVideoId) : null;
+        const baseSeed = input.request.seed ?? settings.seed;
+        const segmentFiles = [];
+        let previousImage = imageInput?.path ?? null;
+        for (let index = 0; index < segments.length; index += 1) {
+            if (ctx.signal.aborted)
+                throw new Error('aborted');
+            const segment = segments[index];
+            if (!segment)
+                continue;
+            const outputPath = join(scratch, `seg-${String(index + 1).padStart(3, '0')}.mp4`);
+            const segmentStart = Math.round((index / segments.length) * 80);
+            const segmentSpan = 80 / segments.length;
+            const fps = input.plan.fps;
+            const frames = input.model.family === 'ltx-video' || input.model.family === 'ltx-2' ? snapFrames(segment.durationSec * fps + 1) : Math.max(1, Math.round(segment.durationSec * fps));
+            ctx.segment(index, 'running', 0);
+            ctx.phase('sampling', `Segment ${index + 1}/${segments.length}`);
+            await input.runner.runner.run({
+                settings,
+                model: input.model,
+                variant: input.variant,
+                prompt: segment.prompt,
+                negativePrompt: input.request.negativePrompt ?? settings.negativePrompt,
+                width: input.plan.width,
+                height: input.plan.height,
+                fps,
+                frames,
+                durationSec: segment.durationSec,
+                seed: baseSeed >= 0 ? baseSeed + index : -1,
+                steps: input.request.steps ?? settings.steps,
+                guidance: input.request.guidance ?? settings.guidance,
+                gpuIds: input.plan.gpuIds,
+                imagePath: previousImage,
+                videoPath: videoInput?.path ?? null,
+                outputPath,
+                signal: ctx.signal,
+                log: (line) => ctx.log(line),
+                onProgress: (progress) => {
+                    const overall = segmentStart + (progress.percent / 100) * segmentSpan;
+                    ctx.progress({
+                        percent: overall,
+                        step: progress.step,
+                        totalSteps: progress.totalSteps,
+                        message: progress.message ?? `Segment ${index + 1}/${segments.length}`,
+                    });
+                    ctx.segment(index, 'running', progress.percent);
+                },
+            });
+            ctx.segment(index, 'done', 100);
+            ctx.phase('segment_done', `Segment ${index + 1}/${segments.length} ready`);
+            segmentFiles.push(outputPath);
+            // RU: Continuity: последний кадр становится картинкой-условием для i2v.
+            // EN: Continuity: the last frame becomes the image condition for i2v.
+            if (settings.continuity === 'last-frame' && index < segments.length - 1 && input.model.capabilities.i2v) {
+                const framePath = join(scratch, `frame-${index + 1}.jpg`);
+                try {
+                    await extractLastFrame(ffmpeg, outputPath, framePath);
+                    previousImage = framePath;
+                }
+                catch (error) {
+                    ctx.log(`continuity: could not extract a frame: ${error instanceof Error ? error.message : String(error)}`);
+                }
+            }
+        }
+        ctx.phase('concatenating', 'Merging segments');
+        const merged = join(scratch, 'merged.mp4');
+        if (segmentFiles.length === 1) {
+            await copyFile(segmentFiles[0] ?? '', merged);
+        }
+        else {
+            await concatFiles({
+                ffmpeg,
+                ffprobe,
+                sources: segmentFiles,
+                target: merged,
+                signal: ctx.signal,
+                onProgress: (percent) => ctx.progress({ percent: 80 + Math.round(percent * 0.08), message: 'Merging segments' }),
+            });
+        }
+        const format = input.transcode.enabled ? input.transcode.format : 'mp4';
+        const seed = baseSeed >= 0 ? baseSeed : 0;
+        const name = input.request.outputName
+            ? safeBaseName(input.request.outputName)
+            : outputFileName({ platform: input.request.platform ?? settings.platform, prompt: input.request.prompt, seed, ext: extensionFor(format) });
+        const finalName = name.includes('.') ? name : `${name}.${extensionFor(format)}`;
+        const finalPath = assertInside(dirs.videosDir, join(dirs.videosDir, finalName));
+        if (input.transcode.enabled) {
+            ctx.phase('transcoding_pass1', 'Transcoding to the requested quality/size');
+            await transcodeFile({
+                ffmpeg,
+                ffprobe,
+                source: merged,
+                target: finalPath,
+                transcode: input.transcode,
+                signal: ctx.signal,
+                onProgress: (percent, phase) => {
+                    ctx.phase(phase, phase === 'transcoding_pass1' ? 'Transcode pass 1/2' : 'Transcode pass 2/2');
+                    ctx.progress({ percent: 88 + Math.round(percent * 0.1), message: phase === 'transcoding_pass1' ? 'Two-pass analysis' : 'Encoding' });
+                },
+            });
+        }
+        else {
+            ctx.phase('muxing', 'Finalizing the file');
+            await copyFile(merged, finalPath);
+        }
+        ctx.phase('verifying', 'Verifying the output');
+        const info = await probeFile(ffprobe, finalPath);
+        const bytes = await stat(finalPath).then((item) => item.size).catch(() => info.bytes);
+        const artifact = {
+            id: finalName,
+            name: finalName,
+            path: finalPath,
+            bytes,
+            width: info.width,
+            height: info.height,
+            fps: info.fps,
+            durationSec: info.durationSec,
+            format: extname(finalName).replace('.', '') || 'mp4',
+            createdAt: Date.now(),
+        };
+        ctx.output(artifact);
+        ctx.progress({ percent: 100, message: `${formatBytes(bytes)} · ${info.width}x${info.height} · ${info.durationSec.toFixed(1)}s` });
+        if (!settings.runners.keepIntermediate) {
+            await rm(scratch, { recursive: true, force: true }).catch(() => undefined);
+        }
+    }
+    /** RU: Склеивает готовые ролики. EN: Merges finished clips. */
+    async merge(request) {
+        const names = (request.names ?? []).map((name) => safeBaseName(name)).filter(Boolean);
+        if (names.length < 2)
+            throw new GenVideoError('merge-needs-two', 'Select at least two clips to merge');
+        const dirs = this.dirs();
+        const sources = names.map((name) => assertInside(dirs.videosDir, join(dirs.videosDir, name)));
+        for (const source of sources) {
+            if (!(await exists(source)))
+                throw new GenVideoError('merge-missing', `Clip not found: ${safeBaseName(source)}`, { status: 404 });
+        }
+        const settings = this.settings;
+        const transcode = { ...settings.transcode, ...(request.transcode ?? {}) };
+        if (transcode.mode === 'size')
+            transcode.enabled = true;
+        const job = this.jobs.create('merge', { names, outputName: request.outputName ?? null, transcode });
+        this.jobs.start(job, async (ctx) => {
+            const deps = await this.deps();
+            if (!deps.ffmpeg.ok)
+                throw new GenVideoError('no-ffmpeg', 'ffmpeg is required to merge clips');
+            const ffmpeg = deps.ffmpeg.path || 'ffmpeg';
+            const ffprobe = deps.ffprobe.path || 'ffprobe';
+            const scratch = join(scratchDir(), ctx.job.id);
+            ensureDirSync(scratch);
+            ctx.phase('concatenating', 'Merging clips');
+            const merged = join(scratch, 'merged.mp4');
+            await concatFiles({
+                ffmpeg,
+                ffprobe,
+                sources,
+                target: merged,
+                signal: ctx.signal,
+                onProgress: (percent) => ctx.progress({ percent: Math.round(percent * 0.8), message: 'Merging clips' }),
+            });
+            const format = transcode.enabled ? transcode.format : 'mp4';
+            const name = request.outputName
+                ? safeBaseName(request.outputName)
+                : `merged_${names.length}_clips_${Date.now()}.${extensionFor(format)}`;
+            const finalName = name.includes('.') ? name : `${name}.${extensionFor(format)}`;
+            const finalPath = assertInside(dirs.videosDir, join(dirs.videosDir, finalName));
+            if (transcode.enabled) {
+                await transcodeFile({
+                    ffmpeg,
+                    ffprobe,
+                    source: merged,
+                    target: finalPath,
+                    transcode,
+                    signal: ctx.signal,
+                    onProgress: (percent, phase) => {
+                        ctx.phase(phase);
+                        ctx.progress({ percent: 80 + Math.round(percent * 0.18), message: 'Transcoding the merged clip' });
+                    },
+                });
+            }
+            else {
+                await copyFile(merged, finalPath);
+            }
+            const info = await probeFile(ffprobe, finalPath);
+            ctx.output({
+                id: finalName,
+                name: finalName,
+                path: finalPath,
+                bytes: info.bytes,
+                width: info.width,
+                height: info.height,
+                fps: info.fps,
+                durationSec: info.durationSec,
+                format: extname(finalName).replace('.', '') || 'mp4',
+                createdAt: Date.now(),
+            });
+            if (!this.settings.runners.keepIntermediate)
+                await rm(scratch, { recursive: true, force: true }).catch(() => undefined);
+        });
+        return job;
+    }
+    /** RU: Перекодирует готовый ролик. EN: Transcodes a finished clip. */
+    async transcode(request) {
+        const name = safeBaseName(request.name);
+        const dirs = this.dirs();
+        const source = assertInside(dirs.videosDir, join(dirs.videosDir, name));
+        if (!(await exists(source)))
+            throw new GenVideoError('clip-missing', `Clip not found: ${name}`, { status: 404 });
+        const settings = this.settings;
+        const transcode = { ...settings.transcode, ...(request.transcode ?? {}) };
+        if (transcode.mode === 'size')
+            transcode.enabled = true;
+        transcode.enabled = true;
+        const job = this.jobs.create('transcode', { name, transcode, outputName: request.outputName ?? null });
+        this.jobs.start(job, async (ctx) => {
+            const deps = await this.deps();
+            if (!deps.ffmpeg.ok)
+                throw new GenVideoError('no-ffmpeg', 'ffmpeg is required to transcode');
+            const ffmpeg = deps.ffmpeg.path || 'ffmpeg';
+            const ffprobe = deps.ffprobe.path || 'ffprobe';
+            const format = transcode.format;
+            const base = request.outputName ? slugify(request.outputName) : name.replace(/\.[^.]+$/, '');
+            const finalName = `${base}_${transcode.mode}-${transcode.mode === 'size' ? `${transcode.targetSizeMB.toFixed(1)}mb` : transcode.quality}.${extensionFor(format)}`;
+            const finalPath = assertInside(dirs.videosDir, join(dirs.videosDir, finalName));
+            ctx.phase('transcoding_pass1', 'Transcoding');
+            await transcodeFile({
+                ffmpeg,
+                ffprobe,
+                source,
+                target: finalPath,
+                transcode,
+                signal: ctx.signal,
+                onProgress: (percent, phase) => {
+                    ctx.phase(phase);
+                    ctx.progress({ percent, message: phase === 'transcoding_pass1' ? 'Pass 1/2' : 'Encoding' });
+                },
+            });
+            const info = await probeFile(ffprobe, finalPath);
+            ctx.output({
+                id: finalName,
+                name: finalName,
+                path: finalPath,
+                bytes: info.bytes,
+                width: info.width,
+                height: info.height,
+                fps: info.fps,
+                durationSec: info.durationSec,
+                format: extname(finalName).replace('.', '') || 'mp4',
+                createdAt: Date.now(),
+            });
+        });
+        return job;
+    }
+    /** RU: Скачивает модель из HF. EN: Downloads a model from HF. */
+    async installModel(request) {
+        const settings = this.settings;
+        const model = findModel(request.modelId, settings.customModels);
+        if (!model)
+            throw new GenVideoError('model-not-found', `Unknown model: ${request.modelId}`, { status: 404 });
+        const variant = findVariant(model, request.variant);
+        if (!variant)
+            throw new GenVideoError('variant-not-found', `Unknown variant for ${model.id}`);
+        if (!model.repo)
+            throw new GenVideoError('repo-missing', 'This model has no Hugging Face repository');
+        const dirs = this.dirs();
+        const token = process.env[settings.hf.tokenEnv] || process.env.HF_TOKEN || '';
+        const job = this.jobs.create('download', { modelId: model.id, variant: variant.id, repo: model.repo });
+        this.jobs.start(job, async (ctx) => {
+            ctx.phase('downloading', `Downloading ${model.title}`);
+            const result = await downloadModelFiles({
+                repo: model.repo,
+                files: variant.files,
+                targetDir: join(dirs.modelsDir, model.id),
+                token,
+                signal: ctx.signal,
+                onProgress: (progress) => {
+                    ctx.progress({
+                        percent: Math.round(((progress.index + progress.percent / 100) / Math.max(1, progress.count)) * 100),
+                        bytes: progress.bytes,
+                        totalBytes: progress.totalBytes,
+                        message: `Downloading ${progress.file}`,
+                    });
+                },
+            });
+            const remote = await checkRemoteRevision(model.repo, token).catch(() => ({ sha: '', lastModified: '' }));
+            const manifest = {
+                repo: model.repo,
+                sha: remote.sha,
+                variant: variant.id,
+                files: result.files,
+                bytes: result.bytes,
+                installedAt: Date.now(),
+            };
+            await writeFile(join(dirs.modelsDir, model.id, 'manifest.json'), JSON.stringify(manifest, null, 2), 'utf8');
+            ctx.log(`model ${model.id} installed (${formatBytes(result.bytes)})`);
+            ctx.progress({ percent: 100, message: `Installed ${formatBytes(result.bytes)}` });
+        });
+        return job;
+    }
+    /** RU: Проверяет обновления модели и соседей по семейству.
+     *  EN: Checks model updates and same-family candidates. */
+    async checkUpdates(modelId) {
+        const settings = this.settings;
+        const models = allModels(settings.customModels).filter((entry) => !modelId || entry.id === modelId);
+        const dirs = this.dirs();
+        const token = process.env[settings.hf.tokenEnv] || process.env.HF_TOKEN || '';
+        const results = [];
+        for (const model of models) {
+            const manifest = await this.readManifest(model.id, dirs.modelsDir);
+            try {
+                const remote = await checkRemoteRevision(model.repo, token);
+                const candidates = await findNewerCandidates({
+                    query: model.family === 'ltx-2' ? 'ltx-2' : 'ltx-video',
+                    currentRepo: model.repo,
+                    knownRevision: remote.lastModified,
+                    token,
+                }).catch(() => []);
+                results.push({
+                    modelId: model.id,
+                    updateAvailable: Boolean(manifest?.sha && remote.sha && manifest.sha !== remote.sha),
+                    remoteRevision: remote.sha,
+                    checkedAt: Date.now(),
+                    newerCandidates: candidates,
+                    error: null,
+                });
+            }
+            catch (error) {
+                results.push({
+                    modelId: model.id,
+                    updateAvailable: false,
+                    remoteRevision: null,
+                    checkedAt: Date.now(),
+                    newerCandidates: [],
+                    error: error instanceof Error ? error.message : String(error),
+                });
+            }
+        }
+        return results;
+    }
+    /** RU: Библиотека готовых роликов. EN: Library of finished clips. */
+    async library() {
+        const dirs = this.dirs();
+        const entries = await readdir(dirs.videosDir, { withFileTypes: true }).catch(() => []);
+        const artifacts = [];
+        for (const entry of entries) {
+            if (!entry.isFile())
+                continue;
+            if (!/\.(mp4|webm|gif|mov|mkv)$/i.test(entry.name))
+                continue;
+            const path = join(dirs.videosDir, entry.name);
+            const info = await stat(path).catch(() => null);
+            if (!info)
+                continue;
+            artifacts.push({
+                id: entry.name,
+                name: entry.name,
+                path,
+                bytes: info.size,
+                width: 0,
+                height: 0,
+                fps: 0,
+                durationSec: 0,
+                format: extname(entry.name).replace('.', '').toLowerCase(),
+                createdAt: info.mtimeMs,
+            });
+        }
+        return artifacts.sort((a, b) => b.createdAt - a.createdAt);
+    }
+    /** RU: Разрешает имя ролика в безопасный путь для отдачи/плеера.
+     *  EN: Resolves a clip name into a safe path for serving/playback. */
+    resolveMedia(name) {
+        const dirs = this.dirs();
+        const safe = safeBaseName(name);
+        return assertInside(dirs.videosDir, join(dirs.videosDir, safe));
+    }
+    /** RU: Ищет загруженный input по id. EN: Resolves an uploaded input by id. */
+    async resolveInput(id) {
+        const safe = safeBaseName(id);
+        const path = join(inputsDir(), safe);
+        if (!(await exists(path)))
+            throw new GenVideoError('input-missing', `Uploaded input not found: ${safe}`, { status: 404 });
+        return { id: safe, path };
+    }
+    /** RU: Сохраняет загруженный файл (картинка/видео) во временное хранилище.
+     *  EN: Stores an uploaded file (image/video) in the input storage. */
+    async saveInput(input) {
+        const ext = extname(input.name).replace('.', '').toLowerCase() || (input.mime.includes('video') ? 'mp4' : 'png');
+        const id = `${randomUUID()}.${safeBaseName(ext)}`;
+        await mkdir(inputsDir(), { recursive: true });
+        const path = join(inputsDir(), id);
+        await writeFile(path, input.data);
+        return { id, name: safeBaseName(input.name), bytes: input.data.length, path };
+    }
+    /** RU: Обновляет настройки. EN: Updates settings. */
+    async updateSettings(patch) {
+        const settings = await this.settingsStore.update(patch);
+        const dirs = resolveDirs(settings);
+        ensureDirSync(dirs.modelsDir);
+        ensureDirSync(dirs.videosDir);
+        await this.refresh(true);
+        this.bump();
+        return settings;
+    }
+    /** RU: Сбрасывает настройки. EN: Resets settings. */
+    async resetSettings() {
+        const settings = await this.settingsStore.reset();
+        this.bump();
+        return settings;
+    }
+    /** RU: Полная проверка окружения по требованию. EN: Full environment check on demand. */
+    async recheck() {
+        await this.refresh(true);
+        return this.deps();
+    }
+    /** RU: Установка ffmpeg (только по явному действию). EN: ffmpeg install on explicit action. */
+    async installFfmpeg() {
+        const { installFfmpeg: install } = await import('./deps.js');
+        const result = await install();
+        await this.refresh(true);
+        return result;
+    }
+    /** RU: Создаёт venv и ставит torch/diffusers (по явному действию).
+     *  EN: Creates the venv and installs torch/diffusers (explicit action). */
+    async installPythonEngine() {
+        const job = this.jobs.create('install', { target: 'python' });
+        this.jobs.start(job, async (ctx) => {
+            const deps = await this.deps();
+            if (!deps.python.ok)
+                throw new GenVideoError('no-python', 'python3 is not available on this host');
+            const { runStreaming } = await import('./proc.js');
+            const { join: joinPath } = await import('node:path');
+            const python = deps.python.path || 'python3';
+            const venv = venvDir();
+            const cuda = (await this.gpu()).available;
+            const pip = joinPath(venv, 'bin', 'python');
+            const index = cuda ? 'https://download.pytorch.org/whl/cu124' : 'https://download.pytorch.org/whl/cpu';
+            const steps = [
+                { label: 'Creating the virtual environment', command: python, args: ['-m', 'venv', venv] },
+                { label: 'Upgrading pip', command: pip, args: ['-m', 'pip', 'install', '--upgrade', 'pip'] },
+                { label: cuda ? 'Installing torch (CUDA)' : 'Installing torch (CPU)', command: pip, args: ['-m', 'pip', 'install', '--index-url', index, 'torch'] },
+                {
+                    label: 'Installing diffusers and helpers',
+                    command: pip,
+                    args: ['-m', 'pip', 'install', 'diffusers', 'transformers', 'accelerate', 'safetensors', 'sentencepiece', 'imageio', 'imageio-ffmpeg'],
+                },
+            ];
+            for (let indexStep = 0; indexStep < steps.length; indexStep += 1) {
+                const step = steps[indexStep];
+                if (!step)
+                    continue;
+                ctx.phase('downloading', step.label);
+                ctx.progress({ percent: Math.round((indexStep / steps.length) * 100), message: step.label });
+                await runStreaming(step.command, step.args, {
+                    signal: ctx.signal,
+                    onLine: (line) => ctx.log(line),
+                });
+            }
+            ctx.phase('verifying', 'Checking the Python environment');
+            await this.refresh(true);
+            ctx.progress({ percent: 100, message: 'Python engine installed' });
+        });
+        return job;
+    }
+    /** RU: Доступность раннеров для выбранной модели. EN: Runner availability for the selected model. */
+    async runnerMatrix(modelId) {
+        const settings = this.settings;
+        const model = findModel(modelId ?? settings.modelId, settings.customModels);
+        if (!model)
+            return [];
+        const variant = model.variants[0];
+        if (!variant)
+            return [];
+        return allAvailability({ settings, deps: await this.deps(), gpu: await this.gpu(), model, variant });
+    }
+    /** RU: Освобождает ресурсы. EN: Releases resources. */
+    dispose() {
+        this.jobs.dispose();
+        this.listeners.clear();
+    }
+}
+/** RU: Обёртка операций в ApiResult. EN: Wraps operations into ApiResult. */
+export async function apiCall(operation) {
+    try {
+        return { ok: true, value: await operation() };
+    }
+    catch (error) {
+        return { ok: false, error: toApiError(error) };
+    }
+}
+/** RU: Пресеты по умолчанию (для UI). EN: Default user directories (for UI). */
+export function defaultDirs() {
+    return { models: defaultModelsDir(), videos: defaultVideosDir() };
+}
+/** RU: Путь к venv (для UI). EN: Venv path (for UI). */
+export function venvPathForUi() {
+    return venvDir();
+}
