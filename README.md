@@ -98,6 +98,31 @@ Native DSH tools:
 3. Start ComfyUI and export the workflow in API format to `$DSH_HOME/genvideo/workflow.json`.
 4. Open the panel and generate.
 
+### ComfyUI setup script
+
+`deploy/install-comfyui.sh` installs a working ComfyUI + LTX-Video 2B stack into a clean directory
+(no Docker, no root). It pins ComfyUI `995456d0`, Python 3.12 (via `uv`), `torch 2.11.0+cu130`,
+downloads the LTX 0.9.8 fp8 checkpoint, the `t5xxl_fp8` encoder and the `2xNomosUni` upscaler
+(~10 GB), and copies the bundled UI workflows.
+
+```bash
+bash deploy/install-comfyui.sh --dir ~/comfyui --cuda-device 1 --port 8188
+bash ~/comfyui/start-comfyui.sh
+```
+
+Useful flags:
+
+| Flag | Effect |
+|---|---|
+| `--models-from /path/to/ComfyUI/models` | copy models instead of downloading ~10 GB |
+| `--with-extra` | also fetch the bf16 checkpoint and both LTX VAEs (+7 GB) |
+| `--no-models` | install code only |
+| `--force-plugin-workflow` | overwrite the existing `$DSH_HOME/genvideo/workflow.json` |
+
+The existing `$DSH_HOME/genvideo/workflow.json` is never overwritten unless
+`--force-plugin-workflow` is passed. After the install, set the ComfyUI URL
+(`http://127.0.0.1:8188`) in Settings → Advanced.
+
 ### Build
 
 ```bash
@@ -208,6 +233,31 @@ $DSH_HOME/genvideo/workflow.json
 2. Обновить DSH — иконка появится в сайдбаре.
 3. Запустить ComfyUI и положить workflow в API-формате в `$DSH_HOME/genvideo/workflow.json`.
 4. Открыть панель и генерировать.
+
+### Скрипт установки ComfyUI
+
+`deploy/install-comfyui.sh` ставит рабочий ComfyUI + LTX-Video 2B в отдельный каталог
+(без Docker и без root). Фиксирует ComfyUI `995456d0`, Python 3.12 (через `uv`),
+`torch 2.11.0+cu130`, скачивает fp8-чекпоинт LTX 0.9.8, энкодер `t5xxl_fp8` и
+апскейлер `2xNomosUni` (~10 ГБ) и копирует воркфлоу из `deploy/ui-workflows/`.
+
+```bash
+bash deploy/install-comfyui.sh --dir ~/comfyui --cuda-device 1 --port 8188
+bash ~/comfyui/start-comfyui.sh
+```
+
+Полезные флаги:
+
+| Флаг | Что делает |
+|---|---|
+| `--models-from /path/to/ComfyUI/models` | копирует модели вместо скачивания ~10 ГБ |
+| `--with-extra` | дополнительно bf16-чекпоинт и оба VAE LTX (+7 ГБ) |
+| `--no-models` | только код, без моделей |
+| `--force-plugin-workflow` | перезаписать существующий `$DSH_HOME/genvideo/workflow.json` |
+
+Существующий `$DSH_HOME/genvideo/workflow.json` не перезаписывается без
+`--force-plugin-workflow`. После установки укажите URL ComfyUI
+(`http://127.0.0.1:8188`) в Settings → Advanced.
 
 ### Сборка
 

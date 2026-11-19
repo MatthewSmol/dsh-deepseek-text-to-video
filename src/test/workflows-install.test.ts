@@ -12,7 +12,7 @@ test('bundled LTXV workflows install into an empty GenVideo home', () => {
   try {
     const result = installBundledWorkflows()
     assert.equal(result.installed.length, 3)
-    assert.ok(readFileSync(join(home, 'workflow.json'), 'utf8').includes('UNETLoader'))
+    assert.ok(readFileSync(join(home, 'workflow.json'), 'utf8').includes('CheckpointLoaderSimple'))
     assert.ok(readFileSync(join(home, 'workflow-image.json'), 'utf8').includes('LTXVImgToVideo'))
     assert.ok(readFileSync(join(home, 'workflow-video.json'), 'utf8').includes('SplitSigmasDenoise'))
     const again = installBundledWorkflows()

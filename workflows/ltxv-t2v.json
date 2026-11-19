@@ -1,9 +1,8 @@
 {
   "1": {
-    "class_type": "UNETLoader",
+    "class_type": "CheckpointLoaderSimple",
     "inputs": {
-      "unet_name": "ltxv-2b-0.9.8-distilled-fp8.safetensors",
-      "weight_dtype": "default"
+      "ckpt_name": "ltxv-2b-0.9.8-distilled-fp8.safetensors"
     }
   },
   "2": {
@@ -11,12 +10,6 @@
     "inputs": {
       "clip_name": "t5xxl_fp8_e4m3fn.safetensors",
       "type": "ltxv"
-    }
-  },
-  "3": {
-    "class_type": "VAELoader",
-    "inputs": {
-      "vae_name": "LTX-Video-VAE-BF16.safetensors"
     }
   },
   "4": {
@@ -139,8 +132,8 @@
         0
       ],
       "vae": [
-        "3",
-        0
+        "1",
+        2
       ],
       "tile_size": 256,
       "overlap": 64,

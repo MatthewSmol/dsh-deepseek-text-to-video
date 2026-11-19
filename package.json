@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "description": "GenVideo \u2014 local text-to-video MCP service with a DSH sidebar panel (Sulphur-2 / LTX-Video, ffmpeg, EN/RU).",
+  "description": "GenVideo — local text-to-video MCP service with a DSH sidebar panel (Sulphur-2 / LTX-Video, ffmpeg, EN/RU).",
   "exports": {
     ".": "./dist/index.js",
     "./client": "./dist/client.js",
@@ -18,7 +18,8 @@
     "icon.svg",
     "cordis.patch.yml",
     "README.md",
-    "workflows/*.json"
+    "workflows/*.json",
+    "deploy/**"
   ],
   "scripts": {
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.client.json --noEmit",
