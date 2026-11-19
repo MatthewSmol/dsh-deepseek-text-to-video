@@ -117,6 +117,7 @@ export const comfyuiRunner = {
         catch {
             throw new GenVideoError('comfyui-workflow-invalid', 'The ComfyUI workflow is not valid JSON after substitution');
         }
+        input.log('ComfyUI workflow: sample → decode → 2× upscale → download');
         input.onProgress({ phase: 'encoding_prompt', percent: 5, message: 'Submitting to ComfyUI' });
         const response = await fetch(`${base}/prompt`, {
             method: 'POST',
@@ -160,7 +161,8 @@ export const comfyuiRunner = {
         if (!file?.filename) {
             throw new GenVideoError('comfyui-no-output', 'The workflow finished without a video output. Check that the workflow saves a video (VHS/VideoCombine or SaveAnimatedWEBP), not a still image.');
         }
-        input.onProgress({ phase: 'muxing', percent: 92, message: 'Downloading the result' });
+        input.onProgress({ phase: 'upscaling', percent: 92, message: 'ComfyUI: decode + 2× upscale' });
+        input.onProgress({ phase: 'muxing', percent: 96, message: 'Downloading the result' });
         const query = new URLSearchParams({
             filename: file.filename,
             subfolder: file.subfolder ?? '',

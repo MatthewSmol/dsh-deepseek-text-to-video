@@ -154,3 +154,47 @@
   padding: 18px;
   box-shadow: 0 24px 64px rgba(16, 24, 40, .28);
 }
+
+/* RU: Карточка задания и конвейер этапов. EN: Job card and pipeline stages. */
+.gv-job-card {
+  border-radius: 14px;
+  background: linear-gradient(180deg,
+    color-mix(in srgb, var(--dsw-alias-bg-layer-1, #fff) 96%, var(--dsw-alias-brand-primary, #247bbf) 4%),
+    var(--dsw-alias-bg-layer-1, #fff) 38%);
+}
+.gv-job-dot {
+  width: 8px; height: 8px; border-radius: 999px;
+  background: var(--dsw-alias-label-secondary, #5c6773);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-label-secondary, #5c6773) 16%, transparent);
+}
+.gv-job-dot-live {
+  background: var(--dsw-alias-brand-primary, #247bbf);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--dsw-alias-brand-primary, #247bbf) 18%, transparent);
+  animation: gv-pulse 1.6s ease-in-out infinite;
+}
+@keyframes gv-pulse { 50% { opacity: .45; } }
+.gv-stage {
+  padding: 4px 8px;
+  border-radius: 7px;
+  font-size: 10.5px;
+  border: 1px solid transparent;
+  color: var(--dsw-alias-label-secondary, #5c6773);
+  background: var(--dsw-alias-bg-layer-2, #f4f5f7);
+}
+.gv-stage-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 999px;
+  font-size: 9px; font-weight: 700;
+  background: color-mix(in srgb, var(--dsw-alias-label-secondary, #5c6773) 14%, transparent);
+}
+.gv-stage-sep { opacity: .4; }
+.gv-stage-active {
+  color: var(--dsw-alias-brand-primary, #247bbf);
+  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary, #247bbf) 34%, transparent);
+  background: color-mix(in srgb, var(--dsw-alias-brand-primary, #247bbf) 10%, transparent);
+}
+.gv-stage-active .gv-stage-num { background: var(--dsw-alias-brand-primary, #247bbf); color: #fff; }
+.gv-stage-done { color: var(--dsw-alias-state-success-primary, #218358); }
+.gv-stage-done .gv-stage-num { background: color-mix(in srgb, var(--dsw-alias-state-success-primary, #218358) 18%, transparent); color: var(--dsw-alias-state-success-primary, #218358); }
+.gv-stage-failed { color: var(--dsw-alias-state-error-primary, #d13b3b); }
+.gv-stage-pending { opacity: .62; }

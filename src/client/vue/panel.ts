@@ -1161,50 +1161,105 @@ const Panel = {
       ]),
     ])
 
+    const stageDefs = [
+      { key: 'prepare', label: 'stagePrepare' },
+      { key: 'sample', label: 'stageSample' },
+      { key: 'upscale', label: 'stageUpscale' },
+      { key: 'merge', label: 'stageMerge' },
+      { key: 'encode', label: 'stageEncode' },
+    ]
+
+    const stageIndex = (job: any): number => {
+      if (job.status === 'done') return stageDefs.length
+      const phase = String(job.phase ?? '')
+      if (phase.includes('transcod') || phase === 'verifying') return 4
+      if (phase === 'concatenating') return 3
+      if (phase === 'upscaling' || phase === 'muxing' || phase === 'decoding') return 2
+      if (phase === 'sampling' || phase === 'encoding_prompt' || phase === 'loading_model') return 1
+      return 0
+    }
+
+    const stageTone = (job: any, index: number): string => {
+      if (job.status === 'done') return 'gv-stage-done'
+      if (job.status === 'failed' || job.status === 'cancelled') return index <= stageIndex(job) ? 'gv-stage-failed' : 'gv-stage-pending'
+      if (index < stageIndex(job)) return 'gv-stage-done'
+      if (index === stageIndex(job)) return 'gv-stage-active'
+      return 'gv-stage-pending'
+    }
+
+    const jobTitle = (job: any): string => job.kind === 'generate' ? 'Video generation' : job.kind === 'transcode' ? 'Transcode' : job.kind === 'merge' ? 'Merge' : job.kind
+
     const jobsView = () => h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
-      h('p', { class: 'gv-hint' }, t('jobsHint')),
+      h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
+        h('p', { class: 'gv-hint' }, t('jobsHint')),
+        h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('refresh')),
+      ]),
       jobs.value.length === 0 ? h('div', { class: 'gv-card gv-p-6 gv-text-center gv-hint' }, t('noJobs')) : null,
       ...jobs.value.map((job: any) => {
-        const total = job.progress?.segmentCount ?? 0
-        return h('div', { key: job.id, class: 'gv-card gv-p-4' }, [
-          h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
-            h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
-              h('span', { class: 'gv-text-[12.5px] gv-font-medium gv-text-text' }, `${job.kind} · ${job.params?.modelId ?? job.params?.target ?? ''}`),
-              h(Badge, { tone: statusTone(job.status) }, t(job.status) || job.status),
-              total > 0 ? h(Badge, null, `${t('segment')} ${Math.min(total, (job.progress?.segmentIndex ?? 0) + 1)}/${total}`) : null,
+        const total = job.progress?.segmentCount ?? job.params?.segments ?? 0
+        const idx = stageIndex(job)
+        const params = job.params ?? {}
+        const mode = params.inputVideoId ? 'V2V' : params.inputImageId ? 'I2V' : 'T2V'
+        const running = job.status === 'running' || job.status === 'queued'
+        const live = liveJobs.value[job.id] ?? job
+        return h('div', { key: job.id, class: 'gv-card gv-job-card gv-p-4' }, [
+          h('div', { class: 'gv-flex gv-flex-wrap gv-items-start gv-justify-between gv-gap-3' }, [
+            h('div', { class: 'gv-min-w-0' }, [
+              h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-gap-2' }, [
+                h('span', { class: `gv-job-dot ${running ? 'gv-job-dot-live' : ''}` }),
+                h('span', { class: 'gv-text-[13px] gv-font-semibold gv-text-text' }, jobTitle(job)),
+                h(Badge, { tone: statusTone(job.status) }, t(job.status) || job.status),
+                h(Badge, null, mode),
+                total > 0 ? h(Badge, null, `${Math.min(total, (job.progress?.segmentIndex ?? 0) + 1)}/${total}`) : null,
+              ]),
+              h('div', { class: 'gv-mt-1 gv-hint gv-truncate' }, `${fmtTime(job.createdAt)} · ${job.id.slice(0, 8)}${params.prompt ? ` · ${String(params.prompt).slice(0, 90)}` : ''}`),
             ]),
-            h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
-              h('span', { class: 'gv-hint' }, fmtTime(job.createdAt)),
-              job.status === 'running' || job.status === 'queued'
-                ? h('button', { type: 'button', class: 'gv-btn gv-h-7 gv-px-2', onClick: () => void cancelJob(job.id) }, t('cancel'))
-                : null,
+            h('div', { class: 'gv-flex gv-items-center gv-gap-3' }, [
+              h('div', { class: 'gv-text-right' }, [
+                h('div', { class: 'gv-text-[20px] gv-font-semibold gv-leading-none gv-text-text' }, `${live.percent ?? job.percent}%`),
+                h('div', { class: 'gv-hint gv-mt-1' }, job.progress?.etaMs ? `${t('eta')} ${fmtDuration(job.progress.etaMs / 1000)}` : job.status),
+              ]),
+              running ? h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-2', onClick: () => void cancelJob(job.id) }, t('cancel')) : null,
             ]),
           ]),
-          h('div', { class: 'gv-mt-2 gv-flex gv-items-center gv-gap-2' }, [
-            h('div', { class: 'gv-flex-1' }, [h(Progress, { percent: job.percent })]),
-            h('span', { class: 'gv-w-10 gv-text-right gv-text-[11.5px] gv-font-medium gv-text-text' }, `${job.percent}%`),
+          h('div', { class: 'gv-mt-3 gv-flex gv-items-center gv-gap-2' }, [
+            h('div', { class: 'gv-flex-1' }, [h(Progress, { percent: live.percent ?? job.percent, tone: job.status === 'failed' ? 'gv-bg-danger' : job.status === 'done' ? 'gv-bg-ok' : 'gv-bg-brand' })]),
           ]),
-          h('div', { class: 'gv-mt-1 gv-flex gv-flex-wrap gv-items-center gv-gap-x-3 gv-gap-y-1 gv-text-[11.5px] gv-text-muted' }, [
-            h('span', null, `${t('phase')}: ${job.phase}`),
-            job.progress?.etaMs ? h('span', null, `${t('eta')}: ${fmtDuration(job.progress.etaMs / 1000)}`) : null,
-            job.message ? h('span', null, job.message) : null,
-            job.error ? h('span', { class: 'gv-text-danger' }, `${job.error.code}: ${job.error.message}`) : null,
+          h('div', { class: 'gv-mt-3 gv-flex gv-flex-wrap gv-items-center gv-gap-1' }, stageDefs.map((stage: any, index: number) =>
+            h('div', { key: stage.key, class: `gv-stage gv-flex gv-items-center gv-gap-1.5 ${stageTone(job, index)}` }, [
+              h('span', { class: 'gv-stage-num' }, index < idx || job.status === 'done' ? '✓' : String(index + 1)),
+              h('span', null, t(stage.label)),
+              index < stageDefs.length - 1 ? h('span', { class: 'gv-stage-sep' }, '›') : null,
+            ]))),
+          h('div', { class: 'gv-mt-3 gv-rounded-lg gv-bg-surface-2 gv-p-2.5' }, [
+            h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
+              h('span', { class: 'gv-text-[11px] gv-font-medium gv-text-muted' }, t('currentStep')),
+              h('span', { class: 'gv-text-[11.5px] gv-text-text' }, job.message || job.phase),
+            ]),
+            job.error ? h('div', { class: 'gv-mt-1 gv-text-[11.5px] gv-text-danger' }, `${job.error.code}: ${job.error.message}`) : null,
+          ]),
+          h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-items-center gv-gap-x-3 gv-gap-y-1 gv-text-[11.5px] gv-text-muted' }, [
+            params.width ? h('span', null, `${params.width}×${params.height}`) : null,
+            params.fps ? h('span', null, `${params.fps} fps`) : null,
+            params.seed !== undefined && params.seed !== null ? h('span', null, `seed ${params.seed}`) : null,
+            params.denoise !== undefined && params.denoise !== null ? h('span', null, `denoise ${params.denoise}`) : null,
+            params.clipSec ? h('span', null, `clip ${fmtDuration(Number(params.clipSec))}`) : null,
           ]),
           job.segments?.length > 1
-            ? h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-gap-1.5' }, job.segments.map((segment: any) =>
-                h('div', { key: segment.index, class: 'gv-flex gv-min-w-[64px] gv-flex-1 gv-flex-col gv-gap-1' }, [
+            ? h('div', { class: 'gv-mt-3 gv-flex gv-flex-wrap gv-gap-1.5' }, job.segments.map((segment: any) =>
+                h('div', { key: segment.index, class: 'gv-flex gv-min-w-[54px] gv-flex-1 gv-flex-col gv-gap-1' }, [
                   h(Progress, { percent: segment.status === 'done' ? 100 : segment.percent, tone: segment.status === 'failed' ? 'gv-bg-danger' : segment.status === 'done' ? 'gv-bg-ok' : 'gv-bg-brand' }),
                   h('span', { class: 'gv-text-[10px] gv-text-muted' }, `#${segment.index + 1} ${segment.status}`),
                 ])))
             : null,
           job.outputs?.length
-            ? h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-gap-2' }, job.outputs.map((output: any) =>
-                h('a', { key: output.id, class: 'gv-btn gv-h-7 gv-px-2', href: `/genvideo/api/media/${encodeURIComponent(output.name)}`, target: '_blank', rel: 'noreferrer' }, `${output.name} · ${fmtBytes(output.bytes)}`)))
+            ? h('div', { class: 'gv-mt-3 gv-flex gv-flex-wrap gv-gap-2' }, job.outputs.map((output: any) =>
+                h('a', { key: output.id, class: 'gv-btn gv-h-8 gv-px-2', href: `/genvideo/api/media/${encodeURIComponent(output.name)}`, target: '_blank', rel: 'noreferrer' }, `${output.name} · ${fmtBytes(output.bytes)}`)))
             : null,
           job.logTail?.length
-            ? h('details', { class: 'gv-mt-2' }, [
-                h('summary', { class: 'gv-cursor-pointer gv-text-[11.5px] gv-text-muted' }, 'log'),
-                h('pre', { class: 'gv-mt-1 gv-max-h-40 gv-overflow-auto gv-whitespace-pre-wrap gv-rounded-lg gv-bg-surface-2 gv-p-2 gv-text-[10.5px] gv-text-muted' }, job.logTail.slice(-30).join('\n')),
+            ? h('details', { class: 'gv-mt-3' }, [
+                h('summary', { class: 'gv-cursor-pointer gv-text-[11.5px] gv-text-muted' }, `log · ${job.logTail.length}`),
+                h('pre', { class: 'gv-mt-1 gv-max-h-48 gv-overflow-auto gv-whitespace-pre-wrap gv-rounded-lg gv-bg-surface-2 gv-p-2 gv-text-[10.5px] gv-text-muted' }, job.logTail.slice(-40).join('\n')),
               ])
             : null,
         ])

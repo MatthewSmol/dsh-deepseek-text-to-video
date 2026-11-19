@@ -46,6 +46,7 @@ export type JobPhase =
   | 'encoding_prompt'
   | 'sampling'
   | 'decoding'
+  | 'upscaling'
   | 'muxing'
   | 'segment_done'
   | 'concatenating'
