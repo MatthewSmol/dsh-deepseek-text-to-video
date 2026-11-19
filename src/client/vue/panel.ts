@@ -1546,11 +1546,10 @@ const Panel = {
       if (!state.value) {
         return h('div', { class: 'gv-panel gv-flex gv-flex-col gv-gap-3 gv-p-6 gv-text-text' }, [h('style', null, typeof styles === 'string' ? styles : ''), h('div', { class: 'gv-hint' }, t('loading'))])
       }
-      const tabs = [['generate', t('generate')], ['jobs', t('jobs')], ['library', t('library')], ['models', t('models')], ['settings', t('settings')]]
+      const tabs = [['generate', t('generate')], ['jobs', t('jobs')], ['library', t('library')], ['settings', t('settings')]]
       const content = tab.value === 'generate' ? generateView()
         : tab.value === 'jobs' ? jobsView()
         : tab.value === 'library' ? libraryView()
-        : tab.value === 'models' ? modelsView()
         : settingsView()
       return h('div', { class: 'gv-panel gv-flex gv-flex-col gv-gap-4 gv-p-4 gv-font-sans gv-text-text' }, [
         h('style', null, typeof styles === 'string' ? styles : ''),
