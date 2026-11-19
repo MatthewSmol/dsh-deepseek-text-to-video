@@ -1233,11 +1233,13 @@ const Panel = {
       const cudaCompatible = !deps.cuda.version || cudaMajor >= 13
       const buildReady = deps.build.pkgConfig && deps.build.openssl
       const candlePrereqs = cudaReady && cudaCompatible && buildReady
+      const recommendPython = !candlePrereqs
+      const recommendCandle = candlePrereqs && !candleReady
       return h(Card, { title: t('tools') }, [
         h('p', { class: 'gv-hint gv-mb-3' }, t('enginesIntro')),
         h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
           engineCard(
-            `${t('pythonEngine')} · ${t('recommended')}`,
+            `${t('pythonEngine')}${recommendPython ? ` · ${t('recommended')}` : ''}`,
             t('pythonEngineDesc'),
             pythonReady,
             pythonReady ? `torch ${deps.venv.torch} · diffusers ${deps.venv.diffusers}` : t('engineMissing'),
@@ -1246,7 +1248,7 @@ const Panel = {
               : [h('button', { type: 'button', class: 'gv-btn gv-btn-primary gv-h-8 gv-px-3', disabled: Boolean(busy.value), onClick: installPython }, t('installPython'))],
           ),
           engineCard(
-            t('candleEngine'),
+            `${t('candleEngine')}${recommendCandle ? ` · ${t('recommended')}` : ''}`,
             t('candleEngineDesc'),
             candleReady,
             candleReady ? deps.candle.path : !cudaReady ? 'CUDA: nvcc' : !cudaCompatible ? `CUDA ${deps.cuda.version}` : !buildReady ? 'pkg-config / libssl' : t('engineMissing'),
