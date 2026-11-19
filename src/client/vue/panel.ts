@@ -705,6 +705,7 @@ const Panel = {
         aspect: form.value.aspect,
         width: form.value.width,
         height: form.value.height,
+        orientation: form.value.orientation,
         fps: form.value.fps,
         targetDurationSec: form.value.targetDurationSec,
         clipSec: form.value.clipSec,
