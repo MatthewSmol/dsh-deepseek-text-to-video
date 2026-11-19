@@ -109,3 +109,21 @@ test('parseProbe reads streams and durations', () => {
   assert.ok(Math.abs(info.fps - 23.976) < 0.01)
   assert.equal(parseFps('30'), 30)
 })
+
+
+test('H.265 selects libx265/hevc encoders and tags hvc1', () => {
+  const cpu = normalizeTranscode({ mode: 'quality', format: 'mp4', codec: 'h265' }, 5)
+  assert.equal(cpu.codec, 'h265')
+  const args = qualityArgs(cpu)
+  assert.ok(args.includes('libx265'))
+  assert.ok(args.includes('hvc1'))
+
+  const nvenc = normalizeTranscode({ mode: 'quality', format: 'mp4', codec: 'h265', encoder: 'nvenc' }, 5)
+  assert.ok(qualityArgs(nvenc).includes('hevc_nvenc'))
+
+  const vulkan = normalizeTranscode({ mode: 'quality', format: 'mp4', codec: 'h265', encoder: 'vulkan' }, 5)
+  assert.ok(qualityArgs(vulkan).includes('hevc_vulkan'))
+
+  const webm = normalizeTranscode({ mode: 'quality', format: 'webm', codec: 'h265' }, 5)
+  assert.ok(qualityArgs(webm).includes('libvpx-vp9'))
+})

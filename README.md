@@ -44,7 +44,7 @@ The service publishes `{port, token, pid}` to `$DSH_HOME/genvideo/endpoint.json`
 - **Formats**: MP4 (H.264/AAC), WebM (VP9/Opus), GIF.
 - **Long videos**: segment plan, continuity via the previous clip's last frame (i2v), ffmpeg concatenation; merge any finished clips from the Library.
 - **Detailed progress**: phase, diffusion step, segment x/y, ETA, transcode pass 1/2, log tail, cancel.
-- **Transcode encoders**: CPU/libx264 (default), NVIDIA NVENC, Vulkan Video, with an automatic libx264 retry when the hardware encoder is unavailable.
+- **Transcode encoders**: H.264 or H.265/HEVC in MP4 via CPU (libx264/libx265), NVIDIA NVENC or Vulkan Video, with an automatic CPU retry when the hardware encoder is unavailable.
 - **Custom Candle args**: extra argv (for example `--device vulkan`) for a self-built Vulkan candle-video; the shipped LTX example is CUDA/cuDNN-only.
 - **Model management**: sizes, install state, download with resume and progress, update detection, newer-version suggestions, custom model form.
 - **Bilingual UI** (English/Russian) and a scoped CSS design system that respects the host light/dark theme.
@@ -220,7 +220,7 @@ MCP-сервис (один процесс, одно состояние)
 - **Подробный прогресс**: фаза, шаг диффузии, сегмент x/y, ETA, проходы транскода, хвост лога, отмена.
 - **Модели**: размеры, статус установки, загрузка с докачкой и прогрессом, проверка обновлений, подсказка более новой версии, форма своей модели.
 - **Два языка** (EN/RU) и собственный CSS-дизайн на токенах темы, учитывающий светлую/тёмную тему DSH.
-- **Энкодеры транскода**: CPU/libx264 (по умолчанию), NVIDIA NVENC, Vulkan Video; при недоступном аппаратном энкодере автоматически повторяется на libx264.
+- **Энкодеры транскода**: H.264 или H.265/HEVC в MP4 через CPU (libx264/libx265), NVIDIA NVENC или Vulkan Video; при недоступном аппаратном энкодере автоматически повторяется на CPU.
 - **Свои аргументы Candle**: дополнительные argv (например, `--device vulkan`) для собственной Vulkan-сборки candle-video; официальный пример LTX — только CUDA/cuDNN.
 - **MCP-инструменты для агента** — тот же движок, что и у панели.
 

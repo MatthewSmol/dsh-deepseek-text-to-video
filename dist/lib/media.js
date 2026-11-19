@@ -26,11 +26,18 @@ const VULKAN_BITRATES = {
 };
 /** RU: Какой кодек использовать для формата и энкодера.
  *  EN: Which codec to use for a format and encoder. */
-export function videoCodecFor(format, encoder) {
+export function videoCodecFor(format, encoder, codec = 'h264') {
     if (format === 'webm')
         return { codec: 'libvpx-vp9', hardware: false };
     if (format === 'gif')
         return { codec: 'libx264', hardware: false };
+    if (codec === 'h265') {
+        if (encoder === 'vulkan')
+            return { codec: 'hevc_vulkan', hardware: true };
+        if (encoder === 'nvenc')
+            return { codec: 'hevc_nvenc', hardware: true };
+        return { codec: 'libx265', hardware: false };
+    }
     if (encoder === 'vulkan')
         return { codec: 'h264_vulkan', hardware: true };
     if (encoder === 'nvenc')
@@ -126,6 +133,7 @@ export function normalizeTranscode(raw, durationSec) {
     const fps = Math.max(0, Math.round(Number(source.fps) || 0));
     const fit = source.fit === 'cover' ? 'cover' : 'contain';
     const encoder = source.encoder === 'vulkan' || source.encoder === 'nvenc' ? source.encoder : source.encoder === 'cpu' ? 'cpu' : 'auto';
+    const codec = source.codec === 'h265' ? 'h265' : 'h264';
     if ((width > 0) !== (height > 0)) {
         throw new GenVideoError('bad-resolution', 'Width and height must be set together, or both left empty');
     }
@@ -140,7 +148,7 @@ export function normalizeTranscode(raw, durationSec) {
         }
         videoKbps = bitrateForSize(targetSizeMB, durationSec, audioKbps);
     }
-    return { mode, quality, targetSizeMB, format, width, height, fps, fit, encoder, videoKbps };
+    return { mode, quality, targetSizeMB, format, width, height, fps, fit, codec, encoder, videoKbps };
 }
 /** RU: Видео-фильтры масштабирования и частоты кадров.
  *  EN: Scale/pad/crop and frame-rate video filters. */
@@ -171,12 +179,50 @@ export function qualityArgs(options) {
     if (options.format === 'webm') {
         return [...vf, '-c:v', 'libvpx-vp9', '-crf', '32', '-b:v', '0', '-row-mt', '1', '-c:a', 'libopus', '-b:a', '96k'];
     }
-    const { codec, hardware } = videoCodecFor(options.format, options.encoder);
+    const { codec, hardware } = videoCodecFor(options.format, options.encoder, options.codec);
     // RU: Аппаратные энкодеры требуют yuv420p; добавляем format в цепочку фильтров.
     // EN: Hardware encoders require yuv420p; append format to the filter chain.
     const hwFilters = hardware ? [...filters, 'format=yuv420p'] : filters;
     const hwVf = hwFilters.length ? ['-vf', hwFilters.join(',')] : [];
     const preset = QUALITY_PRESETS[options.quality];
+    // RU: Apple/Safari ожидают hvc1 для HEVC в MP4. EN: Apple/Safari expect hvc1 for HEVC in MP4.
+    const tag = options.codec === 'h265' ? ['-tag:v', 'hvc1'] : [];
+    if (codec === 'hevc_vulkan') {
+        return [
+            ...hwVf,
+            '-c:v', 'hevc_vulkan',
+            '-b:v', VULKAN_BITRATES[options.quality],
+            '-pix_fmt', 'yuv420p',
+            ...tag,
+            '-movflags', '+faststart',
+            '-c:a', 'aac', '-b:a', '128k',
+        ];
+    }
+    if (codec === 'hevc_nvenc') {
+        return [
+            ...hwVf,
+            '-c:v', 'hevc_nvenc',
+            '-preset', 'p5',
+            '-cq', String(preset.crf),
+            '-b:v', '0',
+            '-pix_fmt', 'yuv420p',
+            ...tag,
+            '-movflags', '+faststart',
+            '-c:a', 'aac', '-b:a', '128k',
+        ];
+    }
+    if (codec === 'libx265') {
+        return [
+            ...vf,
+            '-c:v', 'libx265',
+            '-preset', preset.preset,
+            '-crf', String(preset.crf),
+            '-pix_fmt', 'yuv420p',
+            ...tag,
+            '-movflags', '+faststart',
+            '-c:a', 'aac', '-b:a', '128k',
+        ];
+    }
     if (codec === 'h264_vulkan') {
         return [
             ...hwVf,
@@ -220,8 +266,9 @@ export function sizeArgs(options, pass, passlog) {
         const base = ['-c:v', 'libvpx-vp9', '-b:v', bitrate, '-row-mt', '1', '-pass', String(pass), '-passlogfile', passlog];
         return pass === 1 ? [...vf, ...base, '-an', '-f', 'null'] : [...vf, ...base, '-c:a', 'libopus', '-b:a', '96k'];
     }
+    const hevcTag = options.codec === 'h265' ? ['-tag:v', 'hvc1'] : [];
     const base = [
-        '-c:v', 'libx264',
+        '-c:v', options.codec === 'h265' ? 'libx265' : 'libx264',
         '-preset', 'medium',
         '-b:v', bitrate,
         '-maxrate', bitrate,
@@ -229,7 +276,7 @@ export function sizeArgs(options, pass, passlog) {
         '-pass', String(pass),
         '-passlogfile', passlog,
     ];
-    return pass === 1 ? [...vf, ...base, '-an', '-f', 'null'] : [...vf, ...base, '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart'];
+    return pass === 1 ? [...vf, ...base, '-an', '-f', 'null'] : [...vf, ...base, ...hevcTag, '-c:a', 'aac', '-b:a', '128k', '-movflags', '+faststart'];
 }
 /** RU: Оценка размера результата. EN: Estimated output size. */
 export function estimateOutputBytes(options, durationSec) {

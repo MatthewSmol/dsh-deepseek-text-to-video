@@ -166,6 +166,7 @@ const TOOLS = [
                         quality: { type: 'string', enum: ['high', 'medium', 'compressed'] },
                         targetSizeMB: { type: 'number' },
                         format: { type: 'string', enum: ['mp4', 'webm', 'gif'] },
+                        codec: { type: 'string', enum: ['h264', 'h265'] },
                         encoder: { type: 'string', enum: ['auto', 'cpu', 'vulkan', 'nvenc'] },
                         width: { type: 'number' },
                         height: { type: 'number' },

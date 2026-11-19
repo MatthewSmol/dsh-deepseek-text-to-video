@@ -68,6 +68,9 @@ export type TranscodeKind = 'quality' | 'size'
 /** RU: Настройки перекодирования. EN: Transcode settings. */
 /** RU: Видео-энкодер: auto/cpu = libx264, nvenc = NVIDIA, vulkan = Vulkan Video.
  *  EN: Video encoder: auto/cpu = libx264, nvenc = NVIDIA, vulkan = Vulkan Video. */
+/** RU: Кодек MP4: H.264 или H.265 (HEVC). EN: MP4 codec: H.264 or H.265 (HEVC). */
+export type VideoCodec = 'h264' | 'h265'
+
 export type VideoEncoder = 'auto' | 'cpu' | 'vulkan' | 'nvenc'
 
 export interface TranscodeOptions {
@@ -76,8 +79,10 @@ export interface TranscodeOptions {
   quality: QualityTier
   targetSizeMB: number
   format: OutputFormat
-  /** RU: Энкодер ffmpeg; при ошибке плагин повторяет попытку на libx264.
-   *  EN: ffmpeg encoder; on failure the plugin retries with libx264. */
+  /** RU: Кодек MP4 (webm/gif игнорируют). EN: MP4 codec (webm/gif ignore it). */
+  codec: VideoCodec
+  /** RU: Энкодер ffmpeg; при ошибке плагин повторяет попытку на libx264/libx265.
+   *  EN: ffmpeg encoder; on failure the plugin retries with libx264/libx265. */
   encoder: VideoEncoder
   /** RU: Пусто = исходное разрешение. EN: Empty = source resolution. */
   width: number
