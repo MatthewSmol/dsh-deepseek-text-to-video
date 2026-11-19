@@ -762,7 +762,12 @@ const Panel = {
               ? h('ul', { class: 'gv-list-disc gv-space-y-1 gv-pl-5 gv-text-[11.5px] gv-text-warn' }, plan.value.warnings.map((warning: any, index: number) => h('li', { key: index }, warning.message)))
               : null,
           ])
-        : h('div', { class: 'gv-hint' }, t('planFailed')),
+        : h('div', { class: 'gv-flex gv-flex-col gv-gap-2' }, [
+            h('div', { class: 'gv-hint' }, planError.value || t('planFailed')),
+            modelEntry.value?.runtimes?.includes('diffusers') && !state.value.deps.venv.ok
+              ? h('button', { type: 'button', class: 'gv-btn gv-btn-primary gv-h-8 gv-px-3', disabled: Boolean(busy.value), onClick: installPython }, t('installPython'))
+              : null,
+          ]),
     ])
 
     const generateView = () => h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-4 lg:gv-grid-cols-[minmax(0,1fr)_320px]' }, [

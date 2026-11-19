@@ -290,8 +290,13 @@ export class Engine {
             throw new GenVideoError('prompt-too-long', 'The prompt is longer than 8000 characters');
         const { model, variant, runner } = await this.resolveModel(request);
         if (!runner) {
-            throw new GenVideoError('no-runner', `No runner is available for ${model.title}. Enable Mock or install the toolchain.`, {
-                details: { runtimes: model.runtimes },
+            const deps = await this.deps();
+            const needsPython = model.runtimes.includes('diffusers') && !deps.venv.ok;
+            const message = needsPython
+                ? `${model.title} needs the Python engine (diffusers + torch). Open Settings → Tools and press "Install Python engine", or enable Mock.`
+                : `No runner is available for ${model.title}. Enable Mock or install the required toolchain.`;
+            throw new GenVideoError('no-runner', message, {
+                details: { runtimes: model.runtimes, action: needsPython ? 'install-python' : null },
             });
         }
         if (!runner.availability.available) {
