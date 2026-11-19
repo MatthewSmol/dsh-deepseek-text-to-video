@@ -821,7 +821,7 @@ export class Engine {
     async installCandleEngine() {
         const job = this.jobs.create('install', { target: 'candle' });
         this.jobs.start(job, async (ctx) => {
-            const { runStreaming, firstWorking } = await import('./proc.js');
+            const { runStreaming, firstWorking, runCommand } = await import('./proc.js');
             ctx.phase('checking', 'Checking the CUDA toolkit');
             const nvcc = findNvcc();
             if (!nvcc) {
@@ -871,12 +871,29 @@ export class Engine {
             //     accept an unsupported compiler as a fallback.
             const gcc13 = existsSync('/usr/bin/gcc-13') ? '/usr/bin/gcc-13' : '';
             const gxx13 = existsSync('/usr/bin/g++-13') ? '/usr/bin/g++-13' : '';
+            // RU: cudarc 0.19.10 знает CUDA только до 13.4; для 13.5 сообщаем ему
+            //     13.4, библиотеки всё равно берутся из CUDA_HOME (13.5).
+            // EN: cudarc 0.19.10 only knows CUDA up to 13.4; tell it 13.4 for 13.5,
+            //     while libraries still come from CUDA_HOME (13.5).
+            const nvccInfo = await runCommand(nvcc, ['--version'], { timeoutMs: 5000 }).catch(() => null);
+            const versionMatch = nvccInfo ? /release\s+(\d+)\.(\d+)/i.exec(`${nvccInfo.stdout}\n${nvccInfo.stderr}`) : null;
+            let cudarcVersion = '';
+            if (versionMatch) {
+                let major = Number(versionMatch[1]);
+                let minor = Number(versionMatch[2]);
+                if (major > 13 || (major === 13 && minor > 4)) {
+                    major = 13;
+                    minor = 4;
+                }
+                cudarcVersion = `${major}0${minor}0`;
+            }
             const nvccFlags = [process.env.NVCC_PREPEND_FLAGS, '-allow-unsupported-compiler'].filter(Boolean).join(' ');
             const env = {
                 PATH: `${join(cudaHome, 'bin')}:${dirname(nvcc)}:${process.env.PATH ?? ''}`,
                 CUDA_HOME: cudaHome,
                 CUDA_PATH: cudaHome,
                 NVCC_PREPEND_FLAGS: nvccFlags,
+                ...(cudarcVersion ? { CUDARC_CUDA_VERSION: cudarcVersion } : {}),
                 ...(gcc13 ? { CC: gcc13 } : {}),
                 ...(gxx13 ? { CXX: gxx13, NVCC_CCBIN: gxx13 } : {}),
             };

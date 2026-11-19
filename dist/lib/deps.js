@@ -64,8 +64,8 @@ export function findNvcc() {
     const candidates = [
         process.env.CUDA_HOME ? join(process.env.CUDA_HOME, 'bin', 'nvcc') : '',
         process.env.CUDA_PATH ? join(process.env.CUDA_PATH, 'bin', 'nvcc') : '',
-        '/usr/local/cuda/bin/nvcc',
         ...runfile,
+        '/usr/local/cuda/bin/nvcc',
         '/usr/bin/nvcc',
         '/usr/local/bin/nvcc',
         ...(process.env.PATH || '').split(delimiter).filter(Boolean).map((dir) => join(dir, 'nvcc')),

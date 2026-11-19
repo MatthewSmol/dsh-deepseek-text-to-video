@@ -48,6 +48,7 @@ The service publishes `{port, token, pid}` to `$DSH_HOME/genvideo/endpoint.json`
 - **Custom Candle args**: extra argv (for example `--device vulkan`) for a self-built Vulkan candle-video; the shipped LTX example is CUDA/cuDNN-only.
 - **Models → Explore HF**: 60 popular text-to-video repositories, estimated VRAM (parameters/quantisation), 10 per page sorted by VRAM, target 8/16/24 GB fit badges and VBench/model-card links.
 - **SOCKS proxy checkbox**: Hugging Face downloads and update checks can go through a local SOCKS5/SOCKS5h proxy (uses system `curl`).
+- **Candle builds on CUDA 13.x**: cudarc 0.19.10 knows CUDA up to 13.4, so the build tells it 13.4 while linking the installed 13.5 libraries.
 - **One-click Candle engine**: installs rustup, clones candle-video and runs `cargo build --release --example ltx-video --features cuda`; requires the CUDA toolkit (`nvcc`) once, installed with sudo.
 - **Model management**: sizes, install state, download with resume and progress, update detection, newer-version suggestions, custom model form.
 - **Bilingual UI** (English/Russian) and a scoped CSS design system that respects the host light/dark theme.
@@ -227,6 +228,7 @@ MCP-сервис (один процесс, одно состояние)
 - **Свои аргументы Candle**: дополнительные argv (например, `--device vulkan`) для собственной Vulkan-сборки candle-video; официальный пример LTX — только CUDA/cuDNN.
 - **Models → Обзор HF**: 60 популярных text-to-video репозиториев, оценка VRAM (параметры/квантование), по 10 на страницу с сортировкой по VRAM, метки 8/16/24 ГБ и ссылки на VBench/карточку модели.
 - **Галочка SOCKS-прокси**: загрузки и проверки обновлений Hugging Face могут идти через локальный SOCKS5/SOCKS5h-прокси (используется системный `curl`).
+- **Candle на CUDA 13.x**: cudarc 0.19.10 знает CUDA до 13.4, поэтому сборка сообщает ему 13.4, а линкуется с установленной 13.5.
 - **Сборка Candle в один клик**: ставит rustup, клонирует candle-video и запускает `cargo build --release --example ltx-video --features cuda`; нужен CUDA toolkit (`nvcc`), устанавливаемый один раз через sudo.
 - **MCP-инструменты для агента** — тот же движок, что и у панели.
 
