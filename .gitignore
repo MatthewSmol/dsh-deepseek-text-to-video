@@ -12,3 +12,4 @@ dist/test/
 dist/vite-client/
 dist/client.meta.json
 .npm-cache/
+AGENTS.md
