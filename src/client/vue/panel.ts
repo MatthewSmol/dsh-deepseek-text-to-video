@@ -49,6 +49,7 @@ const en: Record<string, string> = {
   pythonEngine: 'Python engine (diffusers)', pythonEngineDesc: 'Diffusers models, including LTX-Video 0.9.8 2B and image-to-video. About 5 GB, no root.',
   candleEngine: 'Candle (Rust + CUDA)', candleEngineDesc: 'Faster on NVIDIA. Needs the CUDA toolkit (nvcc); the build takes 10–20 minutes.',
   cudaRequired: 'Install the CUDA toolkit first in Ubuntu:', cudaReady: 'CUDA toolkit found',
+  cudaOld: 'CUDA is too old for this glibc. Install CUDA 13.x:', cudaToolkitUpgrade: 'sudo apt-get install -y cuda-toolkit-13-5',
   buildDepsRequired: 'Install build dependencies first in Ubuntu:', buildDepsReady: 'Build dependencies found',
   comfyEngine: 'ComfyUI', comfyEngineDesc: 'External server; the plugin auto-probes 127.0.0.1:8188, 8189 and 8000.',
   comfyCheck: 'Check again', mockEngine: 'Mock', mockEngineDesc: 'Synthetic video without a GPU, useful to test the pipeline.',
@@ -114,6 +115,7 @@ const ru: Record<string, string> = {
   pythonEngine: 'Python-движок (diffusers)', pythonEngineDesc: 'Модели diffusers, включая LTX-Video 0.9.8 2B и image-to-video. Около 5 ГБ, без sudo.',
   candleEngine: 'Candle (Rust + CUDA)', candleEngineDesc: 'Быстрее на NVIDIA. Нужен CUDA toolkit (nvcc); сборка 10–20 минут.',
   cudaRequired: 'Сначала установите CUDA toolkit в Ubuntu:', cudaReady: 'CUDA toolkit найден',
+  cudaOld: 'CUDA слишком старая для этой glibc. Установите CUDA 13.x:', cudaToolkitUpgrade: 'sudo apt-get install -y cuda-toolkit-13-5',
   buildDepsRequired: 'Сначала установите зависимости сборки в Ubuntu:', buildDepsReady: 'Зависимости сборки найдены',
   comfyEngine: 'ComfyUI', comfyEngineDesc: 'Внешний сервер; плагин сам ищет 127.0.0.1:8188, 8189 и 8000.',
   comfyCheck: 'Проверить снова', mockEngine: 'Mock', mockEngineDesc: 'Синтетическое видео без GPU — для проверки пайплайна.',
@@ -1227,8 +1229,10 @@ const Panel = {
       const candleReady = deps.candle.ok
       const comfyReady = deps.comfyui.ok
       const cudaReady = deps.cuda.nvcc
+      const cudaMajor = Number((deps.cuda.version ?? '').split('.')[0] || 0)
+      const cudaCompatible = !deps.cuda.version || cudaMajor >= 13
       const buildReady = deps.build.pkgConfig && deps.build.openssl
-      const candlePrereqs = cudaReady && buildReady
+      const candlePrereqs = cudaReady && cudaCompatible && buildReady
       return h(Card, { title: t('tools') }, [
         h('p', { class: 'gv-hint gv-mb-3' }, t('enginesIntro')),
         h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
@@ -1245,7 +1249,7 @@ const Panel = {
             t('candleEngine'),
             t('candleEngineDesc'),
             candleReady,
-            candleReady ? deps.candle.path : !cudaReady ? 'CUDA: nvcc' : !buildReady ? 'pkg-config / libssl' : t('engineMissing'),
+            candleReady ? deps.candle.path : !cudaReady ? 'CUDA: nvcc' : !cudaCompatible ? `CUDA ${deps.cuda.version}` : !buildReady ? 'pkg-config / libssl' : t('engineMissing'),
             [
               candleReady
                 ? null
@@ -1261,12 +1265,17 @@ const Panel = {
                   h('div', { class: 'gv-text-[11.5px] gv-text-warn' }, t('cudaRequired')),
                   h('code', { class: 'gv-w-fit gv-rounded gv-bg-surface-3 gv-px-2 gv-py-1 gv-text-[10.5px] gv-text-text' }, 'sudo apt-get install -y nvidia-cuda-toolkit'),
                 ])
-              : !buildReady
+              : !cudaCompatible
                 ? h('div', { class: 'gv-flex gv-flex-col gv-gap-1' }, [
-                    h('div', { class: 'gv-text-[11.5px] gv-text-warn' }, t('buildDepsRequired')),
-                    h('code', { class: 'gv-w-fit gv-rounded gv-bg-surface-3 gv-px-2 gv-py-1 gv-text-[10.5px] gv-text-text' }, 'sudo apt-get install -y pkg-config libssl-dev'),
+                    h('div', { class: 'gv-text-[11.5px] gv-text-warn' }, `${t('cudaOld')} CUDA ${deps.cuda.version}`),
+                    h('code', { class: 'gv-w-fit gv-rounded gv-bg-surface-3 gv-px-2 gv-py-1 gv-text-[10.5px] gv-text-text' }, t('cudaToolkitUpgrade')),
                   ])
-                : h('div', { class: 'gv-hint' }, `${t('cudaReady')} · ${t('buildDepsReady')}`),
+                : !buildReady
+                  ? h('div', { class: 'gv-flex gv-flex-col gv-gap-1' }, [
+                      h('div', { class: 'gv-text-[11.5px] gv-text-warn' }, t('buildDepsRequired')),
+                      h('code', { class: 'gv-w-fit gv-rounded gv-bg-surface-3 gv-px-2 gv-py-1 gv-text-[10.5px] gv-text-text' }, 'sudo apt-get install -y pkg-config libssl-dev'),
+                    ])
+                  : h('div', { class: 'gv-hint' }, `${t('cudaReady')} · ${t('buildDepsReady')}`),
           ),
           engineCard(
             t('comfyEngine'),

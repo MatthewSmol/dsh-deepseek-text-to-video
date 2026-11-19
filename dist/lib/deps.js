@@ -188,6 +188,12 @@ export async function detectDeps(settings) {
     }
     const candlePath = findCandleBinary(settings.deps.candleBinary);
     const nvccPath = findNvcc();
+    let cudaVersion = null;
+    if (nvccPath) {
+        const nvccInfo = await runCommand(nvccPath, ['--version'], { timeoutMs: 5000 }).catch(() => null);
+        const match = nvccInfo ? /release\s+(\d+\.\d+)/i.exec(`${nvccInfo.stdout}\n${nvccInfo.stderr}`) : null;
+        cudaVersion = match?.[1] ?? null;
+    }
     const buildTools = buildToolsStatus();
     const cargo = await firstWorking(['cargo'], ['--version']);
     const comfy = await detectComfyUi(settings.deps.comfyuiUrl);
@@ -198,7 +204,7 @@ export async function detectDeps(settings) {
         python: { ok: Boolean(python), path: python?.path ?? '', version: python?.version ?? null },
         venv,
         cargo: { ok: Boolean(cargo), path: 'cargo', version: cargo?.version ?? null },
-        cuda: { nvcc: Boolean(nvccPath), path: nvccPath ?? '' },
+        cuda: { nvcc: Boolean(nvccPath), path: nvccPath ?? '', version: cudaVersion },
         build: buildTools,
         candle: { ok: Boolean(candlePath), path: candlePath ?? '' },
         comfyui: comfy,

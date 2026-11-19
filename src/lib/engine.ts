@@ -944,10 +944,20 @@ export class Engine {
       const cudaHome = nvcc.startsWith('/usr/bin/')
         ? (existsSync('/usr/local/cuda') ? '/usr/local/cuda' : '/usr')
         : dirname(dirname(nvcc))
+      // RU: CUDA 12.x не поддерживает GCC 14/15; берём gcc-13, если он есть,
+      //     и разрешаем nvcc работать с неподдерживаемым компилятором как fallback.
+      // EN: CUDA 12.x rejects GCC 14/15; use gcc-13 when available and let nvcc
+      //     accept an unsupported compiler as a fallback.
+      const gcc13 = existsSync('/usr/bin/gcc-13') ? '/usr/bin/gcc-13' : ''
+      const gxx13 = existsSync('/usr/bin/g++-13') ? '/usr/bin/g++-13' : ''
+      const nvccFlags = [process.env.NVCC_PREPEND_FLAGS, '-allow-unsupported-compiler'].filter(Boolean).join(' ')
       const env = {
         PATH: `${join(cudaHome, 'bin')}:${dirname(nvcc)}:${process.env.PATH ?? ''}`,
         CUDA_HOME: cudaHome,
         CUDA_PATH: cudaHome,
+        NVCC_PREPEND_FLAGS: nvccFlags,
+        ...(gcc13 ? { CC: gcc13 } : {}),
+        ...(gxx13 ? { CXX: gxx13, NVCC_CCBIN: gxx13 } : {}),
       }
       const build = await runStreaming(
         cargo.path,
@@ -955,7 +965,13 @@ export class Engine {
         { cwd: repoDir, signal: ctx.signal, env, onLine: (line) => ctx.log(line) },
       )
       if (build.code !== 0) {
-        throw new GenVideoError('candle-build-failed', build.stderrTail.trim().split('\n').slice(-5).join(' ') || 'cargo build failed', { status: 500 })
+        const tail = build.stderrTail.trim().split('\n').slice(-5).join(' ') || 'cargo build failed'
+        const hint = /unsupported GNU version|unsupported host compiler/i.test(build.stderrTail)
+          ? ' Install gcc-13/g++-13 once: sudo apt-get install -y gcc-13 g++-13, then retry.'
+          : /exception specification is incompatible/i.test(build.stderrTail)
+            ? ' CUDA 12.6 is incompatible with glibc 2.43. Install CUDA 13.x once: sudo apt-get install -y cuda-toolkit-13-5, then press Build again.'
+            : ''
+        throw new GenVideoError('candle-build-failed', `${tail}${hint}`, { status: 500 })
       }
 
       ctx.phase('verifying', 'Checking the built binary')

@@ -27,7 +27,7 @@ function fixtureState() {
       python: { ok: true, path: 'python3', version: '3.14' },
       venv: { ok: false, path: '/tmp/venv', torch: null, diffusers: null, cuda: false },
       cargo: { ok: false, path: 'cargo', version: null },
-      cuda: { nvcc: false, path: '' },
+      cuda: { nvcc: false, path: '', version: null },
       build: { pkgConfig: false, openssl: false },
       candle: { ok: false, path: '' },
       comfyui: { ok: false, url: '', error: 'not configured' },
