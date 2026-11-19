@@ -6,7 +6,7 @@
 
 ## English
 
-GenVideo is a DeepSeek Harness plugin that drives a local **ComfyUI** server. It adds a left-sidebar Vue 3 panel and native `genvideo_*` tools for the agent. Models and text encoders live inside ComfyUI; the plugin does not download or manage them.
+GenVideo is a DeepSeek Harness plugin that drives a local **ComfyUI** server. It adds a left-sidebar Vue 3 panel and native `genvideo_*` tools, including `genvideo_upload` for importing a local image/video by path for the agent. Models and text encoders live inside ComfyUI; the plugin does not download or manage them.
 
 The design target was an **NVIDIA RTX 3060 Ti with 8 GB VRAM**. A full LTX/Wan pipeline does not fit into 8 GB, so **ComfyUI was chosen as the backend**: it loads quantized **GGUF** diffusion models and text encoders (Q4/Q5) and can offload components, which makes a 5B-class model usable on this card.
 
@@ -18,7 +18,7 @@ Vue 3 panel ── /genvideo/api ──┐
 Agent ── native genvideo_* tools┘
 ```
 
-The engine runs in-process inside the Host plugin. The panel is served over `/genvideo`, and the agent uses native DSH `genvideo_*` tools.
+The engine runs in-process inside the Host plugin. The panel is served over `/genvideo`, and the agent uses native DSH `genvideo_*` tools, including `genvideo_upload` for importing a local image/video by path.
 
 ### Tabs
 

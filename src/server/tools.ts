@@ -4,6 +4,8 @@
  * EN: GenVideo native DSH tools. They use the same engine as the panel and do
  *     not need an MCP server. ComfyUI is the only backend.
  */
+import { readFile, stat } from 'node:fs/promises'
+import { basename, extname } from 'node:path'
 import type { JobRecord } from '../lib/types.js'
 
 type JsonSchema = Record<string, unknown>
@@ -53,6 +55,28 @@ const promptProps = {
 /** RU: Регистрирует инструменты; возвращает функцию очистки. EN: Registers tools; returns a disposer. */
 export function registerGenvideoTools(ctx: any, engine: any): () => void {
   const definitions = [
+    tool('genvideo_upload', 'Copy a local image or video into the GenVideo input store and return its inputId. Use this instead of copying files into ~/.dsh/genvideo or the ComfyUI input folder.', {
+      type: 'object',
+      properties: {
+        path: { type: 'string', description: 'Absolute path to an image or video on this machine.' },
+        name: { type: 'string', description: 'Optional stored filename.' },
+      },
+      required: ['path'], additionalProperties: false,
+    }, async (args) => {
+      const path = String(args.path ?? '')
+      const info = await stat(path).catch(() => null)
+      if (!info?.isFile()) throw new Error(`File not found: ${path}`)
+      if (info.size > 200 * 1024 * 1024) throw new Error('Input is larger than 200 MB')
+      const ext = extname(path).toLowerCase()
+      const mime = ['.jpg', '.jpeg'].includes(ext) ? 'image/jpeg'
+        : ext === '.png' ? 'image/png'
+          : ext === '.webp' ? 'image/webp'
+            : ['.mp4', '.webm', '.mov', '.mkv'].includes(ext) ? (ext === '.webm' ? 'video/webm' : 'video/mp4')
+              : 'application/octet-stream'
+      const data = await readFile(path)
+      const name = String(args.name ?? basename(path)).slice(0, 200)
+      return await engine.saveInput({ data, name, mime })
+    }),
     tool('genvideo_status', 'ComfyUI/ffmpeg/jobs status of GenVideo.', { type: 'object', properties: {}, additionalProperties: false },
       async () => await engine.status()),
     tool('genvideo_plan', 'Plan segment split for a prompt. Returns the clip count N, promptProfile and required facets. For N>1 write exactly N detailed segmentPrompts (subject, setting, light, camera, action, continuity) and pass them to genvideo_generate.', {
