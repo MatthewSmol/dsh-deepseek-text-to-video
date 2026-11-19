@@ -826,7 +826,7 @@ const Panel = {
       if (pollTimer) clearInterval(pollTimer)
     })
 
-    const header = () => h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-3' }, [
+    const header = () => h('div', { class: 'gv-header gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-3' }, [
       h('div', { class: 'gv-flex gv-items-center gv-gap-3' }, [
         h('div', { class: 'gv-flex gv-h-9 gv-w-9 gv-items-center gv-justify-center gv-rounded-xl gv-bg-surface-2 gv-text-brand' }, [h(Icon, { size: 20, active: true })]),
         h('div', null, [h('h2', { class: 'gv-text-[15px] gv-font-semibold gv-text-text' }, t('title')), h('p', { class: 'gv-text-[11.5px] gv-text-muted' }, t('subtitle'))]),
@@ -928,9 +928,19 @@ const Panel = {
           ]),
     ])
 
-    const generateView = () => h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-4 lg:gv-grid-cols-[minmax(0,1fr)_320px]' }, [
+    const generateView = () => h('div', { class: 'gv-generate gv-flex gv-flex-col gv-gap-4' }, [
+      h('div', { class: 'gv-actions gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-3' }, [
+        h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-gap-2' }, [
+          h('button', { type: 'button', class: 'gv-btn gv-btn-primary gv-h-10 gv-px-4', disabled: Boolean(busy.value) || !form.value.prompt.trim(), onClick: generate }, busy.value === 'generate' ? t('generating') : t('generateButton')),
+          h('button', { type: 'button', class: 'gv-btn', disabled: Boolean(busy.value), onClick: () => void saveGenerateDefaults() }, t('saveDefaults')),
+          h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('refresh')),
+        ]),
+        plan.value
+          ? h('div', { class: 'gv-hint' }, `${plan.value.segments.length} clips · ${plan.value.segments.length > 1 ? `${plan.value.segments.length - 1}×${fmtDuration(plan.value.clipSec)} + ${fmtDuration(plan.value.segments[plan.value.segments.length - 1]?.durationSec ?? 0)}` : fmtDuration(plan.value.totalSec)} = ${fmtDuration(plan.value.totalSec)}`)
+          : null,
+      ]),
       h('div', { class: 'gv-flex gv-flex-col gv-gap-4' }, [
-        h(Card, { title: t('prompt') }, [
+        h(Card, { title: `1 · ${t('sectionScene')}` }, [
           h('textarea', {
             class: 'gv-input gv-h-28 gv-resize-y gv-py-2', placeholder: t('promptHint'), value: form.value.prompt,
             onInput: (event: any) => patch({ prompt: event.target.value }),
@@ -965,7 +975,7 @@ const Panel = {
               : null,
           ]),
         ]),
-        h(Card, { title: t('referenceInput'), hint: t('inputHint') }, [
+        h(Card, { title: `2 · ${t('sectionReferences')}`, hint: t('inputHint') }, [
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
             h(Field, { label: t('imageInput'), hint: t('inputHint') }, [
               h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
@@ -1007,7 +1017,7 @@ const Panel = {
             ]),
           ]),
         ]),
-        h(Card, { title: t('duration') }, [
+        h(Card, { title: `3 · ${t('sectionOutput')}` }, [
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-3' }, [
             h(Field, { label: t('duration'), hint: t('durationHint') }, [
               h('input', { class: 'gv-input', type: 'number', min: 1, max: 600, value: form.value.targetDurationSec, onInput: (event: any) => patch({ targetDurationSec: Number(event.target.value) || 1 }) }),
@@ -1061,7 +1071,7 @@ const Panel = {
             ? h('div', { class: 'gv-hint gv-mt-2' }, `${t('segments')}: ${plan.value.segments.length} · ${plan.value.segments.length > 1 ? `${plan.value.segments.length - 1}×${fmtDuration(plan.value.clipSec)} + ${fmtDuration(plan.value.segments[plan.value.segments.length - 1]?.durationSec ?? 0)}` : fmtDuration(plan.value.totalSec)} = ${fmtDuration(plan.value.totalSec)}`)
             : null,
         ]),
-        h(Card, { title: t('transcode'), hint: t('transcodeHint') }, [
+        h(Card, { title: `4 · ${t('sectionEncoding')}`, hint: t('transcodeHint') }, [
           h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
             h(Segmented, {
               value: form.value.transcode.enabled ? form.value.transcode.mode : 'off',
@@ -1116,11 +1126,6 @@ const Panel = {
                 ])
               : null,
           ]),
-        ]),
-        h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
-          h('button', { type: 'button', class: 'gv-btn gv-btn-primary gv-h-10 gv-px-4', disabled: Boolean(busy.value) || !form.value.prompt.trim(), onClick: generate }, busy.value === 'generate' ? t('generating') : t('generateButton')),
-          h('button', { type: 'button', class: 'gv-btn', disabled: Boolean(busy.value), onClick: () => void saveGenerateDefaults() }, t('saveDefaults')),
-          h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('refresh')),
         ]),
       ]),
     ])
@@ -1566,7 +1571,7 @@ const Panel = {
         error.value ? h('div', { class: 'gv-rounded-lg gv-border gv-border-danger-soft gv-bg-danger-soft gv-px-3 gv-py-2 gv-text-[12px] gv-text-danger' }, error.value) : null,
         notice.value ? h('div', { class: 'gv-rounded-lg gv-border gv-border-ok-soft gv-bg-ok-soft gv-px-3 gv-py-2 gv-text-[12px] gv-text-ok' }, notice.value) : null,
         !state.value.deps.ffmpeg.ok ? h('div', { class: 'gv-rounded-lg gv-border gv-border-warn-soft gv-bg-warn-soft gv-px-3 gv-py-2 gv-text-[12px] gv-text-warn' }, t('ffmpegMissing')) : null,
-        props.surface === 'settings' ? null : h('div', { class: 'gv-flex gv-gap-1 gv-border-b gv-border-line' },
+        props.surface === 'settings' ? null : h('div', { class: 'gv-tabs gv-flex gv-gap-1' },
           tabs.map(([value, label]) =>
             h('button', {
               key: value, type: 'button',
@@ -1574,7 +1579,7 @@ const Panel = {
                 tab.value = value
                 if (value === 'gallery') void refreshLibrary()
               },
-              class: `gv-relative gv-px-3 gv-py-2 gv-text-[12.5px] gv-font-medium gv-transition-colors ${tab.value === value ? 'gv-text-text' : 'gv-text-muted hover:gv-text-text'}`,
+              class: `gv-tab gv-relative gv-px-3 gv-py-2 gv-text-[12.5px] gv-font-medium gv-transition-colors ${tab.value === value ? 'gv-tab-active gv-text-text' : 'gv-text-muted'}`,
             }, [label, tab.value === value ? h('span', { class: 'gv-absolute gv-inset-x-2 gv-bottom-0 gv-h-0.5 gv-rounded-t gv-bg-brand' }) : null]))),
         props.surface === 'settings' ? settingsView() : content,
       ])
