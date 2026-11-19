@@ -80,7 +80,7 @@ const en: Record<string, string> = {
   saveDefaults: 'Save settings', uploading: 'Uploading…', planFailed: 'Could not build the plan', qualityMode: 'Quality tiers', sizeMode: 'Size limit',
   mcpTools: 'Tools', version: 'Version', settingsHint: 'Stored in DSH_HOME/genvideo/settings.json.',
   outputHint: 'Default: <project>/Videos', modelsHint: 'Default: <project>/models', seedHint: '-1 = random',
-  stepsHint: '0 = model default', negativeHint: 'What to avoid in the shot', inputHint: 'The model must support this input.',
+  stepsHint: '0 = model default', negativeHint: 'What to avoid in the shot', inputHint: 'The model must support this input.', sectionScene: 'Enter prompt', sectionReferences: 'Source', sectionOutput: 'Output', sectionEncoding: 'Encoding', sourceHint: 'The base to start from: a reference image or video.',
   jobsHint: 'Live progress comes from the local GenVideo engine via SSE.', stageSample: 'Sample', stageUpscale: 'Upscale', stageMerge: 'Merge', stageEncode: 'Encode', stageReady: 'Ready', currentStep: 'Current step', clip: 'clip', libraryHint: 'Finished videos from the Videos folder.',
   gpuSelect: 'GPUs to use', budgetHint: '0 = no limit; compare with the GPU total above.',
   ffmpegMissing: 'ffmpeg is missing: generation and merging are unavailable.',
@@ -154,7 +154,7 @@ const ru: Record<string, string> = {
   saveDefaults: 'Сохранить настройки', uploading: 'Загрузка…', planFailed: 'Не удалось построить план', qualityMode: 'Уровни качества', sizeMode: 'Лимит размера',
   mcpTools: 'Инструменты', version: 'Версия', settingsHint: 'Хранится в DSH_HOME/genvideo/settings.json.',
   outputHint: 'По умолчанию: <проект>/Videos', modelsHint: 'По умолчанию: <проект>/models', seedHint: '-1 = случайный',
-  stepsHint: '0 = по умолчанию модели', negativeHint: 'Чего избегать в кадре', inputHint: 'Модель должна поддерживать этот вход.',
+  stepsHint: '0 = по умолчанию модели', negativeHint: 'Чего избегать в кадре', inputHint: 'Модель должна поддерживать этот вход.', sectionScene: 'Введите промпт', sectionReferences: 'Исходник', sectionOutput: 'Выход', sectionEncoding: 'Кодирование', sourceHint: 'База, от чего отталкиваться: референс-картинка или видео.',
   jobsHint: 'Прогресс приходит от локального движка GenVideo по SSE.', stageSample: 'Сэмплинг', stageUpscale: 'Апскейл', stageMerge: 'Склейка', stageEncode: 'Кодирование', stageReady: 'Готово', currentStep: 'Текущий шаг', clip: 'клип', libraryHint: 'Готовые ролики из папки Videos.',
   gpuSelect: 'Используемые GPU', budgetHint: '0 = без лимита; сравнивайте с объёмом GPU выше.',
   ffmpegMissing: 'ffmpeg не найден: генерация и склейка недоступны.',
@@ -1013,7 +1013,7 @@ const Panel = {
             ]),
           ]),
         ]),
-        h(Card, { title: `2 · ${t('sectionReferences')}`, hint: t('inputHint') }, [
+        h(Card, { title: `2 · ${t('sectionReferences')}`, hint: t('sourceHint') }, [
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
             h(Field, { label: t('imageInput'), hint: t('inputHint') }, [
               h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
