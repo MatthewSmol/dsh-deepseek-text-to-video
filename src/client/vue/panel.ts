@@ -380,6 +380,7 @@ const Panel = {
     const planError = ref('')
     const liveJobs = ref<Record<string, any>>({})
     const library = ref<any[]>([])
+    const workflows = ref<any[]>([])
     const models = ref<any[]>([])
     const selected = ref<string[]>([])
     const busy = ref('')
@@ -435,6 +436,7 @@ const Panel = {
         const next = await api('/state')
         state.value = next
         models.value = next.models
+        void refreshWorkflows()
         if (!settingsDraft.value) settingsDraft.value = next.settings
         if (!formHydrated) {
           form.value = { ...emptyForm(next.settings), prompt: form.value.prompt, segmentPrompts: form.value.segmentPrompts }
@@ -475,6 +477,10 @@ const Panel = {
       if (!candidates.length || candidates.some((entry: any) => entry.available !== false)) return ''
       return candidates.map((entry: any) => `${entry.id}: ${entry.reason ?? t('unavailable')}`).join(' · ')
     })
+
+    async function refreshWorkflows() {
+      try { workflows.value = await api('/workflow') } catch { /* optional */ }
+    }
 
     async function refreshLibrary() {
       try {
@@ -788,6 +794,7 @@ const Panel = {
     onMounted(() => {
       void refresh()
       void refreshLibrary()
+      void refreshWorkflows()
       try {
         source.value = new EventSource('/genvideo/api/events')
         source.value.onmessage = (event: MessageEvent) => {
@@ -1537,6 +1544,24 @@ const Panel = {
             h(Row, { label: t('ffprobe') }, [
               h(Badge, { tone: deps.ffprobe.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.ffprobe.ok ? deps.ffprobe.path : t('unavailable')),
             ]),
+          ]),
+          h('div', { class: 'gv-mt-4' }, [
+            h('div', { class: 'gv-group-title gv-mb-1' }, t('workflowInfo')),
+            ...workflows.value.map((wf: any) => h('div', { key: wf.name, class: 'gv-rounded-lg gv-border gv-border-line gv-bg-surface-2 gv-p-2 gv-mt-1' }, [
+              h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
+                h('span', { class: 'gv-text-[12px] gv-font-semibold gv-text-text' }, wf.name.toUpperCase()),
+                h(Badge, { tone: wf.valid ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, wf.valid ? 'valid' : wf.exists ? 'invalid' : 'missing'),
+              ]),
+              h('div', { class: 'gv-hint gv-truncate', title: wf.path }, wf.path),
+              wf.valid
+                ? h('div', { class: 'gv-mt-1 gv-flex gv-flex-col gv-gap-0.5 gv-text-[11.5px]' }, [
+                    h('div', null, `${t('model')}: ${wf.model ?? '—'}`),
+                    h('div', null, `${t('textEncoder')}: ${wf.encoder ?? '—'}`),
+                    h('div', null, `VAE: ${wf.vae ?? '—'}`),
+                    h('div', null, `${t('upscaling')}: ${wf.upscalers?.length ? wf.upscalers.join(', ') : '—'}`),
+                  ])
+                : null,
+            ])),
           ]),
           h('div', { class: 'gv-mt-3' }, [
             h('div', { class: 'gv-group-title gv-mb-1' }, 'Agent tools'),

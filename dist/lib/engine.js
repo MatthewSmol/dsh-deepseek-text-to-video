@@ -7,7 +7,7 @@
  *     model installs and environment state. HTTP API and MCP tools call the same
  *     methods, so the agent and the UI see identical results.
  */
-import { access, copyFile, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { dirname, extname, join } from 'node:path';
@@ -653,6 +653,69 @@ export class Engine {
             });
         });
         return job;
+    }
+    /** RU: Разбирает ComfyUI-workflow и показывает модели/энкодер/VAE/апскейлер.
+     *  EN: Parses the ComfyUI workflow and reports models, encoder, VAE and upscalers. */
+    async workflowDetails() {
+        const dir = genvideoHome();
+        const base = process.env.GENVIDEO_COMFY_WORKFLOW || join(dir, 'workflow.json');
+        const candidates = [
+            { name: 't2v', path: base },
+            { name: 'image', path: join(dirname(base), 'workflow-image.json') },
+            { name: 'video', path: join(dirname(base), 'workflow-video.json') },
+        ];
+        const results = [];
+        for (const candidate of candidates) {
+            const exists = await stat(candidate.path).then(() => true).catch(() => false);
+            if (!exists) {
+                results.push({ name: candidate.name, path: candidate.path, exists: false, valid: false, model: null, encoder: null, vae: null, upscalers: [] });
+                continue;
+            }
+            let raw = '';
+            try {
+                raw = await readFile(candidate.path, 'utf8');
+            }
+            catch { /* ignore */ }
+            let graph = null;
+            try {
+                graph = JSON.parse(raw.replace(/\{\{[^}]+\}\}/g, '0'));
+            }
+            catch { /* invalid */ }
+            let model = null;
+            let encoder = null;
+            let vae = null;
+            const upscalers = [];
+            const loras = [];
+            if (graph) {
+                for (const node of Object.values(graph)) {
+                    const cls = String(node?.class_type ?? '');
+                    const inputs = node?.inputs ?? {};
+                    if (/UnetLoader|CheckpointLoader/i.test(cls))
+                        model = String(inputs.unet_name ?? inputs.ckpt_name ?? model ?? '');
+                    if (/CLIPLoader|DualCLIPLoader|TripleCLIPLoader/i.test(cls))
+                        encoder = String(inputs.clip_name ?? inputs.clip_name1 ?? inputs.clip_name2 ?? encoder ?? '');
+                    if (/VAELoader|CheckpointLoader/i.test(cls))
+                        vae = String(inputs.vae_name ?? vae ?? '');
+                    if (/Upscale|Upsampler/i.test(cls))
+                        upscalers.push(`${cls}${inputs.model_name ? `: ${inputs.model_name}` : inputs.upscale_method ? `: ${inputs.upscale_method}` : ''}`);
+                    if (/LoraLoader/i.test(cls))
+                        loras.push(`${cls}: ${inputs.lora_name ?? ''}`);
+                }
+            }
+            results.push({
+                name: candidate.name,
+                path: candidate.path,
+                exists: true,
+                valid: Boolean(graph),
+                model: model || null,
+                encoder: encoder || null,
+                vae: vae || null,
+                upscalers,
+                loras,
+                nodes: graph ? Object.keys(graph).length : 0,
+            });
+        }
+        return results;
     }
     /** RU: Удаляет готовый ролик из Videos. EN: Deletes a finished video from Videos. */
     async deleteVideo(name) {
