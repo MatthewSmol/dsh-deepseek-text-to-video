@@ -24,7 +24,7 @@ There is no MCP server, no stdio transport and no `endpoint.json`. The plugin st
 
 - **Generate** — numbered sections (Scene → References → Output → Encoding), actions at the top, prompt/negative, reference image and video, prompt mode, duration/clip/platform/aspect/resolution/FPS and ffmpeg transcode settings.
 - **Jobs** — the active job with progress, segments, log and result, plus recent jobs.
-- **Gallery** — finished videos from `Videos/`; preview, delete, select and merge.
+- **Gallery** — finished videos from `Videos/`; preview, download/open, delete, select and merge.
 - **Environment** — read-only status: ComfyUI, workflow path, ffmpeg/ffprobe and available agent tools.
 
 ### Prompt modes (agent tools)
@@ -139,7 +139,7 @@ MCP-сервера, stdio-транспорта и `endpoint.json` больше �
 
 - **Generate** — пронумерованные секции (Сцена → Референсы → Выход → Кодирование), действия сверху, промпт/негатив, референс-картинка и видео, режим промпта, длительность/клип/платформа/аспект/разрешение/FPS и настройки транскода.
 - **Jobs** — активная генерация с прогрессом, сегментами, логом и результатом; ниже последние задания.
-- **Gallery** — готовые ролики из `Videos/`: просмотр, удаление, выбор и склейка.
+- **Gallery** — готовые ролики из `Videos/`: просмотр, скачивание/открытие, удаление, выбор и склейка.
 - **Environment** — статус только для чтения: ComfyUI, путь workflow, ffmpeg/ffprobe и доступные tools.
 
 ### Prompt modes (agent tools)

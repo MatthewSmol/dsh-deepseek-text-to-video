@@ -195,6 +195,11 @@ export function createApiHandler(engine: Engine, token: string): (req: IncomingM
         ok(res, await engine.library())
         return
       }
+      if (path === '/api/library/delete' && req.method === 'POST') {
+        const body = JSON.parse((await readBody(req, MAX_JSON)).toString('utf8') || '{}') as { name?: string }
+        ok(res, await engine.deleteVideo(String(body.name ?? '')))
+        return
+      }
       const mediaMatch = path.match(/^\/api\/media\/([^/]+)$/)
       if (mediaMatch && req.method === 'GET') {
         const file = engine.resolveMedia(decodeURIComponent(mediaMatch[1] ?? ''))

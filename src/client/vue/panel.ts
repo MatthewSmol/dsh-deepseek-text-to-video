@@ -72,7 +72,7 @@ const en: Record<string, string> = {
   outputDir: 'Output folder', modelsDir: 'Models folder', language: 'Language', english: 'English', russian: 'Русский',
   defaults: 'Defaults', service: 'MCP service', uptime: 'Uptime', unavailable: 'Unavailable',
   mcpDown: 'Service unavailable', noJobs: 'No jobs yet.', noClips: 'Videos/ is empty.',
-  selectClips: 'Select clips to merge', merge: 'Merge selected', merging: 'Merging…', play: 'Play',
+  selectClips: 'Select clips to merge', merge: 'Merge selected', merging: 'Merging…', play: 'Play', deleteClip: 'Delete', confirmDeleteClip: 'Delete this video from Videos?',
   modelCapabilities: 'Capabilities', requiredVram: 'Required VRAM', license: 'License', notes: 'Notes',
   newerVersion: 'Newer version available', installModel: 'Install model', weightsInstalled: 'Weights installed', deleteModel: 'Delete model', confirmDeleteModel: 'Delete the model files from disk?', deletedModel: 'Model deleted', deleting: 'Deleting…', addModel: 'Add a custom model',
   repo: 'Hugging Face repo', runtime: 'Runner', commandTemplate: 'Command template (one argv token per line)',
@@ -1160,6 +1160,18 @@ const Panel = {
       }),
     ])
 
+    async function deleteClip(name: string) {
+      if (!window.confirm(t('confirmDeleteClip'))) return
+      try {
+        await api('/library/delete', { method: 'POST', body: JSON.stringify({ name }) })
+        selected.value = selected.value.filter((item) => item !== name)
+        notice.value = t('deleteClip')
+        await refreshLibrary()
+      } catch (err: any) {
+        error.value = err.message
+      }
+    }
+
     const libraryView = () => h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
       h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
         h('p', { class: 'gv-hint' }, t('libraryHint')),
@@ -1183,7 +1195,10 @@ const Panel = {
                 }),
                 h('span', { class: 'gv-truncate' }, clip.name),
               ]),
-              h('span', { class: 'gv-hint' }, fmtBytes(clip.bytes)),
+              h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
+                h('span', { class: 'gv-hint' }, fmtBytes(clip.bytes)),
+                h('button', { type: 'button', class: 'gv-btn gv-btn-danger gv-h-7 gv-px-2 gv-text-[10.5px]', onClick: () => void deleteClip(clip.name) }, t('deleteClip')),
+              ]),
             ]),
           ]),
         ),

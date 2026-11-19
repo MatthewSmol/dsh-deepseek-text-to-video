@@ -714,6 +714,16 @@ export class Engine {
     return job
   }
 
+  /** RU: Удаляет готовый ролик из Videos. EN: Deletes a finished video from Videos. */
+  async deleteVideo(name: string): Promise<{ deleted: boolean }> {
+    const safe = safeBaseName(String(name ?? ''))
+    if (!safe) throw new GenVideoError('bad-name', 'A video name is required', { status: 400 })
+    const dirs = this.dirs()
+    const file = assertInside(dirs.videosDir, join(dirs.videosDir, safe))
+    await rm(file, { force: true })
+    return { deleted: true }
+  }
+
   /** RU: Удаляет файлы модели с диска. EN: Deletes a model's files from disk. */
   async deleteModel(modelId: string): Promise<ModelState[]> {
     const model = findModel(modelId, this.settings.customModels)
