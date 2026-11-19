@@ -18,7 +18,7 @@ Vue 3 panel ── /genvideo/api ──┐
 Agent ── native genvideo_* tools┘
 ```
 
-There is no MCP server, no stdio transport and no `endpoint.json`. The plugin starts the engine in-process, serves the panel over `/genvideo`, and registers native DSH tools for the agent.
+The engine runs in-process inside the Host plugin. The panel is served over `/genvideo`, and the agent uses native DSH `genvideo_*` tools.
 
 ### Tabs
 
@@ -64,11 +64,11 @@ If an uploaded reference is present but the workflow has no corresponding placeh
 
 ### Agent tools
 
-Native DSH tools (no MCP):
+Native DSH tools:
 
 `genvideo_status`, `genvideo_plan`, `genvideo_generate`, `genvideo_jobs`, `genvideo_job`, `genvideo_cancel`, `genvideo_merge`, `genvideo_transcode`.
 
-`genvideo_generate` accepts prompt, negative prompt, prompt mode, duration/clip, platform/aspect/size/fps, transcode options and `inputImageId`/`inputVideoId`.
+`genvideo_plan` returns the preview and `planId`; `genvideo_generate` accepts `planId`, prompt, negative prompt, orientation (`landscape`/`portrait`), fps (15/24/30/60), denoise for V2V, transcode options and `inputImageId`/`inputVideoId`.
 
 ### Features
 
@@ -135,7 +135,7 @@ Vue 3 панель ── /genvideo/api ──┐
 Агент ── нативные genvideo_* tools┘
 ```
 
-MCP-сервера, stdio-транспорта и `endpoint.json` больше нет. Движок работает внутри Host-плагина, панель обслуживается через `/genvideo`, а агенту доступны нативные DSH-инструменты.
+Движок работает внутри Host-плагина. Панель обслуживается через `/genvideo`, агенту доступны нативные DSH-инструменты `genvideo_*`.
 
 ### Вкладки
 
