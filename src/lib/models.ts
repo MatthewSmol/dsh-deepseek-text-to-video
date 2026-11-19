@@ -112,7 +112,7 @@ export const BUILTIN_MODELS: ModelEntry[] = [
     fps: [24],
     width: 768,
     height: 512,
-    vramGB: { min: 8, recommended: 12 },
+    vramGB: { min: 10, recommended: 12 },
     maxPromptChars: 2000,
     encoder: { name: 'T5-XXL', sizeGB: 3.4, format: 'GGUF Q5', note: 'Bundled in the 9.73 GB Candle weights.' },
     releasedAt: '2026-01-09',
