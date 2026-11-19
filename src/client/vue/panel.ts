@@ -1114,6 +1114,12 @@ const Panel = {
           h(Badge, null, item.entry.runtimes.join(' · ')),
         ]),
         h('p', { class: 'gv-hint gv-mt-2' }, item.entry.notes),
+        item.installed && item.entry.runtimes.includes('diffusers') && !state.value.deps.venv.ok
+          ? h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-items-center gv-gap-2' }, [
+              h('span', { class: 'gv-text-[11.5px] gv-text-warn' }, t('weightsNoEngine')),
+              h('button', { type: 'button', class: 'gv-btn gv-btn-primary gv-h-8 gv-px-3', disabled: Boolean(busy.value), onClick: installPython }, t('installPython')),
+            ])
+          : null,
         h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-gap-1.5' },
           (['t2v', 'i2v', 'v2v', 'audio'] as const).map((capability) =>
             h(Badge, { key: capability, tone: item.entry.capabilities[capability] ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-line gv-bg-surface-2 gv-text-muted' }, capability.toUpperCase()))),
@@ -1129,7 +1135,7 @@ const Panel = {
           h('button', {
             type: 'button', class: 'gv-btn gv-btn-primary', disabled: Boolean(busy.value) || item.installed || !item.entry.repo || hasActiveDownload(item.entry.id),
             onClick: () => void installModel(item.entry.id),
-          }, busy.value === `install-${item.entry.id}` ? t('installing') : item.installed ? t('installed') : t('installModel')),
+          }, busy.value === `install-${item.entry.id}` ? t('installing') : item.installed ? t('weightsInstalled') : t('installModel')),
           item.missingFiles?.length ? h('span', { class: 'gv-hint' }, `${item.missingFiles.length} file(s) missing`) : null,
           settings.value.customModels?.some((model: any) => model.id === item.entry.id)
             ? h('button', {
