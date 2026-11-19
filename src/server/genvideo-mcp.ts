@@ -224,7 +224,7 @@ const TOOLS: ToolDefinition[] = [
   }),
   tool({
     name: 'engine_install',
-    description: 'Install a toolchain: python (venv with torch/diffusers, several GB) or ffmpeg. For candle it returns the build command instead of running it.',
+    description: 'Install a toolchain: python (venv with torch/diffusers, several GB), ffmpeg, or candle (builds candle-video from source; the CUDA toolkit must already be installed).',
     inputSchema: {
       type: 'object',
       properties: { target: { type: 'string', enum: ['python', 'ffmpeg', 'candle'] } },
@@ -340,11 +340,11 @@ async function callTool(engine: Engine, name: string, args: Record<string, unkno
         return { jobId: job.id, status: job.status }
       }
       if (target === 'ffmpeg') return await engine.installFfmpeg()
-      return {
-        command:
-          'git clone https://github.com/FerrisMind/candle-video && cd candle-video && cargo build --release --features flash-attn,cudnn',
-        note: 'Build the candle-video binary, then set Settings → Python & engines → Candle binary path to target/release/examples/ltx-video.',
+      if (target === 'candle') {
+        const job = await engine.installCandleEngine()
+        return { jobId: job.id, status: job.status }
       }
+      throw new GenVideoError('bad-arguments', `Unknown engine target: ${target}`, { status: 400 })
     }
     default:
       throw new GenVideoError('unknown-tool', `Unknown tool: ${name}`, { status: 404 })

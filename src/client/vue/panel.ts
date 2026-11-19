@@ -44,7 +44,8 @@ const en: Record<string, string> = {
   totalMemory: 'Total', usedMemory: 'Used', gpuStrategy: 'Strategy', single: 'Single GPU',
   roundRobin: 'Round-robin', tensorParallel: 'Tensor parallel',
   tools: 'Tools', enginesNote: 'The plugin downloads models and starts engines automatically when it can. Everything below is an optional override, not required setup.',
-  candleVideo: 'candle-video', candleNotFound: 'Not found; auto-checked in PATH and ./candle-video/target/release/examples/ltx-video',
+  candleVideo: 'candle-video', candleNotFound: 'Not found; auto-checked in PATH and ./candle-video/target/release/examples/ltx-video. Building needs the CUDA toolkit (nvcc).',
+  buildCandle: 'Build candle engine', buildStarted: 'Candle build started; progress is in Jobs.',
   cargoHint: 'Needed only to build candle-video; Python and ComfyUI do not require Rust.',
   advancedEngines: 'Advanced: external engine overrides', advancedHint: 'Empty values mean auto-detect.', autoHint: 'Empty = auto-detect.',
   ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', python: 'Python', venv: 'Venv', cargo: 'Cargo',
@@ -98,7 +99,8 @@ const ru: Record<string, string> = {
   totalMemory: 'Всего', usedMemory: 'Занято', gpuStrategy: 'Стратегия', single: 'Одна GPU',
   roundRobin: 'По очереди', tensorParallel: 'Tensor parallel',
   tools: 'Инструменты', enginesNote: 'Плагин сам скачивает модели и по возможности запускает движки. Всё ниже — необязательное переопределение, а не обязательная настройка.',
-  candleVideo: 'candle-video', candleNotFound: 'Не найден; проверяется PATH и ./candle-video/target/release/examples/ltx-video',
+  candleVideo: 'candle-video', candleNotFound: 'Не найден; проверяется PATH и ./candle-video/target/release/examples/ltx-video. Для сборки нужен CUDA toolkit (nvcc).',
+  buildCandle: 'Собрать candle-движок', buildStarted: 'Сборка Candle запущена; прогресс во вкладке «Задания».',
   cargoHint: 'Нужен только для сборки candle-video; Python и ComfyUI не требуют Rust.',
   advancedEngines: 'Дополнительно: переопределения внешних движков', advancedHint: 'Пустое значение = автоопределение.', autoHint: 'Пусто = автоопределение.',
   ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', python: 'Python', venv: 'Окружение', cargo: 'Cargo',
@@ -597,6 +599,20 @@ const Panel = {
       }
     }
 
+    async function installCandle() {
+      busy.value = 'candle'
+      try {
+        const job = await api('/engine/install-candle', { method: 'POST', body: '{}' })
+        liveJobs.value = { ...liveJobs.value, [job.id]: job }
+        notice.value = t('buildStarted')
+        tab.value = 'jobs'
+      } catch (err: any) {
+        error.value = err.message
+      } finally {
+        busy.value = ''
+      }
+    }
+
     async function resetSettings() {
       if (!window.confirm(t('confirmReset'))) return
       try {
@@ -1071,6 +1087,10 @@ const Panel = {
         h(Row, { label: t('candleVideo'), hint: state.value.deps.candle.ok ? state.value.deps.candle.path : t('candleNotFound') }, [
           h(Badge, { tone: state.value.deps.candle.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' },
             state.value.deps.candle.ok ? state.value.deps.candle.path : t('notInstalled')),
+          !state.value.deps.candle.ok
+            ? h('button', { type: 'button', class: 'gv-btn', disabled: busy.value === 'candle', onClick: installCandle },
+                busy.value === 'candle' ? t('installing') : t('buildCandle'))
+            : null,
         ]),
         h(Row, { label: t('comfyui'), hint: state.value.deps.comfyui.error ?? '' }, [h(Badge, { tone: state.value.deps.comfyui.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' }, state.value.deps.comfyui.url || t('notInstalled'))]),
       ]),

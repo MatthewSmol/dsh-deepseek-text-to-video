@@ -41,6 +41,7 @@ export type JobPhase =
   | 'resolving'
   | 'checking'
   | 'downloading'
+  | 'building'
   | 'loading_model'
   | 'encoding_prompt'
   | 'sampling'

@@ -47,6 +47,7 @@ The service publishes `{port, token, pid}` to `$DSH_HOME/genvideo/endpoint.json`
 - **Transcode encoders**: H.264 or H.265/HEVC in MP4 via CPU (libx264/libx265), NVIDIA NVENC or Vulkan Video, with an automatic CPU retry when the hardware encoder is unavailable.
 - **Custom Candle args**: extra argv (for example `--device vulkan`) for a self-built Vulkan candle-video; the shipped LTX example is CUDA/cuDNN-only.
 - **SOCKS proxy checkbox**: Hugging Face downloads and update checks can go through a local SOCKS5/SOCKS5h proxy (uses system `curl`).
+- **One-click Candle engine**: installs rustup, clones candle-video and runs `cargo build --release --example ltx-video --features cuda`; requires the CUDA toolkit (`nvcc`) once, installed with sudo.
 - **Model management**: sizes, install state, download with resume and progress, update detection, newer-version suggestions, custom model form.
 - **Bilingual UI** (English/Russian) and a scoped CSS design system that respects the host light/dark theme.
 - **MCP tools for the agent** — the same engine the panel uses.
@@ -224,6 +225,7 @@ MCP-сервис (один процесс, одно состояние)
 - **Энкодеры транскода**: H.264 или H.265/HEVC в MP4 через CPU (libx264/libx265), NVIDIA NVENC или Vulkan Video; при недоступном аппаратном энкодере автоматически повторяется на CPU.
 - **Свои аргументы Candle**: дополнительные argv (например, `--device vulkan`) для собственной Vulkan-сборки candle-video; официальный пример LTX — только CUDA/cuDNN.
 - **Галочка SOCKS-прокси**: загрузки и проверки обновлений Hugging Face могут идти через локальный SOCKS5/SOCKS5h-прокси (используется системный `curl`).
+- **Сборка Candle в один клик**: ставит rustup, клонирует candle-video и запускает `cargo build --release --example ltx-video --features cuda`; нужен CUDA toolkit (`nvcc`), устанавливаемый один раз через sudo.
 - **MCP-инструменты для агента** — тот же движок, что и у панели.
 
 ### Требования

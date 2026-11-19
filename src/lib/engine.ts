@@ -8,6 +8,8 @@
  *     methods, so the agent and the UI see identical results.
  */
 import { access, copyFile, mkdir, readdir, rm, stat, writeFile } from 'node:fs/promises'
+import { existsSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, extname, join } from 'node:path'
 import { randomUUID } from 'node:crypto'
 import type {
@@ -30,7 +32,7 @@ import { GenVideoError, toApiError } from './errors.js'
 import { SettingsStore, resolveDirs } from './store.js'
 import { JobManager, type JobContext } from './jobs.js'
 import { detectGpus, selectGpus } from './gpu.js'
-import { detectDeps } from './deps.js'
+import { detectDeps, findNvcc } from './deps.js'
 import { allModels, findModel, findVariant, formatGB, snapFrames } from './models.js'
 import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes } from './media.js'
 import { planGeneration } from './planner.js'
@@ -864,6 +866,79 @@ export class Engine {
       ctx.phase('verifying', 'Checking the Python environment')
       await this.refresh(true)
       ctx.progress({ percent: 100, message: 'Python engine installed' })
+    })
+    return job
+  }
+
+
+  /** RU: Собирает candle-video из исходников (Rust + CUDA). Rust ставится
+   *      автоматически, но CUDA toolkit (nvcc) должен уже быть в системе:
+   *      без root сервис не может установить его сам.
+   *  EN: Builds candle-video from source (Rust + CUDA). Rust is installed
+   *      automatically, but the CUDA toolkit (nvcc) must already be present:
+   *      the service has no root to install it by itself. */
+  async installCandleEngine(): Promise<JobRecord> {
+    const job = this.jobs.create('install', { target: 'candle' })
+    this.jobs.start(job, async (ctx) => {
+      const { runStreaming, firstWorking } = await import('./proc.js')
+      ctx.phase('checking', 'Checking the CUDA toolkit')
+      const nvcc = findNvcc()
+      if (!nvcc) {
+        throw new GenVideoError(
+          'cuda-missing',
+          'CUDA toolkit (nvcc) not found. Install it once in Ubuntu with "sudo apt-get install -y nvidia-cuda-toolkit", then press Build again.',
+          { status: 409, details: { command: 'sudo apt-get install -y nvidia-cuda-toolkit' } },
+        )
+      }
+      const git = await firstWorking(['git'], ['--version'])
+      if (!git) throw new GenVideoError('git-missing', 'git is not installed; install it with "sudo apt-get install -y git"', { status: 409 })
+
+      const home = homedir()
+      let cargo = await firstWorking([join(home, '.cargo', 'bin', 'cargo'), 'cargo'], ['--version'])
+      if (!cargo) {
+        ctx.phase('downloading', 'Installing the Rust toolchain')
+        ctx.progress({ percent: 5, message: 'Installing Rust (rustup)' })
+        const install = await runStreaming(
+          'bash',
+          ['-lc', 'curl --proto "=https" --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --profile minimal'],
+          { signal: ctx.signal, onLine: (line) => ctx.log(line) },
+        )
+        if (install.code !== 0) throw new GenVideoError('rustup-failed', 'rustup installation failed', { status: 500 })
+        cargo = await firstWorking([join(home, '.cargo', 'bin', 'cargo'), 'cargo'], ['--version'])
+      }
+      if (!cargo) throw new GenVideoError('cargo-missing', 'cargo is still unavailable after rustup', { status: 500 })
+
+      const enginesDir = join(genvideoHome(), 'engines')
+      const repoDir = join(enginesDir, 'candle-video')
+      await mkdir(enginesDir, { recursive: true })
+      if (!existsSync(join(repoDir, 'Cargo.toml'))) {
+        ctx.phase('downloading', 'Cloning candle-video')
+        ctx.progress({ percent: 15, message: 'Cloning FerrisMind/candle-video' })
+        const clone = await runStreaming(
+          'git',
+          ['clone', '--depth', '1', 'https://github.com/FerrisMind/candle-video', repoDir],
+          { signal: ctx.signal, onLine: (line) => ctx.log(line) },
+        )
+        if (clone.code !== 0) throw new GenVideoError('clone-failed', clone.stderrTail.trim().split('\n').slice(-3).join(' ') || 'git clone failed', { status: 500 })
+      }
+
+      ctx.phase('building', 'Building candle-video with CUDA (10–20 minutes)')
+      ctx.progress({ percent: 25, message: 'cargo build --release --example ltx-video --features cuda' })
+      const env = { PATH: `${dirname(nvcc)}:${process.env.PATH ?? ''}`, CUDA_HOME: dirname(dirname(nvcc)) }
+      const build = await runStreaming(
+        cargo.path,
+        ['build', '--release', '--example', 'ltx-video', '--features', 'cuda'],
+        { cwd: repoDir, signal: ctx.signal, env, onLine: (line) => ctx.log(line) },
+      )
+      if (build.code !== 0) {
+        throw new GenVideoError('candle-build-failed', build.stderrTail.trim().split('\n').slice(-5).join(' ') || 'cargo build failed', { status: 500 })
+      }
+
+      ctx.phase('verifying', 'Checking the built binary')
+      const binary = join(repoDir, 'target', 'release', 'examples', 'ltx-video')
+      if (!existsSync(binary)) throw new GenVideoError('candle-binary-missing', `Build finished but ${binary} is missing`, { status: 500 })
+      await this.updateSettings({ deps: { ...this.settings.deps, candleBinary: binary } })
+      ctx.progress({ percent: 100, message: `candle-video built at ${binary}` })
     })
     return job
   }

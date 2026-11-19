@@ -226,6 +226,10 @@ export function createApiHandler(engine, token) {
                 ok(res, await engine.installPythonEngine());
                 return;
             }
+            if (path === '/api/engine/install-candle' && req.method === 'POST') {
+                ok(res, await engine.installCandleEngine());
+                return;
+            }
             json(res, 404, { ok: false, error: { code: 'not-found', message: `No route ${req.method} ${path}` } });
         }
         catch (error) {

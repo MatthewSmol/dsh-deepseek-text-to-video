@@ -53,6 +53,26 @@ export function findCandleBinary(configured: string): string | null {
   return null
 }
 
+// RU: Ищет nvcc из CUDA toolkit для сборки Candle.
+// EN: Finds nvcc from the CUDA toolkit for building Candle.
+export function findNvcc(): string | null {
+  const candidates = [
+    process.env.CUDA_HOME ? join(process.env.CUDA_HOME, 'bin', 'nvcc') : '',
+    process.env.CUDA_PATH ? join(process.env.CUDA_PATH, 'bin', 'nvcc') : '',
+    '/usr/local/cuda/bin/nvcc',
+    ...(process.env.PATH || '').split(delimiter).filter(Boolean).map((dir) => join(dir, 'nvcc')),
+  ].filter(Boolean)
+  for (const candidate of candidates) {
+    try {
+      accessSync(candidate, constants.X_OK)
+      return candidate
+    } catch {
+      /* try the next candidate */
+    }
+  }
+  return null
+}
+
 /** RU: Кэш проверки ComfyUI, чтобы /state не сканировал порты постоянно.
  *  EN: ComfyUI probe cache so /state does not scan ports on every refresh. */
 let comfyCache: { at: number; key: string; value: { ok: boolean; url: string; error: string | null } } | null = null
