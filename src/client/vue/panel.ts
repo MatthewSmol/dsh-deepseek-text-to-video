@@ -1067,14 +1067,6 @@ const Panel = {
                   h('option', { value: 'h265' }, t('codecH265')),
                 ]),
               ]),
-              h(Field, { label: t('encoder'), hint: t('encoderHint') }, [
-                h('select', { class: 'gv-select', value: form.value.transcode.encoder, onChange: (event: any) => patchTranscode({ encoder: event.target.value }) }, [
-                  h('option', { value: 'auto' }, t('encoderAuto')),
-                  h('option', { value: 'cpu' }, t('encoderCpu')),
-                  h('option', { value: 'nvenc' }, t('encoderNvenc')),
-                  h('option', { value: 'vulkan' }, t('encoderVulkan')),
-                ]),
-              ]),
               h(Field, { label: t('format') }, [
                 h('select', { class: 'gv-select', value: form.value.transcode.format, onChange: (event: any) => patchTranscode({ format: event.target.value }) },
                   ['mp4', 'webm', 'gif'].map((value) => h('option', { key: value, value }, value.toUpperCase()))),
