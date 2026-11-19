@@ -72,7 +72,7 @@ const en: Record<string, string> = {
   mcpDown: 'MCP service unavailable', noJobs: 'No jobs yet.', noClips: 'Videos/ is empty.',
   selectClips: 'Select clips to merge', merge: 'Merge selected', merging: 'Merging…', play: 'Play',
   modelCapabilities: 'Capabilities', requiredVram: 'Required VRAM', license: 'License', notes: 'Notes',
-  newerVersion: 'Newer version available', installModel: 'Install model', addModel: 'Add a custom model',
+  newerVersion: 'Newer version available', installModel: 'Install model', weightsInstalled: 'Weights installed', deleteModel: 'Delete model', confirmDeleteModel: 'Delete the model files from disk?', deletedModel: 'Model deleted', deleting: 'Deleting…', addModel: 'Add a custom model',
   repo: 'Hugging Face repo', runtime: 'Runner', commandTemplate: 'Command template (one argv token per line)',
   weights: 'Weights (one file per line)', removeModel: 'Delete model', saveModel: 'Save model',
   saveDefaults: 'Save settings', uploading: 'Uploading…', planFailed: 'Could not build the plan', qualityMode: 'Quality tiers', sizeMode: 'Size limit',
@@ -144,7 +144,7 @@ const ru: Record<string, string> = {
   mcpDown: 'MCP-сервис недоступен', noJobs: 'Заданий пока нет.', noClips: 'Папка Videos/ пуста.',
   selectClips: 'Выберите ролики для склейки', merge: 'Склеить выбранные', merging: 'Склейка…', play: 'Смотреть',
   modelCapabilities: 'Возможности', requiredVram: 'Нужно VRAM', license: 'Лицензия', notes: 'Примечания',
-  newerVersion: 'Доступна более новая версия', installModel: 'Установить модель', addModel: 'Своя модель',
+  newerVersion: 'Доступна более новая версия', installModel: 'Установить модель', weightsInstalled: 'Веса установлены', deleteModel: 'Удалить модель', confirmDeleteModel: 'Удалить файлы модели с диска?', deletedModel: 'Модель удалена', deleting: 'Удаление…', addModel: 'Своя модель',
   repo: 'Репозиторий Hugging Face', runtime: 'Раннер', commandTemplate: 'Шаблон команды (по одному токену в строке)',
   weights: 'Файлы весов (по одному в строке)', removeModel: 'Удалить модель', saveModel: 'Сохранить модель',
   saveDefaults: 'Сохранить настройки', uploading: 'Загрузка…', planFailed: 'Не удалось построить план', qualityMode: 'Уровни качества', sizeMode: 'Лимит размера',
@@ -678,6 +678,26 @@ const Panel = {
         continuity: form.value.continuity,
         transcode: form.value.transcode,
       })
+    }
+
+    // RU: Удаляет файлы модели и запись кастомной модели.
+    // EN: Deletes model files and the custom-model record.
+    async function deleteModel(modelId: string) {
+      if (!window.confirm(t('confirmDeleteModel'))) return
+      busy.value = `delete-${modelId}`
+      try {
+        await api('/models/delete', { method: 'POST', body: JSON.stringify({ modelId }) })
+        const custom = settings.value?.customModels ?? []
+        if (custom.some((model: any) => model.id === modelId)) {
+          await saveSettings({ customModels: custom.filter((model: any) => model.id !== modelId) })
+        }
+        notice.value = t('deletedModel')
+        await refresh()
+      } catch (err: any) {
+        error.value = err.message
+      } finally {
+        busy.value = ''
+      }
     }
 
     async function saveCustom() {
@@ -1279,12 +1299,19 @@ const Panel = {
             ])
           : null,
         h('div', { class: 'gv-mt-3 gv-flex gv-items-center gv-gap-2' }, [
-          h('button', {
-            type: 'button', class: 'gv-btn gv-btn-primary', disabled: Boolean(busy.value) || item.installed || !item.entry.repo || hasActiveDownload(item.entry.id),
-            onClick: () => void installModel(item.entry.id),
-          }, busy.value === `install-${item.entry.id}` ? t('installing') : item.installed ? t('weightsInstalled') : t('installModel')),
+          item.installed
+            ? h('button', {
+                type: 'button', class: 'gv-btn gv-btn-danger',
+                disabled: Boolean(busy.value) || hasActiveDownload(item.entry.id),
+                onClick: () => void deleteModel(item.entry.id),
+              }, busy.value === `delete-${item.entry.id}` ? t('deleting') : t('deleteModel'))
+            : h('button', {
+                type: 'button', class: 'gv-btn gv-btn-primary',
+                disabled: Boolean(busy.value) || !item.entry.repo || hasActiveDownload(item.entry.id),
+                onClick: () => void installModel(item.entry.id),
+              }, busy.value === `install-${item.entry.id}` ? t('installing') : t('installModel')),
           item.missingFiles?.length ? h('span', { class: 'gv-hint' }, `${item.missingFiles.length} file(s) missing`) : null,
-          settings.value.customModels?.some((model: any) => model.id === item.entry.id)
+          !item.installed && settings.value.customModels?.some((model: any) => model.id === item.entry.id)
             ? h('button', {
                 type: 'button', class: 'gv-btn gv-btn-danger',
                 onClick: () => void saveSettings({ customModels: settings.value.customModels.filter((model: any) => model.id !== item.entry.id) }),

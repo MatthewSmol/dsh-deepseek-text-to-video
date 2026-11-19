@@ -710,6 +710,21 @@ export class Engine {
     return job
   }
 
+  /** RU: Удаляет файлы модели с диска. EN: Deletes a model's files from disk. */
+  async deleteModel(modelId: string): Promise<ModelState[]> {
+    const model = findModel(modelId, this.settings.customModels)
+    if (!model) throw new GenVideoError('model-not-found', `Unknown model: ${modelId}`, { status: 404 })
+    const active = this.jobs.list(50).find((job) =>
+      job.status === 'running' && String(job.params?.modelId ?? '') === model.id)
+    if (active) {
+      throw new GenVideoError('model-busy', `Model is used by a running job: ${active.id}`, { status: 409 })
+    }
+    const dirs = this.dirs()
+    const target = assertInside(dirs.modelsDir, join(dirs.modelsDir, model.id))
+    await rm(target, { recursive: true, force: true })
+    return this.modelStates()
+  }
+
   /** RU: Скачивает модель из HF. EN: Downloads a model from HF. */
   async installModel(request: { modelId: string; variant?: string }): Promise<JobRecord> {
     const settings = this.settings

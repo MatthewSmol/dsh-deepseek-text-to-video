@@ -145,6 +145,11 @@ export function createApiHandler(engine: Engine, token: string): (req: IncomingM
         ok(res, await engine.installModel({ modelId: String(body.modelId ?? ''), variant: body.variant }))
         return
       }
+      if (path === '/api/models/delete' && req.method === 'POST') {
+        const body = JSON.parse((await readBody(req, MAX_JSON)).toString('utf8') || '{}') as { modelId?: string }
+        ok(res, await engine.deleteModel(String(body.modelId ?? '')))
+        return
+      }
       if (path === '/api/models/check-updates' && req.method === 'POST') {
         const body = JSON.parse((await readBody(req, MAX_JSON)).toString('utf8') || '{}') as { modelId?: string }
         ok(res, await engine.checkUpdates(body.modelId))
