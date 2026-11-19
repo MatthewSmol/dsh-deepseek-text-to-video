@@ -886,7 +886,9 @@ const Panel = {
                   patch({ modelId: event.target.value, runner: 'candle' })
                   void refreshRunners(event.target.value)
                 },
-              }, models.value.map((item: any) => h('option', { key: item.entry.id, value: item.entry.id }, `${item.entry.title}${item.installed ? ' ✓' : ''}`))),
+              }, models.value.map((item: any) => h('option', {
+                key: item.entry.id, value: item.entry.id, disabled: !item.installed,
+              }, `${item.entry.title}${item.installed ? ' ✓' : ' — not installed'}`))),
             ]),
             h(Field, { label: t('runner'), hint: runnerHint.value }, [
               h('select', { class: 'gv-select', value: runner.value, onChange: (event: any) => patch({ runner: event.target.value }) }, [
@@ -900,6 +902,12 @@ const Panel = {
               ]),
             ]),
           ]),
+          modelState.value && !modelState.value.installed
+            ? h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-items-center gv-gap-2 gv-rounded-lg gv-border gv-border-warn-soft gv-bg-warn-soft gv-p-2' }, [
+                h('span', { class: 'gv-text-[11.5px] gv-text-warn' }, t('modelWeightsMissing')),
+                h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', disabled: Boolean(busy.value), onClick: () => void installModel(form.value.modelId) }, t('installModel')),
+              ])
+            : null,
           modelEntry.value
             ? h('div', { class: 'gv-mt-2 gv-flex gv-flex-wrap gv-gap-1.5' }, [
                 ...(['t2v', 'i2v', 'v2v', 'audio'] as const).map((capability) =>

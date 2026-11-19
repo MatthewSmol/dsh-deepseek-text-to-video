@@ -355,6 +355,21 @@ export class Engine {
         details: { runtimes: model.runtimes, action: needsPython ? 'install-python' : null },
       })
     }
+    // RU: Не запускаем local-модель без весов: ошибка до создания задания.
+    // EN: Do not start a local model without weights: fail before creating a job.
+    if (runner.runner.id === 'candle' || runner.runner.id === 'diffusers') {
+      const missing: string[] = []
+      for (const file of variant.files) {
+        const present = await stat(join(this.dirs().modelsDir, model.id, file)).then(() => true).catch(() => false)
+        if (!present) missing.push(file)
+      }
+      if (missing.length) {
+        throw new GenVideoError('model-not-installed', `${model.title} weights are not installed. Open Models and press Install model first.`, {
+          status: 409,
+          details: { modelId: model.id, missing },
+        })
+      }
+    }
     if (!runner.availability.available) {
       throw new GenVideoError('runner-unavailable', runner.availability.reason ?? 'Runner is unavailable', {
         details: { hint: runner.availability.hint, runner: runner.runner.id },
