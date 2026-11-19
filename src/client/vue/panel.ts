@@ -31,6 +31,7 @@ const en: Record<string, string> = {
   negative: 'Negative prompt', continuity: 'Continuity', none: 'None', lastFrame: 'Last frame → next clip',
   imageInput: 'Reference image (image-to-video)', videoInput: 'Reference video (video-to-video)',
   i2vHint: 'Needs the diffusers LTX-Video 0.9.8 2B (i2v) model and the Python engine; the Candle build is text-to-video only.',
+  referenceInput: 'Reference input', switchToI2v: 'Choose i2v model',
   v2vHint: 'No built-in model supports video input yet.',
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
   transcode: 'Transcode after generation', transcodeHint: 'Pick one: no transcode, quality tiers, or a size limit.', noTranscode: 'No transcode',
@@ -99,6 +100,7 @@ const ru: Record<string, string> = {
   negative: 'Негативный промпт', continuity: 'Непрерывность', none: 'Нет', lastFrame: 'Последний кадр → следующий клип',
   imageInput: 'Опорная картинка (image-to-video)', videoInput: 'Опорное видео (video-to-video)',
   i2vHint: 'Нужна diffusers-модель LTX-Video 0.9.8 2B (i2v) и Python-движок; Candle-сборка умеет только text-to-video.',
+  referenceInput: 'Опорный вход', switchToI2v: 'Выбрать i2v-модель',
   v2vHint: 'Встроенные модели пока не поддерживают видео-вход.',
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
   transcode: 'Перекодировать после генерации', transcodeHint: 'Один режим: без перекодирования, уровни качества или лимит размера.', noTranscode: 'Без перекодирования',
@@ -794,6 +796,54 @@ const Panel = {
               ])
             : null,
         ]),
+        h(Card, { title: t('referenceInput'), hint: t('inputHint') }, [
+          !modelEntry.value?.capabilities?.i2v
+            ? h('div', { class: 'gv-mb-2 gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [
+                h('span', { class: 'gv-hint' }, t('i2vHint')),
+                h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', onClick: () => { tab.value = 'models' } }, t('switchToI2v')),
+              ])
+            : null,
+          h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
+            h(Field, { label: t('imageInput'), hint: modelEntry.value?.capabilities?.i2v ? t('inputHint') : t('i2vHint') }, [
+              h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
+                h('button', {
+                  type: 'button', class: 'gv-btn', disabled: !modelEntry.value?.capabilities?.i2v || uploading.value === 'inputImageId',
+                  onClick: () => {
+                    const input = document.createElement('input')
+                    input.type = 'file'
+                    input.accept = 'image/*'
+                    input.onchange = () => {
+                      const file = input.files?.[0]
+                      if (file) void upload(file, 'inputImageId')
+                    }
+                    input.click()
+                  },
+                }, uploading.value === 'inputImageId' ? t('uploading') : t('chooseFile')),
+                form.value.inputImageId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputImageId.slice(0, 28)) : null,
+                form.value.inputImageId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputImageId: '' }) }, t('removeFile')) : null,
+              ]),
+            ]),
+            h(Field, { label: t('videoInput'), hint: modelEntry.value?.capabilities?.v2v ? t('inputHint') : t('v2vHint') }, [
+              h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
+                h('button', {
+                  type: 'button', class: 'gv-btn', disabled: !modelEntry.value?.capabilities?.v2v || uploading.value === 'inputVideoId',
+                  onClick: () => {
+                    const input = document.createElement('input')
+                    input.type = 'file'
+                    input.accept = 'video/*'
+                    input.onchange = () => {
+                      const file = input.files?.[0]
+                      if (file) void upload(file, 'inputVideoId')
+                    }
+                    input.click()
+                  },
+                }, uploading.value === 'inputVideoId' ? t('uploading') : t('chooseFile')),
+                form.value.inputVideoId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputVideoId.slice(0, 28)) : null,
+                form.value.inputVideoId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputVideoId: '' }) }, t('removeFile')) : null,
+              ]),
+            ]),
+          ]),
+        ]),
         h(Card, { title: t('duration') }, [
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-3' }, [
             h(Field, { label: t('duration'), hint: t('durationHint') }, [
@@ -846,46 +896,6 @@ const Panel = {
               h('select', { class: 'gv-select', value: form.value.continuity, onChange: (event: any) => patch({ continuity: event.target.value }) }, [
                 h('option', { value: 'none' }, t('none')),
                 h('option', { value: 'last-frame' }, t('lastFrame')),
-              ]),
-            ]),
-          ]),
-          h('div', { class: 'gv-mt-3 gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
-            h(Field, { label: t('imageInput'), hint: modelEntry.value?.capabilities?.i2v ? t('inputHint') : t('i2vHint') }, [
-              h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
-                h('button', {
-                  type: 'button', class: 'gv-btn', disabled: !modelEntry.value?.capabilities?.i2v || uploading.value === 'inputImageId',
-                  onClick: () => {
-                    const input = document.createElement('input')
-                    input.type = 'file'
-                    input.accept = 'image/*'
-                    input.onchange = () => {
-                      const file = input.files?.[0]
-                      if (file) void upload(file, 'inputImageId')
-                    }
-                    input.click()
-                  },
-                }, uploading.value === 'inputImageId' ? t('uploading') : t('chooseFile')),
-                form.value.inputImageId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputImageId.slice(0, 28)) : null,
-                form.value.inputImageId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputImageId: '' }) }, t('removeFile')) : null,
-              ]),
-            ]),
-            h(Field, { label: t('videoInput'), hint: modelEntry.value?.capabilities?.v2v ? t('inputHint') : t('v2vHint') }, [
-              h('div', { class: 'gv-flex gv-items-center gv-gap-2' }, [
-                h('button', {
-                  type: 'button', class: 'gv-btn', disabled: !modelEntry.value?.capabilities?.v2v || uploading.value === 'inputVideoId',
-                  onClick: () => {
-                    const input = document.createElement('input')
-                    input.type = 'file'
-                    input.accept = 'video/*'
-                    input.onchange = () => {
-                      const file = input.files?.[0]
-                      if (file) void upload(file, 'inputVideoId')
-                    }
-                    input.click()
-                  },
-                }, uploading.value === 'inputVideoId' ? t('uploading') : t('chooseFile')),
-                form.value.inputVideoId ? h('span', { class: 'gv-hint gv-truncate' }, form.value.inputVideoId.slice(0, 28)) : null,
-                form.value.inputVideoId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputVideoId: '' }) }, t('removeFile')) : null,
               ]),
             ]),
           ]),
