@@ -209,6 +209,50 @@ export function buildVideoFilters(options: { width: number; height: number; fps:
   return filters
 }
 
+/** RU: Апскейл видео: GPU (scale_cuda + NVENC) или CPU Lanczos.
+ *  EN: Video upscale: GPU (scale_cuda + NVENC) or CPU Lanczos. */
+export async function upscaleFile(input: {
+  ffmpeg: string
+  ffprobe: string
+  source: string
+  target: string
+  width: number
+  height: number
+  mode: 'gpu' | 'cpu'
+  signal?: AbortSignal
+  onProgress?: (percent: number) => void
+}): Promise<MediaInfo> {
+  const info = await probeFile(input.ffprobe, input.source)
+  const landscape = input.width >= input.height
+  const midW = landscape ? 1536 : 1024
+  const midH = landscape ? 1024 : 1536
+  const cpuFilter = `scale=${midW}:${midH}:flags=lanczos,scale=${input.width}:${input.height}:flags=lanczos,unsharp=5:5:0.8:3:3:0.4`
+  if (input.mode === 'gpu') {
+    const gpuFilter = `format=yuv420p,hwupload_cuda,scale_cuda=${midW}:${midH}:interp_algo=lanczos,scale_cuda=${input.width}:${input.height}:interp_algo=lanczos,hwdownload,format=yuv420p,unsharp=5:5:0.8:3:3:0.4`
+    const args = [
+      '-init_hw_device', 'cuda=cu:0', '-filter_hw_device', 'cu',
+      '-i', input.source,
+      '-vf', gpuFilter,
+      '-c:v', 'h264_nvenc', '-preset', 'p5', '-cq', '19',
+      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', input.target,
+    ]
+    try {
+      await runFfmpeg(input.ffmpeg, args, { durationSec: info.durationSec, signal: input.signal, onProgress: input.onProgress })
+      return await probeFile(input.ffprobe, input.target)
+    } catch (error) {
+      // RU: Нет CUDA/фильтра — повторяем на CPU. EN: No CUDA/filter — retry on CPU.
+      if (input.signal?.aborted) throw error
+    }
+  }
+  await runFfmpeg(input.ffmpeg, [
+    '-i', input.source,
+    '-vf', cpuFilter,
+    '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
+    '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', input.target,
+  ], { durationSec: info.durationSec, signal: input.signal, onProgress: input.onProgress })
+  return await probeFile(input.ffprobe, input.target)
+}
+
 /** RU: Аргументы ffmpeg для прохода качества. EN: ffmpeg arguments for a quality pass. */
 export function qualityArgs(options: NormalizedTranscode): string[] {
   const filters = buildVideoFilters(options)

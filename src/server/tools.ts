@@ -42,6 +42,7 @@ const promptProps = {
   fps: { type: 'number', enum: [15, 24, 30, 60] },
   orientation: { type: 'string', enum: ['landscape', 'portrait'] },
   denoise: { type: 'number', minimum: 0.3, maximum: 0.8, description: 'V2V strength: 0.35–0.5 gentle, 0.55–0.75 strong.' },
+  upscale: { type: 'string', enum: ['neural', 'off'], description: 'Neural 2x upscale in ComfyUI with batched frames, or off.' },
   inputImageId: { type: 'string' },
   inputVideoId: { type: 'string' },
   outputName: { type: 'string' },

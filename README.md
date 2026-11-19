@@ -26,7 +26,7 @@ The engine runs in-process inside the Host plugin. The panel is served over `/ge
 - **Generation preview** — Generate opens a plan with output/base size, fps, auto clip, frames, clips and warnings; the job starts only after **Confirm generation**.
 - **Prompt quality** — each T2V/I2V clip gets its own detailed prompt (LTX profile: 80–220 words, subject, setting, light, camera, action, continuity). Short or repeated prompts are flagged in the preview; the count must equal the clip count.
 - **Modes** — no references: T2V then last-frame I2V for later clips; reference image: I2V from it, then last-frame; reference video: one V2V clip without the frame chain. Image and video references are mutually exclusive.
-- **Sharpness** — after the 2× upscale and final `ImageScale`, every workflow runs `ImageSharpen` (radius 1, sigma 1.0, alpha 0.8); `SaveWEBM` uses crf 24 instead of 32.
+- **Upscale** — generation saves native 768×512/512×768. A separate ComfyUI pass calls `/free`, then KJNodes `ImageUpscaleWithModelBatched` (2× Nomos, `per_batch` 8/16/32), `ImageScale` and `ImageSharpen`, so peak VRAM is a few frames instead of the whole clip. `upscale: neural|off`.
 - **V2V** — a reference video is loaded through `LoadVideo → GetVideoComponents → VAEEncodeTiled`, denoised with `SplitSigmasDenoise` (0.3–0.8, default 0.6), then upscaled and saved. V2V is one clip, cropped to 8n+1 frames (max 257).
 - **OOM guard** — auto clip length uses free VRAM (lowest free GPU), not total: <4.5 GB → 2s, <6.5 → 3s, <10 → 4s, <16 → 6s, ≥16 → 8s; frames stay 8n+1 ≤257. The preview shows the chosen clip and the free-VRAM reason.
 - **GPU diagnostics** — `/api/gpu/processes` reports each GPU's total/used/free memory and compute processes with command lines.
@@ -40,7 +40,7 @@ The engine runs in-process inside the Host plugin. The panel is served over `/ge
 - **Диагностика** — если ComfyUI остановился во время job, плагин сообщает `comfyui-unreachable` вместо голого `fetch failed`; перезапустите ComfyUI и повторите. Состояние Environment обновляется перед каждым планом.
 - **Jobs** — the active job with progress, segments, log and result, plus recent jobs.
 - **Gallery** — finished videos from `Videos/`; preview, download/open, delete, select and merge.
-- **Environment** — read-only status: ComfyUI, workflow path, ffmpeg/ffprobe, available agent tools, and the parsed workflow model, text encoder, VAE and upscalers.
+- **Environment** — ComfyUI status/control, workflow paths, ffmpeg/ffprobe, agent tools, and parsed model/text encoder/VAE/upscaler.
 
 ### Prompt modes (agent tools)
 
@@ -114,7 +114,7 @@ Native DSH tools:
 
 `deploy/install-comfyui.sh` installs a working ComfyUI + LTX-Video 2B stack into a clean directory
 (no Docker, no root). It pins ComfyUI `995456d0`, Python 3.12 (via `uv`), `torch 2.11.0+cu130`,
-downloads the LTX 0.9.8 fp8 checkpoint, the `t5xxl_fp8` encoder and the `2xNomosUni` upscaler
+downloads the LTX 0.9.8 fp8 checkpoint, the `t5xxl_fp8` encoder and the `2xNomosUni` upscaler, and installs ComfyUI-KJNodes for batched upscaling
 (~10 GB), and copies the bundled UI workflows.
 
 ```bash
@@ -181,11 +181,11 @@ Vue 3 панель ── /genvideo/api ──┐
 - **Предпросмотр** — Generate сначала строит план: итоговый/base размер, fps, auto clip, кадры, число клипов и warnings; job создаётся только после **Confirm generation**.
 - **Качество промптов** — у каждого клипа T2V/I2V свой подробный промпт (профиль LTX: 80–220 слов, субъект, локация, свет, камера, действие, continuity). Короткие и повторные промпты видны в preview; число промптов должно совпадать с числом клипов.
 - **Режимы** — без референсов: T2V, затем последний кадр → I2V для следующих клипов; reference image: I2V от неё, затем последний кадр; reference video: один V2V-клип без цепочки. Картинка и видео взаимоисключающие.
-- **Резкость** — после 2× апскейла и финального `ImageScale` каждый workflow прогоняет `ImageSharpen` (radius 1, sigma 1.0, alpha 0.8); `SaveWEBM` пишет crf 24 вместо 32.
+- **Апскейл** — генерация сохраняет native 768×512/512×768. Отдельный проход ComfyUI вызывает `/free`, затем KJNodes `ImageUpscaleWithModelBatched` (2× Nomos, `per_batch` 8/16/32), `ImageScale` и `ImageSharpen`, поэтому в VRAM только несколько кадров, а не весь клип. `upscale: neural|off`.
 - **V2V** — опорное видео проходит `LoadVideo → GetVideoComponents → VAEEncodeTiled`, перерисовывается через `SplitSigmasDenoise` (0.3–0.8, по умолчанию 0.6), затем апскейл и сохранение. V2V — один клип, обрезается до 8n+1 кадров (максимум 257).
 - **Jobs** — активная генерация с прогрессом, сегментами, логом и результатом; ниже последние задания.
 - **Gallery** — готовые ролики из `Videos/`: просмотр, скачивание/открытие, удаление, выбор и склейка.
-- **Environment** — статус только для чтения: ComfyUI, путь workflow, ffmpeg/ffprobe, доступные tools, а также модель, текстовый энкодер, VAE и апскейлеры из workflow.
+- **Environment** — статус и управление ComfyUI, пути workflow, ffmpeg/ffprobe, tools, а также модель, текстовый энкодер, VAE и апскейлеры из workflow.
 
 ### Prompt modes (agent tools)
 

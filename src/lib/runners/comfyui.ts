@@ -136,6 +136,8 @@ export const comfyuiRunner: Runner = {
       outWidth: String(input.width),
       outHeight: String(input.height),
       denoise: String(Math.min(0.8, Math.max(0.3, Number(input.denoise ?? 0.6)))),
+      perBatch: String(Math.max(1, Math.min(64, Number(input.upscaleBatch ?? 8)))),
+      upscaler: input.upscaler ?? '2xNomosUni_span_multijpg.safetensors',
       model: input.model.id,
     })
     let workflow: unknown

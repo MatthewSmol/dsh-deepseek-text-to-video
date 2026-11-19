@@ -301,6 +301,7 @@ export function planGeneration(input) {
         autoClip,
         mode,
         denoise: Math.min(0.8, Math.max(0.3, Number(input.denoise ?? 0.6))),
+        upscaleBatch: autoBudget >= 16 ? 32 : autoBudget >= 10 ? 16 : 8,
         promptProfile,
         orientation: input.orientation ?? (width >= height ? 'landscape' : 'portrait'),
         baseWidth: width >= height ? 768 : 512,

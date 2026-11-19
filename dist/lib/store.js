@@ -30,6 +30,8 @@ export const DEFAULT_SETTINGS = {
     promptMode: 'full',
     orientation: 'landscape',
     denoise: 0.6,
+    upscale: 'neural',
+    upscaler: '2xNomosUni_span_multijpg.safetensors',
     transcode: {
         enabled: true,
         mode: 'quality',
@@ -185,6 +187,8 @@ export function sanitizeSettings(raw) {
         promptMode: oneOf(source.promptMode, ['split', 'full', 'shots'], 'full'),
         orientation: oneOf(source.orientation, ['landscape', 'portrait'], 'landscape'),
         denoise: Math.min(0.8, Math.max(0.3, Number(source.denoise) || 0.6)),
+        upscale: oneOf(source.upscale, ['neural', 'off'], 'neural'),
+        upscaler: str(source.upscaler, 500, '2xNomosUni_span_multijpg.safetensors'),
         transcode: {
             enabled: bool(transcodeRaw.enabled, true),
             mode: oneOf(transcodeRaw.mode, ['quality', 'size'], 'quality'),

@@ -35,6 +35,8 @@ export interface RunnerRunInput {
   steps: number
   guidance: number
   denoise?: number
+  upscaleBatch?: number
+  upscaler?: string
   gpuIds: number[]
   imagePath: string | null
   videoPath: string | null

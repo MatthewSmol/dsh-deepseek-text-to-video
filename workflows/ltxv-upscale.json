@@ -1,0 +1,78 @@
+{
+  "1": {
+    "class_type": "LoadVideo",
+    "inputs": {
+      "file": "{{video}}"
+    }
+  },
+  "2": {
+    "class_type": "GetVideoComponents",
+    "inputs": {
+      "video": [
+        "1",
+        0
+      ]
+    }
+  },
+  "3": {
+    "class_type": "UpscaleModelLoader",
+    "inputs": {
+      "model_name": "{{upscaler}}"
+    }
+  },
+  "4": {
+    "class_type": "ImageUpscaleWithModelBatched",
+    "inputs": {
+      "upscale_model": [
+        "3",
+        0
+      ],
+      "images": [
+        "2",
+        0
+      ],
+      "per_batch": {{perBatch}},
+      "downscale_ratio": 1.0,
+      "downscale_method": "lanczos",
+      "precision": "float32"
+    }
+  },
+  "5": {
+    "class_type": "ImageScale",
+    "inputs": {
+      "image": [
+        "4",
+        0
+      ],
+      "upscale_method": "lanczos",
+      "width": {{outWidth}},
+      "height": {{outHeight}},
+      "crop": "disabled"
+    }
+  },
+  "6": {
+    "class_type": "ImageSharpen",
+    "inputs": {
+      "image": [
+        "5",
+        0
+      ],
+      "sharpen_radius": 1,
+      "sigma": 1.0,
+      "alpha": 0.8
+    }
+  },
+  "7": {
+    "class_type": "SaveWEBM",
+    "inputs": {
+      "images": [
+        "6",
+        0
+      ],
+      "filename_prefix": "genvideo-upscale",
+      "codec": "vp9",
+      "fps": {{fps}},
+      "crf": 18.0
+    }
+  }
+}

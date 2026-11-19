@@ -156,6 +156,12 @@ else
   download_models
 fi
 
+# RU: KJNodes нужен для батчевого нейро-апскейла.
+# EN: KJNodes is required for batched neural upscaling.
+if [[ ! -d "$DIR/custom_nodes/ComfyUI-KJNodes" ]]; then
+  git clone --depth 1 https://github.com/kijai/ComfyUI-KJNodes "$DIR/custom_nodes/ComfyUI-KJNodes"
+  "$VENV/bin/pip" install -r "$DIR/custom_nodes/ComfyUI-KJNodes/requirements.txt"
+fi
 mkdir -p "$DIR/user/default/workflows"
 if [[ -d "$SCRIPT_DIR/ui-workflows" ]]; then
   log "installing UI workflows"

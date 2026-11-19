@@ -20,6 +20,7 @@ import { JobManager } from './jobs.js';
 import { detectGpus, selectGpus } from './gpu.js';
 import { buildToolsStatus, clearComfyUiCache, detectComfyUi, detectDeps, findNvcc } from './deps.js';
 import { allModels, findModel, findVariant, formatGB, snapFrames } from './models.js';
+import { upscaleWithComfyUI } from './runners/comfyui-upscale.js';
 import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes } from './media.js';
 import { fitPlanToBudget, planGeneration } from './planner.js';
 import { defaultModelsDir, defaultVideosDir, genvideoHome, inputsDir, safeBaseName, scratchDir, assertInside, outputFileName, slugify, ensureDirSync } from './paths.js';
@@ -481,6 +482,8 @@ export class Engine {
                 steps: input.request.steps ?? settings.steps,
                 guidance: input.request.guidance ?? settings.guidance,
                 denoise: input.request.denoise ?? input.plan.denoise,
+                upscaleBatch: input.plan.upscaleBatch,
+                upscaler: settings.upscaler,
                 gpuIds: input.plan.gpuIds,
                 imagePath: previousImage,
                 videoPath: videoInput?.path ?? null,
@@ -531,6 +534,32 @@ export class Engine {
                 onProgress: (percent) => ctx.progress({ percent: 80 + Math.round(percent * 0.08), message: 'Merging segments' }),
             });
         }
+        let finalSource = merged;
+        if ((input.request.upscale ?? settings.upscale) !== 'off') {
+            ctx.phase('upscaling', `Neural 2× upscale (batch ${input.plan.upscaleBatch})`);
+            const upscaled = join(scratch, 'upscaled.mp4');
+            try {
+                await upscaleWithComfyUI({
+                    settings,
+                    source: merged,
+                    target: upscaled,
+                    width: input.plan.width,
+                    height: input.plan.height,
+                    fps: input.plan.fps,
+                    perBatch: input.plan.upscaleBatch,
+                    upscaler: settings.upscaler,
+                    signal: ctx.signal,
+                    log: (line) => ctx.log(line),
+                    onProgress: (percent) => ctx.progress({ percent: 88 + Math.round(percent * 0.06), message: 'Neural 2× upscale' }),
+                });
+                finalSource = upscaled;
+            }
+            catch (error) {
+                const detail = error instanceof Error ? error.message : String(error);
+                ctx.log(`upscale fallback to native: ${detail}`);
+                ctx.progress({ percent: 90, message: 'Upscale failed; keeping native resolution' });
+            }
+        }
         const format = input.transcode.enabled ? input.transcode.format : 'mp4';
         const seed = baseSeed >= 0 ? baseSeed : 0;
         const name = input.request.outputName
@@ -543,7 +572,7 @@ export class Engine {
             await transcodeFile({
                 ffmpeg,
                 ffprobe,
-                source: merged,
+                source: finalSource,
                 target: finalPath,
                 transcode: input.transcode,
                 signal: ctx.signal,
@@ -555,7 +584,7 @@ export class Engine {
         }
         else {
             ctx.phase('muxing', 'Finalizing the file');
-            await copyFile(merged, finalPath);
+            await copyFile(finalSource, finalPath);
         }
         ctx.phase('verifying', 'Verifying the output');
         const info = await probeFile(ffprobe, finalPath);

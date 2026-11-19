@@ -114,47 +114,10 @@
       "temporal_overlap": 8
     }
   },
-  "14": {
-    "class_type": "UpscaleModelLoader",
-    "inputs": {
-      "model_name": "2xNomosUni_span_multijpg.safetensors"
-    }
-  },
-  "15": {
-    "class_type": "ImageUpscaleWithModel",
-    "inputs": {
-      "upscale_model": [
-        "14",
-        0
-      ],
-      "image": [
-        "13",
-        0
-      ]
-    }
-  },
-  "16": {
-    "class_type": "ImageScale",
-    "inputs": {
-      "image": [
-        "15",
-        0
-      ],
-      "upscale_method": "lanczos",
-      "width": {{outWidth}},
-      "height": {{outHeight}},
-      "crop": "disabled"
-    }
-  },
-  "19": {
-    "class_type": "ImageSharpen",
-    "inputs": {
-      "image": ["16", 0],
-      "sharpen_radius": 1,
-      "sigma": 1.0,
-      "alpha": 0.8
-    }
-  },
+
+
+
+
   "17": {
     "class_type": "LoadImage",
     "inputs": {
@@ -192,7 +155,7 @@
     "class_type": "SaveWEBM",
     "inputs": {
       "images": [
-        "16",
+        "13",
         0
       ],
       "filename_prefix": "genvideo",

@@ -175,6 +175,8 @@ export interface Settings {
   promptMode: PromptMode
   orientation: Orientation
   denoise: number
+  upscale: 'neural' | 'off'
+  upscaler: string
   transcode: TranscodeOptions
   gpu: GpuSettings
   proxy: ProxySettings
@@ -332,6 +334,7 @@ export interface Plan {
   mode: 't2v' | 'i2v' | 'v2v'
   denoise: number
   promptProfile: import('./prompt-profiles.js').PromptProfile
+  upscaleBatch: number
   orientation: Orientation
   baseWidth: number
   baseHeight: number
@@ -381,6 +384,7 @@ export interface GenerateRequest {
   guidance?: number
   continuity?: 'none' | 'last-frame'
   denoise?: number
+  upscale?: 'neural' | 'off'
   /** RU: Автоподбор разрешения/клипа под VRAM (для чат-бота). EN: Auto-fit resolution/clip to VRAM (for chat agents). */
   autoFit?: boolean
   inputImageId?: string

@@ -30,7 +30,7 @@ const en: Record<string, string> = {
   platform: 'Platform', aspect: 'Aspect', resolution: 'Resolution', fps: 'FPS', seed: 'Seed', random: 'random',
   negative: 'Negative prompt', continuity: 'Continuity', none: 'None', lastFrame: 'Last frame → next clip',
   imageInput: 'Reference image (image-to-video)', videoInput: 'Reference video (video-to-video)',
-  i2vHint: 'Needs the diffusers LTX-Video 0.9.8 2B (i2v) model and the Python engine; the Candle build is text-to-video only.', denoise: 'Denoise', denoiseHint: '0.35–0.5 keeps motion and background; 0.55–0.75 redraws strongly.',
+  i2vHint: 'Needs the diffusers LTX-Video 0.9.8 2B (i2v) model and the Python engine; the Candle build is text-to-video only.', denoise: 'Denoise', denoiseHint: '0.35–0.5 keeps motion and background; 0.55–0.75 redraws strongly.', upscale: 'Upscale', upscaleHint: 'Neural 2× in ComfyUI with 8-frame batches; models are unloaded before upscaling.', upscaleNeural: 'Neural 2× (batched)', upscaleOff: 'Off',
   referenceInput: 'Reference input', switchToI2v: 'Choose i2v model',
   v2vHint: 'No built-in model supports video input yet.',
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
@@ -104,7 +104,7 @@ const ru: Record<string, string> = {
   platform: 'Платформа', aspect: 'Аспект', resolution: 'Разрешение', fps: 'Кадры/с', seed: 'Seed', random: 'случайно',
   negative: 'Негативный промпт', continuity: 'Непрерывность', none: 'Нет', lastFrame: 'Последний кадр → следующий клип',
   imageInput: 'Опорная картинка (image-to-video)', videoInput: 'Опорное видео (video-to-video)',
-  i2vHint: 'Нужна diffusers-модель LTX-Video 0.9.8 2B (i2v) и Python-движок; Candle-сборка умеет только text-to-video.', denoise: 'Denoise', denoiseHint: '0.35–0.5 сохраняет движение и фон; 0.55–0.75 сильно перерисовывает.',
+  i2vHint: 'Нужна diffusers-модель LTX-Video 0.9.8 2B (i2v) и Python-движок; Candle-сборка умеет только text-to-video.', denoise: 'Denoise', denoiseHint: '0.35–0.5 сохраняет движение и фон; 0.55–0.75 сильно перерисовывает.', upscale: 'Апскейл', upscaleHint: 'Нейросетевой 2× в ComfyUI пачками по 8 кадров; модели выгружаются перед апскейлом.', upscaleNeural: 'Нейро 2× (батчами)', upscaleOff: 'Выкл',
   referenceInput: 'Опорный вход', switchToI2v: 'Выбрать i2v-модель',
   v2vHint: 'Встроенные модели пока не поддерживают видео-вход.',
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
@@ -260,6 +260,7 @@ function emptyForm(settings?: any) {
     steps: settings?.steps ?? 0,
     guidance: settings?.guidance ?? 0,
     denoise: settings?.denoise ?? 0.6,
+    upscale: settings?.upscale ?? 'neural',
     inputImageId: '',
     inputVideoId: '',
     transcode: {
@@ -716,6 +717,7 @@ const Panel = {
         guidance: form.value.guidance,
         continuity: form.value.continuity,
         denoise: form.value.denoise,
+        upscale: form.value.upscale,
         transcode: form.value.transcode,
       })
     }
@@ -1114,6 +1116,14 @@ const Panel = {
             : null,
         ]),
         h(Card, { title: `4 · ${t('sectionEncoding')}`, hint: t('transcodeHint') }, [
+          h('div', { class: 'gv-mb-3' }, [
+            h(Field, { label: t('upscale'), hint: t('upscaleHint') }, [
+              h('select', { class: 'gv-select', value: form.value.upscale, onChange: (event: any) => patch({ upscale: event.target.value }) }, [
+                h('option', { value: 'neural' }, t('upscaleNeural')),
+                h('option', { value: 'off' }, t('upscaleOff')),
+              ]),
+            ]),
+          ]),
           h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
             h(Segmented, {
               value: form.value.transcode.enabled ? form.value.transcode.mode : 'off',
