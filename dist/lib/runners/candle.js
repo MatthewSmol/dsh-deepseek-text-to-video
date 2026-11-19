@@ -57,7 +57,17 @@ export const candleRunner = {
             throw new GenVideoError('candle-missing', `candle-video binary is not executable: ${binary}`);
         }
         const modelDir = join(modelsDirOf(input.settings), input.model.id);
-        const unified = join(modelDir, input.model.variants[0]?.files[0] ?? 'ltxv-2b-0.9.8-distilled.safetensors');
+        const variant = input.model.variants[0];
+        const missing = [];
+        for (const file of variant?.files ?? []) {
+            const exists = await stat(join(modelDir, file)).then(() => true).catch(() => false);
+            if (!exists)
+                missing.push(file);
+        }
+        if (missing.length) {
+            throw new GenVideoError('candle-weights-missing', `Candle weights are not installed: ${missing.join(', ')}. Open Models → ${input.model.title} → Install model, or choose the diffusers model for the weights you already downloaded.`, { status: 409, details: { modelId: input.model.id, missing } });
+        }
+        const unified = join(modelDir, variant?.files[0] ?? 'ltxv-2b-0.9.8-distilled.safetensors');
         const outputDir = join(input.outputPath, '..');
         await mkdir(outputDir, { recursive: true });
         const args = [
