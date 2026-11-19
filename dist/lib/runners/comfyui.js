@@ -83,9 +83,15 @@ export const comfyuiRunner = {
         }
         const uploadedImage = input.imagePath ? await uploadInput(base, input.imagePath, input.signal) : '';
         const uploadedVideo = input.videoPath ? await uploadInput(base, input.videoPath, input.signal) : '';
+        const escapeJson = (value) => value
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n')
+            .replace(/\r/g, '\\r')
+            .replace(/\t/g, '\\t');
         const workflowText = substituteWorkflow(template, {
-            prompt: input.prompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"'),
-            negative: input.negativePrompt.replace(/\\/g, '\\\\').replace(/"/g, '\\"'),
+            prompt: escapeJson(input.prompt),
+            negative: escapeJson(input.negativePrompt),
             width: String(input.width),
             height: String(input.height),
             frames: String(input.frames),
