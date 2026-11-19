@@ -139,6 +139,14 @@ export interface CustomModel {
 
 /** RU: Полные настройки плагина (persist в GENVIDEO_HOME/settings.json).
  *  EN: Full plugin settings (persisted to GENVIDEO_HOME/settings.json). */
+/** RU: SOCKS-прокси для внешних запросов (Hugging Face).
+ *  EN: SOCKS proxy for outbound requests (Hugging Face). */
+export interface ProxySettings {
+  enabled: boolean
+  /** RU: Пусто = socks5://127.0.0.1:1080. EN: Empty = socks5://127.0.0.1:1080. */
+  url: string
+}
+
 export interface Settings {
   language: 'en' | 'ru'
   /** RU: Пусто = <workdir>/Videos. EN: Empty = <workdir>/Videos. */
@@ -161,6 +169,7 @@ export interface Settings {
   continuity: 'none' | 'last-frame'
   transcode: TranscodeOptions
   gpu: GpuSettings
+  proxy: ProxySettings
   deps: DepsSettings
   runners: RunnerSettings
   retention: { jobs: number; logBytes: number }

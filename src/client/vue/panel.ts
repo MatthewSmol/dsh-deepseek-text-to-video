@@ -1113,6 +1113,23 @@ const Panel = {
       ]),
     ])
 
+    const networkSection = () => h(Card, { title: t('network'), hint: t('proxyHint') }, [
+      h(Toggle, {
+        checked: settings.value.proxy.enabled,
+        label: t('useProxy'),
+        hint: t('proxyHint'),
+        onChange: (enabled: boolean) => (settingsDraft.value = { ...settings.value, proxy: { ...settings.value.proxy, enabled } }),
+      }),
+      settings.value.proxy.enabled
+        ? h(Field, { label: t('proxyUrl'), hint: t('proxyUrlHint') }, [
+            h('input', {
+              class: 'gv-input', placeholder: 'socks5://127.0.0.1:1080', value: settings.value.proxy.url,
+              onInput: (event: any) => (settingsDraft.value = { ...settings.value, proxy: { ...settings.value.proxy, url: event.target.value } }),
+            }),
+          ])
+        : null,
+    ])
+
     const serviceSection = () => h(Card, { title: t('service') }, [
       h(Row, { label: t('version') }, [h(Badge, null, state.value.version)]),
       h(Row, { label: t('uptime') }, [h(Badge, null, fmtDuration((Date.now() - state.value.startedAt) / 1000))]),
@@ -1120,7 +1137,7 @@ const Panel = {
     ])
 
     const settingsView = () => h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-4 lg:gv-grid-cols-2' }, [
-      gpuSection(), toolsSection(), pathsSection(), serviceSection(),
+      gpuSection(), toolsSection(), pathsSection(), networkSection(), serviceSection(),
     ])
 
     return () => {

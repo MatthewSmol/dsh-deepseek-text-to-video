@@ -5,7 +5,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { assertInside, safeBaseName, slugify, outputFileName } from '../lib/paths.js'
-import { sanitizeSettings, DEFAULT_SETTINGS } from '../lib/store.js'
+import { sanitizeSettings, sanitizeProxyUrl, DEFAULT_SETTINGS } from '../lib/store.js'
+import { proxyUrlFor } from '../lib/downloads.js'
 
 test('assertInside accepts a child and rejects traversal', () => {
   const inside = assertInside('/tmp/videos', '/tmp/videos/clip.mp4')
@@ -65,4 +66,14 @@ test('defaults are stable', () => {
   assert.equal(settings.modelsDir, '')
   assert.equal(settings.runners.mockDelayMs, DEFAULT_SETTINGS.runners.mockDelayMs)
   assert.equal(settings.hf.tokenEnv, 'HF_TOKEN')
+})
+
+
+test('proxy URL is validated and resolved', () => {
+  assert.equal(sanitizeProxyUrl('127.0.0.1:9050'), 'socks5://127.0.0.1:9050')
+  assert.equal(sanitizeProxyUrl('socks5h://127.0.0.1:9050'), 'socks5h://127.0.0.1:9050')
+  assert.equal(sanitizeProxyUrl('http://127.0.0.1:8080'), '')
+  assert.equal(sanitizeProxyUrl(''), '')
+  assert.equal(proxyUrlFor({ enabled: true, url: '' }), 'socks5://127.0.0.1:1080')
+  assert.equal(proxyUrlFor({ enabled: false, url: 'socks5://127.0.0.1:9050' }), '')
 })

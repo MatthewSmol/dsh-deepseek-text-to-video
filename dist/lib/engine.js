@@ -614,6 +614,7 @@ export class Engine {
                 files: variant.files,
                 targetDir: join(dirs.modelsDir, model.id),
                 token,
+                proxy: settings.proxy,
                 signal: ctx.signal,
                 onProgress: (progress) => {
                     ctx.progress({
@@ -624,7 +625,7 @@ export class Engine {
                     });
                 },
             });
-            const remote = await checkRemoteRevision(model.repo, token).catch(() => ({ sha: '', lastModified: '' }));
+            const remote = await checkRemoteRevision(model.repo, token, settings.proxy).catch(() => ({ sha: '', lastModified: '' }));
             const manifest = {
                 repo: model.repo,
                 sha: remote.sha,
@@ -650,12 +651,13 @@ export class Engine {
         for (const model of models) {
             const manifest = await this.readManifest(model.id, dirs.modelsDir);
             try {
-                const remote = await checkRemoteRevision(model.repo, token);
+                const remote = await checkRemoteRevision(model.repo, token, settings.proxy);
                 const candidates = await findNewerCandidates({
                     query: model.family === 'ltx-2' ? 'ltx-2' : 'ltx-video',
                     currentRepo: model.repo,
                     knownRevision: remote.lastModified,
                     token,
+                    proxy: settings.proxy,
                 }).catch(() => []);
                 results.push({
                     modelId: model.id,

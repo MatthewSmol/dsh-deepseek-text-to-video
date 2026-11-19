@@ -45,6 +45,10 @@ export const DEFAULT_SETTINGS = {
         strategy: 'single',
         vramBudgetGB: 0,
     },
+    proxy: {
+        enabled: false,
+        url: '',
+    },
     deps: {
         ffmpegPath: '',
         ffprobePath: '',
@@ -100,10 +104,30 @@ function str(value, max, fallback = '') {
 }
 /** RU: Приводит произвольный объект к валидным настройкам.
  *  EN: Coerces an arbitrary object into valid settings. */
+/** RU: Принимает socks5://host:port, socks5h://... или host:port.
+ *  EN: Accepts socks5://host:port, socks5h://... or host:port. */
+export function sanitizeProxyUrl(raw) {
+    const text = typeof raw === 'string' ? raw.trim() : '';
+    if (!text)
+        return '';
+    const candidate = /^[a-z][a-z0-9+.-]*:\/\//i.test(text) ? text : `socks5://${text}`;
+    try {
+        const url = new URL(candidate);
+        if (url.protocol !== 'socks5:' && url.protocol !== 'socks5h:')
+            return '';
+        if (!url.hostname || !url.port)
+            return '';
+        return candidate.slice(0, 300);
+    }
+    catch {
+        return '';
+    }
+}
 export function sanitizeSettings(raw) {
     const source = (raw && typeof raw === 'object' ? raw : {});
     const transcodeRaw = (source.transcode && typeof source.transcode === 'object' ? source.transcode : {});
     const gpuRaw = (source.gpu && typeof source.gpu === 'object' ? source.gpu : {});
+    const proxyRaw = (source.proxy && typeof source.proxy === 'object' ? source.proxy : {});
     const depsRaw = (source.deps && typeof source.deps === 'object' ? source.deps : {});
     const runnersRaw = (source.runners && typeof source.runners === 'object' ? source.runners : {});
     const retentionRaw = (source.retention && typeof source.retention === 'object' ? source.retention : {});
@@ -164,6 +188,10 @@ export function sanitizeSettings(raw) {
             height: int(transcodeRaw.height, 0, 4096, 0),
             fps: int(transcodeRaw.fps, 0, 120, 0),
             fit: oneOf(transcodeRaw.fit, ['contain', 'cover'], 'contain'),
+        },
+        proxy: {
+            enabled: bool(proxyRaw.enabled, false),
+            url: sanitizeProxyUrl(proxyRaw.url),
         },
         gpu: {
             ids: gpuIds,

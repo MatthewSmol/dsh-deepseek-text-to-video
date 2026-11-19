@@ -2,20 +2,26 @@
  * RU: Загрузка весов с Hugging Face и проверка новых версий. Используется
  *     только HTTP API HF: без python-зависимостей, с Range-докачкой и
  *     проверкой размера. Токен берётся из переменной окружения (например,
- *     HF_TOKEN), чтобы не хранить секреты в настройках.
+ *     HF_TOKEN), чтобы не хранить секреты в настройках. При включённом
+ *     SOCKS-прокси запросы идут через `curl --proxy`.
  * EN: Hugging Face weight downloads and update checks. Uses only the HF HTTP
  *     API: no Python dependencies, with Range resume and size verification. The
  *     token comes from an environment variable (for example HF_TOKEN) so secrets
- *     are not stored in settings.
+ *     are not stored in settings. With the SOCKS proxy enabled, requests go
+ *     through `curl --proxy`.
  */
+import { spawn } from 'node:child_process'
 import { createWriteStream } from 'node:fs'
 import { mkdir, rename, stat, unlink } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { Readable } from 'node:stream'
 import { pipeline } from 'node:stream/promises'
+import type { ProxySettings } from './types.js'
 import { GenVideoError } from './errors.js'
+import { runCommand } from './proc.js'
 
 const HF = 'https://huggingface.co'
+const DEFAULT_PROXY = 'socks5://127.0.0.1:1080'
 
 /** RU: Файл в репозитории HF. EN: A file in an HF repository. */
 export interface RemoteFile {
@@ -39,20 +45,51 @@ export interface DownloadProgress {
   percent: number
 }
 
+/** RU: Итоговый адрес прокси; пустой адрес даёт localhost:1080.
+ *  EN: Effective proxy URL; an empty value means localhost:1080. */
+export function proxyUrlFor(proxy?: ProxySettings): string {
+  if (!proxy?.enabled) return ''
+  return proxy.url.trim() || DEFAULT_PROXY
+}
+
 function authHeaders(token?: string): Record<string, string> {
   return token ? { authorization: `Bearer ${token}` } : {}
 }
 
-/** RU: Читает метаданные репозитория через API HF. EN: Reads repository metadata through the HF API. */
-export async function fetchRemoteModel(repo: string, token?: string): Promise<RemoteModel> {
-  const response = await fetch(`${HF}/api/models/${repo}?blobs=true`, {
-    headers: authHeaders(token),
-    signal: AbortSignal.timeout(20_000),
-  })
-  if (!response.ok) {
-    throw new GenVideoError('hf-model-failed', `Hugging Face returned HTTP ${response.status} for ${repo}`, { status: 502 })
+/** RU: GET через SOCKS-прокси с помощью curl.
+ *  EN: GET through a SOCKS proxy using curl. */
+async function curlText(url: string, token: string | undefined, proxy: ProxySettings): Promise<string> {
+  const args = ['-sS', '-L', '--fail', '--max-time', '30', '--proxy', proxyUrlFor(proxy)]
+  if (token) args.push('-H', `Authorization: Bearer ${token}`)
+  args.push(url)
+  const result = await runCommand('curl', args, { timeoutMs: 35_000 })
+  if (result.code !== 0) {
+    throw new GenVideoError('hf-request-failed', result.stderr.trim() || `curl exited ${result.code}`, { status: 502 })
   }
-  const json = (await response.json()) as Record<string, unknown>
+  return result.stdout
+}
+
+/** RU: Читает метаданные репозитория через API HF. EN: Reads repository metadata through the HF API. */
+export async function fetchRemoteModel(repo: string, token?: string, proxy?: ProxySettings): Promise<RemoteModel> {
+  const url = `${HF}/api/models/${repo}?blobs=true`
+  let json: Record<string, unknown>
+  if (proxyUrlFor(proxy)) {
+    const text = await curlText(url, token, proxy as ProxySettings)
+    try {
+      json = JSON.parse(text) as Record<string, unknown>
+    } catch {
+      throw new GenVideoError('hf-model-failed', `Invalid JSON from Hugging Face for ${repo}`, { status: 502 })
+    }
+  } else {
+    const response = await fetch(url, {
+      headers: authHeaders(token),
+      signal: AbortSignal.timeout(20_000),
+    })
+    if (!response.ok) {
+      throw new GenVideoError('hf-model-failed', `Hugging Face returned HTTP ${response.status} for ${repo}`, { status: 502 })
+    }
+    json = (await response.json()) as Record<string, unknown>
+  }
   const siblings = Array.isArray(json.siblings) ? (json.siblings as Array<Record<string, unknown>>) : []
   return {
     repo,
@@ -65,15 +102,81 @@ export async function fetchRemoteModel(repo: string, token?: string): Promise<Re
   }
 }
 
+/** RU: Скачивание файла через curl и SOCKS-прокси, с прогрессом по размеру.
+ *  EN: File download through curl and a SOCKS proxy, with size-based progress. */
+async function downloadViaCurl(
+  input: {
+    repo: string
+    file: string
+    target: string
+    token?: string
+    signal?: AbortSignal
+    size?: number
+    onProgress?: (progress: DownloadProgress) => void
+  },
+  proxy: ProxySettings,
+): Promise<number> {
+  await mkdir(dirname(input.target), { recursive: true })
+  const part = `${input.target}.part`
+  const existing = await stat(input.target).then((item) => item.size).catch(() => 0)
+  if (existing > 0) return existing
+  const start = await stat(part).then((item) => item.size).catch(() => 0)
+  const expected = Math.max(start, input.size ?? 0)
+  const args = ['-sS', '-L', '--fail', '--retry', '3', '--retry-delay', '2', '-o', part, '--proxy', proxyUrlFor(proxy)]
+  if (start > 0) args.push('-C', '-')
+  if (input.token) args.push('-H', `Authorization: Bearer ${input.token}`)
+  args.push(`${HF}/${input.repo}/resolve/main/${input.file}?download=true`)
+
+  const child = spawn('curl', args, { stdio: ['ignore', 'ignore', 'pipe'] })
+  let stderr = ''
+  child.stderr.on('data', (chunk: Buffer) => {
+    stderr += chunk.toString()
+  })
+  const onAbort = () => child.kill('SIGTERM')
+  input.signal?.addEventListener('abort', onAbort, { once: true })
+  let received = start
+  const emit = () => {
+    input.onProgress?.({
+      file: input.file,
+      bytes: received,
+      totalBytes: expected,
+      percent: expected > 0 ? Math.min(100, Math.round((received / expected) * 100)) : 0,
+    })
+  }
+  emit()
+  const timer = setInterval(() => {
+    void stat(part).then((item) => {
+      received = item.size
+      emit()
+    }).catch(() => undefined)
+  }, 300)
+
+  const code = await new Promise<number | null>((resolve) => child.on('close', resolve))
+  clearInterval(timer)
+  input.signal?.removeEventListener('abort', onAbort)
+  if (input.signal?.aborted) throw new GenVideoError('cancelled', 'Download cancelled')
+  if (code !== 0) {
+    throw new GenVideoError('hf-download-failed', stderr.trim().split('\n').slice(-3).join(' ') || `curl exited ${code ?? 'null'} for ${input.file}`, { status: 502 })
+  }
+  const finalSize = await stat(part).then((item) => item.size).catch(() => received)
+  await rename(part, input.target)
+  input.onProgress?.({ file: input.file, bytes: finalSize, totalBytes: Math.max(expected, finalSize), percent: 100 })
+  return finalSize
+}
+
 /** RU: Скачивает один файл с докачкой. EN: Downloads one file with resume. */
 export async function downloadFile(input: {
   repo: string
   file: string
   target: string
+  size?: number
   token?: string
+  proxy?: ProxySettings
   signal?: AbortSignal
   onProgress?: (progress: DownloadProgress) => void
 }): Promise<number> {
+  if (proxyUrlFor(input.proxy)) return downloadViaCurl(input, input.proxy as ProxySettings)
+
   await mkdir(dirname(input.target), { recursive: true })
   const part = `${input.target}.part`
   let start = 0
@@ -130,18 +233,17 @@ export async function downloadModelFiles(input: {
   files: string[]
   targetDir: string
   token?: string
+  proxy?: ProxySettings
   signal?: AbortSignal
   onProgress?: (progress: DownloadProgress & { index: number; count: number }) => void
 }): Promise<{ bytes: number; files: string[] }> {
   let total = 0
   const saved: string[] = []
+  const remote = await fetchRemoteModel(input.repo, input.token, input.proxy).catch(() => null)
   for (let index = 0; index < input.files.length; index += 1) {
     const file = input.files[index] ?? ''
     if (!file) continue
     const target = join(input.targetDir, file)
-    // RU: Проверяем уже скачанный файл по размеру из API.
-    // EN: Skip a file that is already downloaded at the expected size.
-    const remote = await fetchRemoteModel(input.repo, input.token).catch(() => null)
     const expected = remote?.files.find((item) => item.path === file)?.size ?? 0
     const existing = await stat(target).then((item) => item.size).catch(() => 0)
     if (existing > 0 && (expected === 0 || existing === expected)) {
@@ -154,7 +256,9 @@ export async function downloadModelFiles(input: {
       repo: input.repo,
       file,
       target,
+      size: expected,
       token: input.token,
+      proxy: input.proxy,
       signal: input.signal,
       onProgress: (progress) =>
         input.onProgress?.({ ...progress, index, count: input.files.length }),
@@ -166,8 +270,8 @@ export async function downloadModelFiles(input: {
 }
 
 /** RU: Сравнивает локальную ревизию с удалённой. EN: Compares the local revision with the remote one. */
-export async function checkRemoteRevision(repo: string, token?: string): Promise<{ sha: string; lastModified: string }> {
-  const remote = await fetchRemoteModel(repo, token)
+export async function checkRemoteRevision(repo: string, token?: string, proxy?: ProxySettings): Promise<{ sha: string; lastModified: string }> {
+  const remote = await fetchRemoteModel(repo, token, proxy)
   return { sha: remote.sha, lastModified: remote.lastModified }
 }
 
@@ -178,15 +282,26 @@ export async function findNewerCandidates(input: {
   currentRepo: string
   knownRevision: string | null
   token?: string
+  proxy?: ProxySettings
   limit?: number
 }): Promise<Array<{ repo: string; reason: string; sizeGB: number }>> {
   const limit = input.limit ?? 8
-  const response = await fetch(
-    `${HF}/api/models?search=${encodeURIComponent(input.query)}&sort=lastModified&direction=-1&limit=30`,
-    { headers: authHeaders(input.token), signal: AbortSignal.timeout(15_000) },
-  )
-  if (!response.ok) return []
-  const json = (await response.json()) as Array<Record<string, unknown>>
+  const url = `${HF}/api/models?search=${encodeURIComponent(input.query)}&sort=lastModified&direction=-1&limit=30`
+  let json: Array<Record<string, unknown>>
+  if (proxyUrlFor(input.proxy)) {
+    try {
+      json = JSON.parse(await curlText(url, input.token, input.proxy as ProxySettings)) as Array<Record<string, unknown>>
+    } catch {
+      return []
+    }
+  } else {
+    const response = await fetch(url, {
+      headers: authHeaders(input.token),
+      signal: AbortSignal.timeout(15_000),
+    })
+    if (!response.ok) return []
+    json = (await response.json()) as Array<Record<string, unknown>>
+  }
   const known = input.knownRevision ? Date.parse(input.knownRevision) : 0
   // RU: Отсеиваем случайные репозитории: оставляем проверенных авторов или
   //     популярные модели, иначе подсказка «новая версия» превращается в шум.
