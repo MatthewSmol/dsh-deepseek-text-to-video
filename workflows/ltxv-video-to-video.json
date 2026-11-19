@@ -2,7 +2,7 @@
   "1": {
     "class_type": "CheckpointLoaderSimple",
     "inputs": {
-      "ckpt_name": "ltxv-2b-0.9.8-distilled-fp8.safetensors"
+      "ckpt_name": "ltxv-2b-0.9.8-distilled.safetensors"
     }
   },
   "2": {
@@ -12,53 +12,64 @@
       "type": "ltxv"
     }
   },
+  "3": {
+    "class_type": "CLIPTextEncode",
+    "inputs": {
+      "clip": [
+        "2",
+        0
+      ],
+      "text": "{{prompt}}"
+    }
+  },
   "4": {
     "class_type": "CLIPTextEncode",
     "inputs": {
-      "text": "{{prompt}}",
       "clip": [
         "2",
         0
-      ]
+      ],
+      "text": "{{negative}}"
     }
   },
   "5": {
-    "class_type": "CLIPTextEncode",
-    "inputs": {
-      "text": "{{negative}}",
-      "clip": [
-        "2",
-        0
-      ]
-    }
-  },
-  "6": {
     "class_type": "LTXVConditioning",
     "inputs": {
       "positive": [
-        "4",
+        "3",
         0
       ],
       "negative": [
-        "5",
+        "4",
         0
       ],
       "frame_rate": {{fps}}
     }
   },
-  "7": {
+  "6": {
     "class_type": "LoadVideo",
     "inputs": {
       "file": "{{video}}"
     }
   },
-  "8": {
+  "7": {
     "class_type": "GetVideoComponents",
     "inputs": {
       "video": [
-        "7",
+        "6",
         0
       ]
+    }
+  },
+  "8": {
+    "class_type": "ImageFromBatch",
+    "inputs": {
+      "image": [
+        "7",
+        0
+      ],
+      "batch_index": 0,
+      "length": {{frames}}
     }
   },
   "9": {
@@ -75,21 +86,10 @@
     }
   },
   "10": {
-    "class_type": "ImageFromBatch",
-    "inputs": {
-      "image": [
-        "9",
-        0
-      ],
-      "batch_index": 0,
-      "length": {{frames}}
-    }
-  },
-  "11": {
     "class_type": "VAEEncodeTiled",
     "inputs": {
       "pixels": [
-        "10",
+        "9",
         0
       ],
       "vae": [
@@ -102,86 +102,73 @@
       "temporal_overlap": 8
     }
   },
-  "12": {
+  "11": {
     "class_type": "KSamplerSelect",
     "inputs": {
       "sampler_name": "euler"
     }
   },
-  "13": {
+  "12": {
     "class_type": "LTXVScheduler",
     "inputs": {
-      "steps": 8,
+      "steps": 16,
       "max_shift": 2.05,
       "base_shift": 0.95,
       "stretch": true,
-      "terminal": 0.1
+      "terminal": 0.1,
+      "latent": [
+        "10",
+        0
+      ]
     }
   },
-  "14": {
+  "13": {
     "class_type": "SplitSigmasDenoise",
     "inputs": {
       "sigmas": [
-        "13",
+        "12",
         0
       ],
       "denoise": {{denoise}}
     }
   },
-  "15": {
-    "class_type": "CFGGuider",
+  "14": {
+    "class_type": "SamplerCustom",
     "inputs": {
       "model": [
         "1",
         0
       ],
+      "add_noise": true,
+      "noise_seed": {{seed}},
+      "cfg": 1.0,
       "positive": [
-        "6",
+        "5",
         0
       ],
       "negative": [
-        "6",
+        "5",
         1
       ],
-      "cfg": 1.0
-    }
-  },
-  "16": {
-    "class_type": "RandomNoise",
-    "inputs": {
-      "noise_seed": {{seed}}
-    }
-  },
-  "17": {
-    "class_type": "SamplerCustomAdvanced",
-    "inputs": {
-      "noise": [
-        "16",
-        0
-      ],
-      "guider": [
-        "15",
-        0
-      ],
       "sampler": [
-        "12",
+        "11",
         0
       ],
       "sigmas": [
-        "14",
+        "13",
         1
       ],
       "latent_image": [
-        "11",
+        "10",
         0
       ]
     }
   },
-  "18": {
+  "15": {
     "class_type": "VAEDecodeTiled",
     "inputs": {
       "samples": [
-        "17",
+        "14",
         0
       ],
       "vae": [
@@ -194,30 +181,30 @@
       "temporal_overlap": 8
     }
   },
-  "19": {
+  "16": {
     "class_type": "UpscaleModelLoader",
     "inputs": {
       "model_name": "2xNomosUni_span_multijpg.safetensors"
     }
   },
-  "20": {
+  "17": {
     "class_type": "ImageUpscaleWithModel",
     "inputs": {
       "upscale_model": [
-        "19",
+        "16",
         0
       ],
       "image": [
-        "18",
+        "15",
         0
       ]
     }
   },
-  "21": {
+  "18": {
     "class_type": "ImageScale",
     "inputs": {
       "image": [
-        "20",
+        "17",
         0
       ],
       "upscale_method": "lanczos",
@@ -226,11 +213,11 @@
       "crop": "disabled"
     }
   },
-  "23": {
+  "19": {
     "class_type": "ImageSharpen",
     "inputs": {
       "image": [
-        "21",
+        "18",
         0
       ],
       "sharpen_radius": 1,
@@ -238,17 +225,17 @@
       "alpha": 0.8
     }
   },
-  "22": {
+  "20": {
     "class_type": "SaveWEBM",
     "inputs": {
       "images": [
-        "23",
+        "19",
         0
       ],
       "filename_prefix": "genvideo",
       "codec": "vp9",
       "fps": {{fps}},
-      "crf": 24.0
+      "crf": 20.0
     }
   }
 }

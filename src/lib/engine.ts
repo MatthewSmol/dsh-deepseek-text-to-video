@@ -782,7 +782,8 @@ export class Engine {
           const inputs = node?.inputs ?? {}
           if (/UnetLoader|CheckpointLoader/i.test(cls)) model = String(inputs.unet_name ?? inputs.ckpt_name ?? model ?? '')
           if (/CLIPLoader|DualCLIPLoader|TripleCLIPLoader/i.test(cls)) encoder = String(inputs.clip_name ?? inputs.clip_name1 ?? inputs.clip_name2 ?? encoder ?? '')
-          if (/VAELoader|CheckpointLoader/i.test(cls)) vae = String(inputs.vae_name ?? vae ?? '')
+          if (/VAELoader/i.test(cls)) vae = String(inputs.vae_name ?? vae ?? '')
+          if (/CheckpointLoader/i.test(cls)) vae = `checkpoint: ${String(inputs.ckpt_name ?? '')}`
           if (/Upscale|Upsampler/i.test(cls)) upscalers.push(`${cls}${inputs.model_name ? `: ${inputs.model_name}` : inputs.upscale_method ? `: ${inputs.upscale_method}` : ''}`)
           if (/LoraLoader/i.test(cls)) loras.push(`${cls}: ${inputs.lora_name ?? ''}`)
         }

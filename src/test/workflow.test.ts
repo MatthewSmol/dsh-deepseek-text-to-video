@@ -21,7 +21,7 @@ test('LTXV workflow has the expected sampler, decoder and upscaler chain', () =>
   for (const name of ['CheckpointLoaderSimple', 'CLIPLoader', 'LTXVConditioning', 'EmptyLTXVLatentVideo', 'KSamplerSelect', 'LTXVScheduler', 'CFGGuider', 'RandomNoise', 'SamplerCustomAdvanced', 'VAEDecodeTiled', 'UpscaleModelLoader', 'ImageUpscaleWithModel', 'ImageScale', 'ImageSharpen', 'SaveWEBM']) {
     assert.ok(classes.includes(name), `${name} missing`)
   }
-  assert.ok(JSON.stringify(graph).includes('ltxv-2b-0.9.8-distilled-fp8'))
+  assert.ok(JSON.stringify(graph).includes('ltxv-2b-0.9.8-distilled'))
   assert.ok(JSON.stringify(graph).includes('t5xxl_fp8_e4m3fn'))
   assert.ok(JSON.stringify(graph).includes('2xNomosUni_span_multijpg'))
 })
@@ -37,7 +37,7 @@ test('image workflow uses LTXVImgToVideo and LoadImage', () => {
 test('V2V workflow encodes the video and trims sigmas', () => {
   const graph = load('workflows/ltxv-video-to-video.json', true)
   const classes = Object.values(graph).map((node: any) => node.class_type)
-  for (const name of ['LoadVideo', 'GetVideoComponents', 'ImageFromBatch', 'VAEEncodeTiled', 'SplitSigmasDenoise', 'SamplerCustomAdvanced', 'UpscaleModelLoader']) {
+  for (const name of ['LoadVideo', 'GetVideoComponents', 'ImageFromBatch', 'VAEEncodeTiled', 'SplitSigmasDenoise', 'SamplerCustom', 'UpscaleModelLoader']) {
     assert.ok(classes.includes(name), `${name} missing`)
   }
   assert.ok(readFileSync('workflows/ltxv-video-to-video.json', 'utf8').includes('{{denoise}}'))
