@@ -188,7 +188,9 @@ export function planGeneration(input) {
             message: `A ${target}s video with ${clipRequested}s clips needs ${requestedSegments} segments; the limit is ${MAX_SEGMENTS}. Increase the clip length or shorten the video.`,
         });
     }
-    const durations = computeSegments(target, clipRequested, model.durationSec.max, segmentMode);
+    const durations = input.singleClip
+        ? [Math.min(target, (257 - 1) / fps)]
+        : computeSegments(target, clipRequested, model.durationSec.max, segmentMode);
     const continuity = input.continuity ?? (durations.length > 1 ? 'last-frame' : 'none');
     const built = buildSegmentPrompts(input.prompt, durations.length, promptMode, model.maxPromptChars, input.segmentPrompts, continuity);
     if (built.fallback) {
@@ -203,7 +205,7 @@ export function planGeneration(input) {
         prompt: built.prompts[index] ?? input.prompt,
     }));
     const totalSec = Math.round(segments.reduce((acc, segment) => acc + segment.durationSec, 0) * 100) / 100;
-    const frames = Math.max(9, Math.round(segments[0]?.durationSec ?? 1) * fps + 1);
+    const frames = Math.max(9, Math.round((segments[0]?.durationSec ?? 1) * fps) + 1);
     const estimatedVramGB = estimateVramGB(model, width, height, frames);
     const selected = gpu.available ? gpu.gpus.filter((item) => !settings.gpu.ids.length || settings.gpu.ids.includes(item.index)) : [];
     const maxVram = selected.length
@@ -250,6 +252,8 @@ export function planGeneration(input) {
         availableRunner: input.runner,
         clipSec: segments[0]?.durationSec ?? target,
         autoClip,
+        mode: input.videoInput ? 'v2v' : input.imageInput ? 'i2v' : 't2v',
+        denoise: Math.min(0.8, Math.max(0.3, Number(input.denoise ?? 0.6))),
         orientation: input.orientation ?? (width >= height ? 'landscape' : 'portrait'),
         baseWidth: width >= height ? 768 : 512,
         baseHeight: width >= height ? 512 : 768,

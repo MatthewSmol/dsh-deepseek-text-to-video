@@ -34,6 +34,7 @@ export interface RunnerRunInput {
   seed: number
   steps: number
   guidance: number
+  denoise?: number
   gpuIds: number[]
   imagePath: string | null
   videoPath: string | null

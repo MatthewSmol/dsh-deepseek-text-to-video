@@ -126,3 +126,19 @@ test('generation requires a confirmed plan', { skip: !hasFfmpeg }, async () => {
     (error: any) => error?.code === 'confirmation-required',
   )
 })
+
+test('a reference video plans one V2V clip', { skip: !hasFfmpeg }, async () => {
+  assert.ok(engine)
+  const plan = await engine.plan({
+    prompt: 'restyle the fox',
+    modelId: 'ltx-0.9.8-2b-distilled',
+    runner: 'mock',
+    inputVideoId: 'source.mp4',
+    fps: 30,
+    targetDurationSec: 60,
+  })
+  assert.equal(plan.mode, 'v2v')
+  assert.equal(plan.segments.length, 1)
+  assert.ok(plan.frames <= 257, `frames=${plan.frames}, clip=${plan.clipSec}, segments=${plan.segments.length}`)
+  assert.ok(plan.denoise >= 0.3 && plan.denoise <= 0.8)
+})

@@ -107,6 +107,7 @@ export const comfyuiRunner = {
             baseHeight: String(baseHeight),
             outWidth: String(input.width),
             outHeight: String(input.height),
+            denoise: String(Math.min(0.8, Math.max(0.3, Number(input.denoise ?? 0.6)))),
             model: input.model.id,
         });
         let workflow;

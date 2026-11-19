@@ -8,7 +8,7 @@ function load(file: string, image = false): Record<string, any> {
   let text = readFileSync(file, 'utf8')
   const values: Record<string, string> = {
     prompt: 'a fox', negative: '', baseWidth: '768', baseHeight: '512',
-    outWidth: '1280', outHeight: '720', frames: '121', fps: '30', seed: '1', image: 'x.png',
+    outWidth: '1280', outHeight: '720', frames: '121', fps: '30', seed: '1', image: 'x.png', video: 'source.mp4', denoise: '0.6',
   }
   for (const [key, value] of Object.entries(values)) text = text.replaceAll(`{{${key}}}`, value)
   const graph = JSON.parse(text) as Record<string, any>
@@ -32,4 +32,13 @@ test('image workflow uses LTXVImgToVideo and LoadImage', () => {
   assert.ok(classes.includes('LoadImage'))
   assert.ok(classes.includes('LTXVImgToVideo'))
   assert.ok(classes.includes('UpscaleModelLoader'))
+})
+
+test('V2V workflow encodes the video and trims sigmas', () => {
+  const graph = load('workflows/ltxv-video-to-video.json', true)
+  const classes = Object.values(graph).map((node: any) => node.class_type)
+  for (const name of ['LoadVideo', 'GetVideoComponents', 'ImageFromBatch', 'VAEEncodeTiled', 'SplitSigmasDenoise', 'SamplerCustomAdvanced', 'UpscaleModelLoader']) {
+    assert.ok(classes.includes(name), `${name} missing`)
+  }
+  assert.ok(readFileSync('workflows/ltxv-video-to-video.json', 'utf8').includes('{{denoise}}'))
 })

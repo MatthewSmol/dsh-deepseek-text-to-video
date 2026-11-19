@@ -170,6 +170,7 @@ export interface Settings {
   continuity: 'none' | 'last-frame'
   promptMode: PromptMode
   orientation: Orientation
+  denoise: number
   transcode: TranscodeOptions
   gpu: GpuSettings
   proxy: ProxySettings
@@ -322,6 +323,8 @@ export interface Plan {
   availableRunner: RunnerId | null
   clipSec: number
   autoClip: boolean
+  mode: 't2v' | 'i2v' | 'v2v'
+  denoise: number
   orientation: Orientation
   baseWidth: number
   baseHeight: number
@@ -370,6 +373,7 @@ export interface GenerateRequest {
   steps?: number
   guidance?: number
   continuity?: 'none' | 'last-frame'
+  denoise?: number
   /** RU: Автоподбор разрешения/клипа под VRAM (для чат-бота). EN: Auto-fit resolution/clip to VRAM (for chat agents). */
   autoFit?: boolean
   inputImageId?: string

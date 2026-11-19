@@ -24,6 +24,7 @@ There is no MCP server, no stdio transport and no `endpoint.json`. The plugin st
 
 - **Generate** — numbered sections (Scene → References → Output → Encoding); prompt/negative, reference image and video, duration, **Format** (Horizontal 16:9 / Vertical 9:16), **FPS** (15/24/30/60), continuity and ffmpeg transcode. Clip length is chosen automatically from VRAM.
 - **Generation preview** — Generate opens a plan with output/base size, fps, auto clip, frames, clips and warnings; the job starts only after **Confirm generation**.
+- **V2V** — a reference video is loaded through `LoadVideo → GetVideoComponents → VAEEncodeTiled`, denoised with `SplitSigmasDenoise` (0.3–0.8, default 0.6), then upscaled and saved. V2V is one clip, cropped to 8n+1 frames (max 257).
 - **Jobs** — the active job with progress, segments, log and result, plus recent jobs.
 - **Gallery** — finished videos from `Videos/`; preview, download/open, delete, select and merge.
 - **Environment** — read-only status: ComfyUI, workflow path, ffmpeg/ffprobe, available agent tools, and the parsed workflow model, text encoder, VAE and upscalers.
@@ -104,7 +105,7 @@ npm run build     # host + client bundle + dist checks
 npm test          # 45 tests, including ffmpeg mock e2e
 ```
 
-`dist/` is committed, so installation does not require a build.
+`dist/` is committed, so installation does not require a build. On first activation the bundled `workflows/ltxv-*.json` templates are copied to `$DSH_HOME/genvideo` only when the target file is missing; custom workflows are never overwritten.
 
 ### Folders
 
@@ -113,7 +114,7 @@ npm test          # 45 tests, including ffmpeg mock e2e
 | `<project>/Videos/` | finished videos |
 | `$DSH_HOME/genvideo/workflow.json` | ComfyUI API workflow |
 | `$DSH_HOME/genvideo/workflow-image.json` | optional image-to-video workflow |
-| `$DSH_HOME/genvideo/workflow-video.json` | optional video-to-video workflow |
+| `$DSH_HOME/genvideo/workflow-video.json` | video-to-video workflow (bundled) |
 | `$DSH_HOME/genvideo/settings.json` | output dir, language, generation/transcode defaults |
 | `$DSH_HOME/genvideo/jobs.json`, `logs/` | job history and logs |
 | `$DSH_HOME/genvideo/work/` | temporary segments and merge scratch |
@@ -140,6 +141,7 @@ MCP-сервера, stdio-транспорта и `endpoint.json` больше �
 
 - **Generate** — пронумерованные секции (Сцена → Референсы → Выход → Кодирование); промпт/негатив, референс-картинка и видео, длительность, **Format** (Horizontal 16:9 / Vertical 9:16), **FPS** (15/24/30/60), непрерывность и транскод. Длина клипа выбирается автоматически по VRAM.
 - **Предпросмотр** — Generate сначала строит план: итоговый/base размер, fps, auto clip, кадры, число клипов и warnings; job создаётся только после **Confirm generation**.
+- **V2V** — опорное видео проходит `LoadVideo → GetVideoComponents → VAEEncodeTiled`, перерисовывается через `SplitSigmasDenoise` (0.3–0.8, по умолчанию 0.6), затем апскейл и сохранение. V2V — один клип, обрезается до 8n+1 кадров (максимум 257).
 - **Jobs** — активная генерация с прогрессом, сегментами, логом и результатом; ниже последние задания.
 - **Gallery** — готовые ролики из `Videos/`: просмотр, скачивание/открытие, удаление, выбор и склейка.
 - **Environment** — статус только для чтения: ComfyUI, путь workflow, ffmpeg/ffprobe, доступные tools, а также модель, текстовый энкодер, VAE и апскейлеры из workflow.
@@ -220,7 +222,7 @@ npm test          # 45 тестов, включая ffmpeg mock e2e
 | `<project>/Videos/` | готовые ролики |
 | `$DSH_HOME/genvideo/workflow.json` | ComfyUI API workflow |
 | `$DSH_HOME/genvideo/workflow-image.json` | опциональный image-to-video workflow |
-| `$DSH_HOME/genvideo/workflow-video.json` | опциональный video-to-video workflow |
+| `$DSH_HOME/genvideo/workflow-video.json` | video-to-video workflow (встроенный) |
 | `$DSH_HOME/genvideo/settings.json` | output dir, язык, дефолты генерации/транскода |
 | `$DSH_HOME/genvideo/jobs.json`, `logs/` | история заданий и логи |
 | `$DSH_HOME/genvideo/work/` | временные сегменты и скретч склейки |

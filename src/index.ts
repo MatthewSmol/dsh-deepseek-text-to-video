@@ -13,6 +13,7 @@ import { createApiHandler } from './lib/api.js'
 import { Engine } from './lib/engine.js'
 import { ensureServiceDirs } from './lib/paths.js'
 import { registerGenvideoTools } from './server/tools.js'
+import { installBundledWorkflows } from './lib/workflows.js'
 
 /** RU: Имя плагина для логов. EN: Plugin name for logs. */
 export const name = '@local/dsh-genvideo'
@@ -23,6 +24,7 @@ export const inject = ['webServer', 'tools']
 /** RU: Регистрирует HTTP-роут и нативные инструменты. EN: Registers the HTTP route and native tools. */
 export function apply(ctx: any): void {
   ensureServiceDirs()
+  const workflows = installBundledWorkflows()
   const engine = new Engine()
   const handler = createApiHandler(engine, '')
 
@@ -45,6 +47,7 @@ export function apply(ctx: any): void {
     },
   }))
   disposers.push(registerGenvideoTools(ctx, engine))
+  if (workflows.installed.length) ctx.logger?.info?.(`genvideo: installed workflows: ${workflows.installed.join(', ')}`)
   ctx.logger?.info?.('genvideo: engine ready, native tools registered')
   ctx.effect?.(() => () => {
     for (const dispose of disposers.splice(0)) {

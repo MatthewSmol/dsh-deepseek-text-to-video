@@ -274,7 +274,19 @@ export class Engine {
     const gpu = await this.gpu()
     let { width, height } = this.frameSize(request, model, settings)
     const { fps } = this.frameSize(request, model, settings)
-    const target = Math.max(0.5, request.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended)
+    let target = Math.max(0.5, request.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended)
+    if (request.inputVideoId) {
+      try {
+        const input = await this.resolveInput(request.inputVideoId)
+        const info = await probeFile(deps.ffprobe.path, input.path)
+        const sourceFrames = Math.max(1, Math.round(info.durationSec * info.fps))
+        const usable = Math.max(1, Math.floor((sourceFrames - 1) / 8) * 8 + 1)
+        if (usable < 9) throw new GenVideoError('video-too-short', 'The reference video is shorter than 9 frames.', { status: 409 })
+        target = Math.min(target, usable / info.fps)
+      } catch (error) {
+        if (error instanceof GenVideoError && error.code === 'video-too-short') throw error
+      }
+    }
     let clipSec = request.clipSec ?? 0
     let autoFitNote: string | null = null
     if (request.autoFit && !request.width && !request.height) {
@@ -317,12 +329,14 @@ export class Engine {
       segmentPrompts: request.segmentPrompts,
       continuity: request.continuity,
       segmentMode: request.segmentMode,
+      singleClip: Boolean(request.inputVideoId),
+      denoise: request.denoise,
       width,
       height,
       fps,
       segments: request.segments,
-      imageInput: Boolean(request.inputImageId) || model.capabilities.i2v,
-      videoInput: Boolean(request.inputVideoId) || model.capabilities.v2v,
+      imageInput: Boolean(request.inputImageId),
+      videoInput: Boolean(request.inputVideoId),
       transcodeEstimatedBytes: estimatedBytes,
       transcodeMode: transcode.enabled ? transcode.mode : null,
     })
@@ -510,6 +524,7 @@ export class Engine {
         seed: baseSeed >= 0 ? baseSeed + index : randomInt(0, 2_147_483_647),
         steps: input.request.steps ?? settings.steps,
         guidance: input.request.guidance ?? settings.guidance,
+        denoise: input.request.denoise ?? input.plan.denoise,
         gpuIds: input.plan.gpuIds,
         imagePath: previousImage,
         videoPath: videoInput?.path ?? null,
