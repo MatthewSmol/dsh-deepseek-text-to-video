@@ -39,8 +39,8 @@ const en: Record<string, string> = {
   promptModeHint: 'Full scene repeats the whole description in every clip (recommended for one continuous scene).',
   transcode: 'Transcode after generation', transcodeHint: 'Pick one: no transcode, quality tiers, or a size limit.', noTranscode: 'No transcode',
   codec: 'MP4 codec', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'MP4 only; WebM/GIF ignore it. H.265 needs a player with HEVC support.',
-  encoder: 'Encoder', encoderAuto: 'Auto (CPU fallback)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
-  encoderHint: 'Hardware encoders fall back to libx264 automatically. Vulkan needs an NVIDIA Vulkan ICD; WSL often has none.',
+  encoder: 'Encoder for ffmpeg', encoderAuto: 'Auto (CPU fallback)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
+  encoderHint: 'FFmpeg encoder for the final file. Auto tries NVENC, then CPU libx264; Vulkan needs an NVIDIA ICD.',
   candleArgs: 'candle-video extra arguments', candleArgsHint: 'One argv per line; for a custom Vulkan build, e.g. --device and vulkan.',
   quality: 'Quality', sizeLimit: 'Size limit', mb: 'MB', high: 'High', medium: 'Medium', compressed: 'Max compression',
   format: 'Format', fit: 'Fit', released: 'Released', contain: 'Contain (bars)', cover: 'Cover (crop)', source: 'Source',
@@ -111,8 +111,8 @@ const ru: Record<string, string> = {
   promptModeHint: 'Полная сцена повторяет всё описание в каждом клипе (рекомендуется для одной непрерывной сцены).',
   transcode: 'Перекодировать после генерации', transcodeHint: 'Один режим: без перекодирования, уровни качества или лимит размера.', noTranscode: 'Без перекодирования',
   codec: 'Кодек MP4', codecH264: 'H.264 (AVC)', codecH265: 'H.265 (HEVC)', codecHint: 'Только для MP4; WebM/GIF игнорируют. Для H.265 нужен плеер с поддержкой HEVC.',
-  encoder: 'Энкодер', encoderAuto: 'Авто (fallback на CPU)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
-  encoderHint: 'При ошибке аппаратного энкодера автоматически используется libx264. Vulkan требует NVIDIA Vulkan ICD; в WSL его часто нет.',
+  encoder: 'Энкодер для ffmpeg', encoderAuto: 'Авто (fallback на CPU)', encoderCpu: 'CPU (libx264)', encoderVulkan: 'Vulkan Video', encoderNvenc: 'NVIDIA NVENC',
+  encoderHint: 'Энкодер ffmpeg для итогового файла. Auto пробует NVENC, затем CPU libx264; Vulkan требует NVIDIA ICD.',
   candleArgs: 'Дополнительные аргументы candle-video', candleArgsHint: 'По одному argv в строке; для своей Vulkan-сборки, например --device и vulkan.',
   quality: 'Качество', sizeLimit: 'Лимит размера', mb: 'МБ', high: 'Высокое', medium: 'Среднее', compressed: 'Максимальное сжатие',
   format: 'Формат', fit: 'Вписывание', released: 'Вышла', contain: 'Вписать (поля)', cover: 'Заполнить (обрезка)', source: 'Исходное',
@@ -1061,6 +1061,14 @@ const Panel = {
                 : h(Field, { label: `${t('sizeLimit')} (${t('mb')})` }, [
                     h('input', { class: 'gv-input', type: 'number', min: 1, max: 20000, value: form.value.transcode.targetSizeMB, onInput: (event: any) => patchTranscode({ targetSizeMB: Number(event.target.value) || 1 }) }),
                   ]),
+              h(Field, { label: t('encoder'), hint: t('encoderHint') }, [
+                h('select', { class: 'gv-select', value: form.value.transcode.encoder, onChange: (event: any) => patchTranscode({ encoder: event.target.value }) }, [
+                  h('option', { value: 'auto' }, t('encoderAuto')),
+                  h('option', { value: 'cpu' }, t('encoderCpu')),
+                  h('option', { value: 'nvenc' }, t('encoderNvenc')),
+                  h('option', { value: 'vulkan' }, t('encoderVulkan')),
+                ]),
+              ]),
               h(Field, { label: t('codec'), hint: t('codecHint') }, [
                 h('select', { class: 'gv-select', value: form.value.transcode.codec, onChange: (event: any) => patchTranscode({ codec: event.target.value }) }, [
                   h('option', { value: 'h264' }, t('codecH264')),
