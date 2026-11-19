@@ -50,7 +50,7 @@ const en: Record<string, string> = {
   totalMemory: 'Total', usedMemory: 'Used', gpuStrategy: 'Strategy', single: 'Single GPU',
   roundRobin: 'Round-robin', tensorParallel: 'Tensor parallel',
   tools: 'Tools',
-  enginesIntro: 'Video generation needs one engine. Start with Python — it installs without root. Candle is faster but needs the CUDA toolkit. ComfyUI works if its server is already running. Mock is always available.',
+  enginesIntro: 'Video generation runs through a ComfyUI server with a model workflow. Mock is always available for a quick check.',
   engineReady: 'Ready', engineMissing: 'Not installed', recommended: 'Recommended',
   pythonEngine: 'Python engine (diffusers)', pythonEngineDesc: 'Diffusers models, including LTX-Video 0.9.8 2B and image-to-video. About 5 GB, no root.',
   candleEngine: 'Candle (Rust + CUDA)', candleEngineDesc: 'Faster on NVIDIA. Needs the CUDA toolkit (nvcc); the build takes 10–20 minutes.',
@@ -122,7 +122,7 @@ const ru: Record<string, string> = {
   totalMemory: 'Всего', usedMemory: 'Занято', gpuStrategy: 'Стратегия', single: 'Одна GPU',
   roundRobin: 'По очереди', tensorParallel: 'Tensor parallel',
   tools: 'Инструменты',
-  enginesIntro: 'Для генерации нужен один движок. Начните с Python — он ставится без root. Candle быстрее, но требует CUDA toolkit. ComfyUI — если сервер уже запущен. Mock доступен всегда.',
+  enginesIntro: 'Генерация идёт через сервер ComfyUI с workflow модели. Mock всегда доступен для быстрой проверки.',
   engineReady: 'Готов', engineMissing: 'Не установлен', recommended: 'Рекомендуется',
   pythonEngine: 'Python-движок (diffusers)', pythonEngineDesc: 'Модели diffusers, включая LTX-Video 0.9.8 2B и image-to-video. Около 5 ГБ, без sudo.',
   candleEngine: 'Candle (Rust + CUDA)', candleEngineDesc: 'Быстрее на NVIDIA. Нужен CUDA toolkit (nvcc); сборка 10–20 минут.',
@@ -1451,60 +1451,10 @@ const Panel = {
 
     const toolsSection = () => {
       const deps = state.value.deps
-      const pythonReady = deps.venv.ok
-      const candleReady = deps.candle.ok
       const comfyReady = deps.comfyui.ok
-      const cudaReady = deps.cuda.nvcc
-      const cudaMajor = Number((deps.cuda.version ?? '').split('.')[0] || 0)
-      const cudaCompatible = !deps.cuda.version || cudaMajor >= 13
-      const buildReady = deps.build.pkgConfig && deps.build.openssl
-      const candlePrereqs = cudaReady && cudaCompatible && buildReady
-      const recommendPython = !candlePrereqs
-      const recommendCandle = candlePrereqs && !candleReady
       return h(Card, { title: t('tools') }, [
         h('p', { class: 'gv-hint gv-mb-3' }, t('enginesIntro')),
         h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
-          engineCard(
-            `${t('pythonEngine')}${recommendPython ? ` · ${t('recommended')}` : ''}`,
-            t('pythonEngineDesc'),
-            pythonReady,
-            pythonReady ? `torch ${deps.venv.torch} · diffusers ${deps.venv.diffusers}` : t('engineMissing'),
-            pythonReady
-              ? null
-              : [h('button', { type: 'button', class: 'gv-btn gv-btn-primary gv-h-8 gv-px-3', disabled: Boolean(busy.value), onClick: installPython }, t('installPython'))],
-          ),
-          engineCard(
-            `${t('candleEngine')}${recommendCandle ? ` · ${t('recommended')}` : ''}`,
-            t('candleEngineDesc'),
-            candleReady,
-            candleReady ? deps.candle.path : !cudaReady ? 'CUDA: nvcc' : !cudaCompatible ? `CUDA ${deps.cuda.version}` : !buildReady ? 'pkg-config / libssl' : t('engineMissing'),
-            [
-              candleReady
-                ? null
-                : h('button', {
-                    type: 'button', class: 'gv-btn gv-btn-primary gv-h-8 gv-px-3',
-                    disabled: Boolean(busy.value) || !candlePrereqs,
-                    onClick: installCandle,
-                  }, busy.value === 'candle' ? t('installing') : t('buildCandle')),
-              h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', onClick: () => void recheckDeps() }, t('comfyCheck')),
-            ],
-            !cudaReady
-              ? h('div', { class: 'gv-flex gv-flex-col gv-gap-1' }, [
-                  h('div', { class: 'gv-text-[11.5px] gv-text-warn' }, t('cudaRequired')),
-                  h('code', { class: 'gv-w-fit gv-rounded gv-bg-surface-3 gv-px-2 gv-py-1 gv-text-[10.5px] gv-text-text' }, 'sudo apt-get install -y nvidia-cuda-toolkit'),
-                ])
-              : !cudaCompatible
-                ? h('div', { class: 'gv-flex gv-flex-col gv-gap-1' }, [
-                    h('div', { class: 'gv-text-[11.5px] gv-text-warn' }, `${t('cudaOld')} CUDA ${deps.cuda.version}`),
-                    h('code', { class: 'gv-w-fit gv-rounded gv-bg-surface-3 gv-px-2 gv-py-1 gv-text-[10.5px] gv-text-text' }, t('cudaToolkitUpgrade')),
-                  ])
-                : !buildReady
-                  ? h('div', { class: 'gv-flex gv-flex-col gv-gap-1' }, [
-                      h('div', { class: 'gv-text-[11.5px] gv-text-warn' }, t('buildDepsRequired')),
-                      h('code', { class: 'gv-w-fit gv-rounded gv-bg-surface-3 gv-px-2 gv-py-1 gv-text-[10.5px] gv-text-text' }, 'sudo apt-get install -y pkg-config libssl-dev'),
-                    ])
-                  : h('div', { class: 'gv-hint' }, `${t('cudaReady')} · ${t('buildDepsReady')}`),
-          ),
           engineCard(
             t('comfyEngine'),
             t('comfyEngineDesc'),
@@ -1524,7 +1474,6 @@ const Panel = {
             h(Row, { label: t('ffprobe') }, [
               h(Badge, { tone: deps.ffprobe.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.ffprobe.ok ? deps.ffprobe.path : t('unavailable')),
             ]),
-            h(Row, { label: t('python') }, [h(Badge, null, deps.python.version ?? t('unavailable'))]),
           ]),
         ]),
       ])

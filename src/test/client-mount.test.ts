@@ -149,9 +149,10 @@ test('the Vue panel mounts through the React bridge and renders the scoped UI', 
   settingsCleanup = await effects[1]!()
   await new Promise((resolve) => setTimeout(resolve, 50))
   const settingsHtml = settingsContainer.innerHTML
-  assert.ok(settingsHtml.includes('Python engine'), 'python engine card must be visible')
-  assert.ok(settingsHtml.includes('Build candle engine') || settingsHtml.includes('CUDA toolkit'), 'candle prerequisites must be visible')
-  assert.ok(settingsHtml.includes('Install Python engine'), 'the primary install button must be explicit')
+  assert.ok(settingsHtml.includes('ComfyUI'), 'the ComfyUI engine card must be visible')
+  assert.ok(settingsHtml.includes('Mock'), 'the Mock card must be visible')
+  assert.ok(!settingsHtml.includes('Install Python engine'), 'the Python installer must be hidden')
+  assert.ok(!settingsHtml.includes('Build candle engine'), 'the Candle installer must be hidden')
 
   // RU: Снимаем Vue-приложение и закрываем happy-dom, иначе интервал опроса
   //     состояния не даст тестовому процессу завершиться.
