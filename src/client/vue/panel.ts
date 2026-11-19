@@ -239,8 +239,8 @@ function emptyForm(settings?: any) {
     aspect: settings?.aspect ?? '16:9',
     width: settings?.width ?? 1280,
     height: settings?.height ?? 720,
-    fps: settings?.fps ?? 24,
-    targetDurationSec: settings?.targetDurationSec ?? 4,
+    fps: settings?.fps ?? 30,
+    targetDurationSec: settings?.targetDurationSec ?? 9,
     clipSec: settings?.clipSec ?? 4,
     seed: settings?.seed ?? -1,
     steps: settings?.steps ?? 0,
@@ -767,13 +767,6 @@ const Panel = {
 
     const generateView = () => h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-4 lg:gv-grid-cols-[minmax(0,1fr)_320px]' }, [
       h('div', { class: 'gv-flex gv-flex-col gv-gap-4' }, [
-        h(Card, { title: t('prompt') }, [
-          h('textarea', {
-            class: 'gv-input gv-h-28 gv-resize-y gv-py-2', placeholder: t('promptHint'), value: form.value.prompt,
-            onInput: (event: any) => patch({ prompt: event.target.value }),
-          }),
-          h('p', { class: 'gv-hint gv-mt-1.5' }, t('promptHint')),
-        ]),
         h(Card, { title: `${t('model')} / ${t('runner')}` }, [
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2' }, [
             h(Field, { label: t('model') }, [
@@ -795,6 +788,21 @@ const Panel = {
                 h(Badge, null, `${modelEntry.value.vramGB.min}–${modelEntry.value.vramGB.recommended} GB`),
               ])
             : null,
+        ]),
+        h(Card, { title: t('prompt') }, [
+          h('textarea', {
+            class: 'gv-input gv-h-28 gv-resize-y gv-py-2', placeholder: t('promptHint'), value: form.value.prompt,
+            onInput: (event: any) => patch({ prompt: event.target.value }),
+          }),
+          h('p', { class: 'gv-hint gv-mt-1.5' }, t('promptHint')),
+          h('div', { class: 'gv-mt-3' }, [
+            h(Field, { label: t('negative'), hint: t('negativeHint') }, [
+              h('input', {
+                class: 'gv-input', type: 'text', value: form.value.negativePrompt,
+                onInput: (event: any) => patch({ negativePrompt: event.target.value }),
+              }),
+            ]),
+          ]),
         ]),
         h(Card, { title: t('referenceInput'), hint: t('inputHint') }, [
           !modelEntry.value?.capabilities?.i2v
@@ -875,28 +883,6 @@ const Panel = {
             h(Field, { label: t('fps') }, [
               h('select', { class: 'gv-select', value: String(form.value.fps), onChange: (event: any) => patch({ fps: Number(event.target.value) }) },
                 Array.from(new Set([24, 25, 30, 48, 50, form.value.fps])).sort((a, b) => a - b).map((value) => h('option', { key: value, value }, String(value)))),
-            ]),
-            h(Field, { label: t('seed'), hint: t('seedHint') }, [
-              h('input', { class: 'gv-input', type: 'number', value: form.value.seed, onInput: (event: any) => patch({ seed: Number(event.target.value) }) }),
-            ]),
-          ]),
-        ]),
-        h(Card, { title: t('advanced') }, [
-          h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-3' }, [
-            h(Field, { label: t('negative'), hint: t('negativeHint') }, [
-              h('input', { class: 'gv-input', type: 'text', value: form.value.negativePrompt, onInput: (event: any) => patch({ negativePrompt: event.target.value }) }),
-            ]),
-            h(Field, { label: t('steps'), hint: t('stepsHint') }, [
-              h('input', { class: 'gv-input', type: 'number', min: 0, max: 200, value: form.value.steps, onInput: (event: any) => patch({ steps: Number(event.target.value) }) }),
-            ]),
-            h(Field, { label: t('guidance') }, [
-              h('input', { class: 'gv-input', type: 'number', min: 0, max: 30, step: 0.1, value: form.value.guidance, onInput: (event: any) => patch({ guidance: Number(event.target.value) }) }),
-            ]),
-            h(Field, { label: t('continuity') }, [
-              h('select', { class: 'gv-select', value: form.value.continuity, onChange: (event: any) => patch({ continuity: event.target.value }) }, [
-                h('option', { value: 'none' }, t('none')),
-                h('option', { value: 'last-frame' }, t('lastFrame')),
-              ]),
             ]),
           ]),
         ]),
