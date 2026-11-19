@@ -446,9 +446,17 @@ const Panel = {
     // RU: Пояснение, почему выбранный раннер недоступен для этой модели.
     // EN: Why the selected runner is unavailable for this model.
     const runnerHint = computed(() => {
-      const item = runners.value.find((entry: any) => entry.id === form.value.runner)
-      if (!item || item.available !== false) return ''
-      return [item.reason, item.hint].filter(Boolean).join(' — ')
+      if (runner.value !== 'auto') {
+        const item = runners.value.find((entry: any) => entry.id === runner.value)
+        if (!item || item.available !== false) return ''
+        return [item.reason, item.hint].filter(Boolean).join(' — ')
+      }
+      // RU: В режиме Auto показываем, почему ни один путь модели не доступен.
+      // EN: In Auto mode explain why none of the model's paths is available.
+      const runtimes = modelEntry.value?.runtimes ?? []
+      const candidates = runners.value.filter((entry: any) => runtimes.includes(entry.id))
+      if (!candidates.length || candidates.some((entry: any) => entry.available !== false)) return ''
+      return candidates.map((entry: any) => `${entry.id}: ${entry.reason ?? t('unavailable')}`).join(' · ')
     })
 
     async function refreshLibrary() {
