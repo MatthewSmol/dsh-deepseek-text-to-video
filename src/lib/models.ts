@@ -100,6 +100,7 @@ export const BUILTIN_MODELS: ModelEntry[] = [
         files: [
           'ltxv-2b-0.9.8-distilled.safetensors',
           'text_encoder_gguf/t5-v1_1-xxl-encoder-Q5_K_M.gguf',
+          'text_encoder_gguf/tokenizer.json',
         ],
         sizeGB: 9.73,
         precision: 'bf16 + Q5',
