@@ -327,7 +327,7 @@ const Segmented = (props: any) =>
     (props.options ?? []).map((option: any) =>
       h('button', {
         key: option.value, type: 'button', onClick: () => props.onChange(option.value),
-        class: `gv-rounded-md gv-px-2.5 gv-py-1 gv-text-[11.5px] gv-font-medium gv-transition-colors ${props.value === option.value ? 'gv-bg-surface gv-text-text gv-shadow-sm' : 'gv-text-muted hover:gv-text-text'}`,
+        class: `gv-seg gv-rounded-md gv-px-2.5 gv-py-1 gv-text-[11.5px] gv-font-medium gv-transition-colors ${props.value === option.value ? 'gv-seg-active gv-bg-surface gv-text-text gv-shadow-sm' : 'gv-text-muted'}`,
       }, option.label),
     ),
   )
@@ -832,6 +832,15 @@ const Panel = {
         h('div', null, [h('h2', { class: 'gv-text-[15px] gv-font-semibold gv-text-text' }, t('title')), h('p', { class: 'gv-text-[11.5px] gv-text-muted' }, t('subtitle'))]),
       ]),
       h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-gap-1.5' }, [
+        h('select', {
+          class: 'gv-select gv-h-8 gv-w-24',
+          value: language.value,
+          onChange: (event: any) => {
+            const value = event.target.value === 'ru' ? 'ru' : 'en'
+            language.value = value
+            void saveSettings({ language: value })
+          },
+        }, [h('option', { value: 'en' }, t('english')), h('option', { value: 'ru' }, t('russian'))]),
         h(Badge, { tone: state.value.gpu.available ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, `GPU ${state.value.gpu.gpus.length}`),
         h(Badge, { tone: state.value.deps.ffmpeg.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, 'ffmpeg'),
         h(Badge, { tone: 'gv-border-line gv-bg-surface-2 gv-text-muted' }, `v${state.value.version}`),

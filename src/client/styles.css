@@ -30,3 +30,24 @@
   overflow-y: auto;
   overscroll-behavior: contain;
 }
+
+/* RU: Кнопки не должны «исчезать» при наведении в тёмной теме.
+ * EN: Keep buttons visible on hover in the dark theme. */
+.gv-btn:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--dsw-alias-brand-primary, #247bbf) 10%, var(--dsw-alias-bg-layer-1, #fff));
+  border-color: color-mix(in srgb, var(--dsw-alias-brand-primary, #247bbf) 35%, var(--dsw-alias-border-l1, #e3e6ea));
+}
+.gv-btn-primary:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--dsw-alias-brand-primary, #247bbf) 84%, #000);
+  opacity: 1;
+}
+.gv-btn-danger:hover:not(:disabled) {
+  background-color: color-mix(in srgb, var(--dsw-alias-state-error-primary, #d13b3b) 84%, #000);
+}
+.gv-seg:hover:not(.gv-seg-active) {
+  background-color: color-mix(in srgb, var(--dsw-alias-brand-primary, #247bbf) 10%, transparent);
+  color: var(--dsw-alias-label-primary, #14181d);
+}
+.gv-seg-active {
+  background-color: var(--dsw-alias-bg-layer-1, #fff);
+}
