@@ -37,7 +37,7 @@ const promptProps = {
     fps: { type: 'number', enum: [15, 24, 30, 60] },
     orientation: { type: 'string', enum: ['landscape', 'portrait'] },
     denoise: { type: 'number', minimum: 0.3, maximum: 0.8, description: 'V2V strength: 0.35–0.5 gentle, 0.55–0.75 strong.' },
-    upscale: { type: 'string', enum: ['neural', 'off'], description: 'Neural 2x upscale in ComfyUI with batched frames, or off.' },
+    upscale: { type: 'string', enum: ['ewa', 'off'], description: 'Post-merge EWA Lanczos upscale from 480p to 720p, or off.' },
     inputImageId: { type: 'string' },
     inputVideoId: { type: 'string' },
     outputName: { type: 'string' },
@@ -72,10 +72,10 @@ export function registerGenvideoTools(ctx, engine) {
             return await engine.saveInput({ data, name, mime });
         }),
         tool('genvideo_status', 'ComfyUI/ffmpeg/jobs status of GenVideo.', { type: 'object', properties: {}, additionalProperties: false }, async () => await engine.status()),
-        tool('genvideo_plan', 'Plan segment split for a prompt. Returns the clip count N, promptProfile and required facets. For N>1 write exactly N detailed segmentPrompts (subject, setting, light, camera, action, continuity) and pass them to genvideo_generate.', {
+        tool('genvideo_plan', 'Plan segment split for a prompt. Returns the clip count N, promptProfile and required facets. For N>1 write exactly N different segmentPrompts: each must show a NEW action, not repeat the previous clip. Use segmentBriefs from the plan. Adjacent identical prompts are rejected.', {
             type: 'object', properties: promptProps, required: ['prompt'], additionalProperties: false,
         }, async (args) => await engine.plan({ ...args, modelId: 'comfyui-workflow', runner: 'comfyui' })),
-        tool('genvideo_generate', 'Generate a video through the configured ComfyUI workflow. First call genvideo_plan, show the preview to the user and wait for confirmation, then call again with planId. Generation without planId returns confirmation-required.', {
+        tool('genvideo_generate', 'Generate a video through the configured ComfyUI workflow. First call genvideo_plan, show the preview to the user and wait for confirmation, then call again with planId. Generation without planId returns confirmation-required. Adjacent repeated segment prompts return segment-prompts-repeated.', {
             type: 'object', properties: promptProps, required: ['prompt'], additionalProperties: false,
         }, async (args) => {
             const result = await engine.generate({ ...args, modelId: 'comfyui-workflow', runner: 'comfyui' });

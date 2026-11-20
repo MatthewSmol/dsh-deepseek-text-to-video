@@ -32,7 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   promptMode: 'full',
   orientation: 'landscape',
   denoise: 0.6,
-  upscale: 'neural',
+  upscale: 'ewa',
   upscaler: '2xNomosUni_span_multijpg.safetensors',
   transcode: {
     enabled: true,
@@ -187,10 +187,10 @@ export function sanitizeSettings(raw: unknown): Settings {
     negativePrompt: str(source.negativePrompt, 4000, ''),
     seed: int(source.seed, -1, 2_147_483_647, -1),
     continuity: oneOf(source.continuity, ['none', 'last-frame'] as const, 'none'),
-    promptMode: oneOf(source.promptMode, ['split', 'full', 'shots'] as const, 'full'),
+    promptMode: oneOf(source.promptMode, ['split', 'full', 'shots'] as const, 'shots'),
     orientation: oneOf(source.orientation, ['landscape', 'portrait'] as const, 'landscape'),
     denoise: Math.min(0.8, Math.max(0.3, Number(source.denoise) || 0.6)),
-    upscale: oneOf(source.upscale, ['neural', 'off'] as const, 'neural'),
+    upscale: oneOf(source.upscale, ['ewa', 'off'] as const, 'ewa'),
     upscaler: str(source.upscaler, 500, '2xNomosUni_span_multijpg.safetensors'),
     transcode: {
       enabled: bool(transcodeRaw.enabled, true),

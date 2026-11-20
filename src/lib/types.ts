@@ -175,7 +175,7 @@ export interface Settings {
   promptMode: PromptMode
   orientation: Orientation
   denoise: number
-  upscale: 'neural' | 'off'
+  upscale: 'ewa' | 'off'
   upscaler: string
   transcode: TranscodeOptions
   gpu: GpuSettings
@@ -335,6 +335,7 @@ export interface Plan {
   denoise: number
   promptProfile: import('./prompt-profiles.js').PromptProfile
   upscaleBatch: number
+  segmentBriefs: Array<{ index: number; beat: string; mustNotRepeat: string }>
   orientation: Orientation
   baseWidth: number
   baseHeight: number
@@ -384,7 +385,7 @@ export interface GenerateRequest {
   guidance?: number
   continuity?: 'none' | 'last-frame'
   denoise?: number
-  upscale?: 'neural' | 'off'
+  upscale?: 'ewa' | 'off'
   /** RU: Автоподбор разрешения/клипа под VRAM (для чат-бота). EN: Auto-fit resolution/clip to VRAM (for chat agents). */
   autoFit?: boolean
   inputImageId?: string

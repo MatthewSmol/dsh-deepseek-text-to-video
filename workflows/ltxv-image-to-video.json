@@ -161,7 +161,7 @@
       "filename_prefix": "genvideo",
       "codec": "vp9",
       "fps": {{fps}},
-      "crf": 24.0
+      "crf": 18.0
     }
   }
 }

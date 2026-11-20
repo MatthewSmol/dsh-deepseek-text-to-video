@@ -197,7 +197,7 @@ test('auto clip length follows VRAM and fps cap', () => {
   assert.equal(autoClipSec(24, 30), 8)
   assert.equal(autoClipSec(24, 60), 4)
   assert.equal(autoClipSec(8, 60), 4)
-  assert.equal(autoClipSec(2, 30), 2)
+  assert.equal(autoClipSec(2, 30), 4)
 })
 
 test('auto clip and orientation drive plan sizes', () => {

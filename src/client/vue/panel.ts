@@ -30,7 +30,7 @@ const en: Record<string, string> = {
   platform: 'Platform', aspect: 'Aspect', resolution: 'Resolution', fps: 'FPS', seed: 'Seed', random: 'random',
   negative: 'Negative prompt', continuity: 'Continuity', none: 'None', lastFrame: 'Last frame → next clip',
   imageInput: 'Reference image (image-to-video)', videoInput: 'Reference video (video-to-video)',
-  i2vHint: 'Needs the diffusers LTX-Video 0.9.8 2B (i2v) model and the Python engine; the Candle build is text-to-video only.', denoise: 'Denoise', denoiseHint: '0.35–0.5 keeps motion and background; 0.55–0.75 redraws strongly.', upscale: 'Upscale', upscaleHint: 'Neural 2× in ComfyUI with 8-frame batches; models are unloaded before upscaling.', upscaleNeural: 'Neural 2× (batched)', upscaleOff: 'Off',
+  i2vHint: 'Needs the diffusers LTX-Video 0.9.8 2B (i2v) model and the Python engine; the Candle build is text-to-video only.', denoise: 'Denoise', denoiseHint: '0.35–0.5 keeps motion and background; 0.55–0.75 redraws strongly.', upscale: 'Upscale', upscaleHint: 'EWA Lanczos after the whole video is merged: 480p → 1280×720 / 720×1280 on the GPU.', upscaleEwa: 'EWA Lanczos (GPU 480p→720p)', upscaleOff: 'Off',
   referenceInput: 'Reference input', switchToI2v: 'Choose i2v model',
   v2vHint: 'No built-in model supports video input yet.',
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
@@ -104,7 +104,7 @@ const ru: Record<string, string> = {
   platform: 'Платформа', aspect: 'Аспект', resolution: 'Разрешение', fps: 'Кадры/с', seed: 'Seed', random: 'случайно',
   negative: 'Негативный промпт', continuity: 'Непрерывность', none: 'Нет', lastFrame: 'Последний кадр → следующий клип',
   imageInput: 'Опорная картинка (image-to-video)', videoInput: 'Опорное видео (video-to-video)',
-  i2vHint: 'Нужна diffusers-модель LTX-Video 0.9.8 2B (i2v) и Python-движок; Candle-сборка умеет только text-to-video.', denoise: 'Denoise', denoiseHint: '0.35–0.5 сохраняет движение и фон; 0.55–0.75 сильно перерисовывает.', upscale: 'Апскейл', upscaleHint: 'Нейросетевой 2× в ComfyUI пачками по 8 кадров; модели выгружаются перед апскейлом.', upscaleNeural: 'Нейро 2× (батчами)', upscaleOff: 'Выкл',
+  i2vHint: 'Нужна diffusers-модель LTX-Video 0.9.8 2B (i2v) и Python-движок; Candle-сборка умеет только text-to-video.', denoise: 'Denoise', denoiseHint: '0.35–0.5 сохраняет движение и фон; 0.55–0.75 сильно перерисовывает.', upscale: 'Апскейл', upscaleHint: 'EWA Lanczos после сборки всего ролика: 480p → 1280×720 / 720×1280 на GPU.', upscaleEwa: 'EWA Lanczos (GPU 480p→720p)', upscaleOff: 'Выкл',
   referenceInput: 'Опорный вход', switchToI2v: 'Выбрать i2v-модель',
   v2vHint: 'Встроенные модели пока не поддерживают видео-вход.',
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
@@ -253,14 +253,14 @@ function emptyForm(settings?: any) {
     targetDurationSec: settings?.targetDurationSec ?? 60,
     clipSec: 0,
     orientation: settings?.orientation ?? 'landscape',
-    promptMode: 'full',
+    promptMode: 'shots',
     segmentPrompts: '',
     continuity: settings?.continuity ?? 'last-frame',
     seed: settings?.seed ?? -1,
     steps: settings?.steps ?? 0,
     guidance: settings?.guidance ?? 0,
     denoise: settings?.denoise ?? 0.6,
-    upscale: settings?.upscale ?? 'neural',
+    upscale: settings?.upscale ?? 'ewa',
     inputImageId: '',
     inputVideoId: '',
     transcode: {
@@ -989,6 +989,10 @@ const Panel = {
             plan.value.warnings.length
               ? h('ul', { class: 'gv-list-disc gv-space-y-1 gv-pl-5 gv-text-[11.5px] gv-text-warn' }, plan.value.warnings.map((warning: any, index: number) => h('li', { key: index }, warning.message)))
               : null,
+            plan.value.segmentBriefs?.length > 1
+              ? h('div', { class: 'gv-mt-1 gv-text-[11.5px] gv-text-muted' }, plan.value.segmentBriefs.map((brief: any) => h('div', { key: brief.index }, `#${brief.index + 1}: ${brief.beat} — ${brief.mustNotRepeat}`)))
+              : null,
+
           ])
         : h('div', { class: 'gv-flex gv-flex-col gv-gap-2' }, [
             h('div', { class: 'gv-hint' }, planError.value || t('planFailed')),
@@ -1119,7 +1123,7 @@ const Panel = {
           h('div', { class: 'gv-mb-3' }, [
             h(Field, { label: t('upscale'), hint: t('upscaleHint') }, [
               h('select', { class: 'gv-select', value: form.value.upscale, onChange: (event: any) => patch({ upscale: event.target.value }) }, [
-                h('option', { value: 'neural' }, t('upscaleNeural')),
+                h('option', { value: 'ewa' }, t('upscaleEwa')),
                 h('option', { value: 'off' }, t('upscaleOff')),
               ]),
             ]),
@@ -1218,7 +1222,7 @@ const Panel = {
         const segments = job.segments ?? []
         const phase = String(job.phase ?? '')
         const finished = job.status === 'done'
-        const upscaleEnabled = String(params.upscale ?? 'neural') !== 'off'
+        const upscaleEnabled = String(params.upscale ?? 'ewa') !== 'off'
         const globalStages = [
           ...(segments.length > 1 ? [{ key: 'merge', label: 'stageMerge' }] : []),
           ...(upscaleEnabled ? [{ key: 'upscale', label: 'stageUpscale' }] : []),
@@ -1282,7 +1286,7 @@ const Panel = {
             ])
           })),
           segments.length > 0 ? h('div', { class: 'gv-mt-3 gv-flex gv-flex-wrap gv-items-center gv-gap-1' }, globalStages.flatMap((stage: any, index: number) => {
-            const label = stage.key === 'upscale' && params.upscaleBatch ? `${t(stage.label)} · ${params.upscaleBatch}` : t(stage.label)
+            const label = t(stage.label)
             return [
               h('div', { key: stage.key, class: `gv-stage gv-flex gv-items-center gv-gap-1.5 ${stageClass(index)}` }, [
                 h('span', { class: 'gv-stage-num' }, finished || index < activeIndex ? '✓' : String(index + 1)),

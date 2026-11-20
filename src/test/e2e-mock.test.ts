@@ -54,7 +54,7 @@ test('mock generation writes a real mp4 into Videos/', { skip: !hasFfmpeg }, asy
     width: 320,
     height: 240,
     fps: 24,
-    targetDurationSec: 1,
+    targetDurationSec: 4,
     // RU: Тесты проверяют сам mock-пайплайн, транскод включаем отдельно.
     // EN: These tests cover the mock pipeline; transcode is tested separately.
     transcode: { enabled: false },
@@ -72,7 +72,7 @@ test('mock generation writes a real mp4 into Videos/', { skip: !hasFfmpeg }, asy
   const info = await probeFile(deps.ffprobe.path, output.path)
   assert.equal(info.width, 320)
   assert.equal(info.height, 240)
-  assert.ok(info.durationSec >= 0.8)
+  assert.ok(info.durationSec >= 3.5)
 })
 
 test('size-mode transcode respects the MB limit', { skip: !hasFfmpeg }, async () => {
@@ -103,7 +103,7 @@ test('merge concatenates two clips into a longer video', { skip: !hasFfmpeg }, a
   assert.ok(output)
   const deps = await engine.deps()
   const info = await probeFile(deps.ffprobe.path, output.path)
-  assert.ok(info.durationSec >= 1.5)
+  assert.ok(info.durationSec >= 3.5)
 })
 
 test('plan selects the ComfyUI workflow backend', { skip: !hasFfmpeg }, async () => {
@@ -120,7 +120,7 @@ test('generation requires a confirmed plan', { skip: !hasFfmpeg }, async () => {
       prompt: 'unconfirmed fox',
       modelId: 'ltx-0.9.8-2b-distilled',
       runner: 'mock',
-      targetDurationSec: 1,
+      targetDurationSec: 4,
       transcode: { enabled: false },
     }),
     (error: any) => error?.code === 'confirmation-required',

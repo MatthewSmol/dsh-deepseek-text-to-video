@@ -26,28 +26,28 @@ The engine runs in-process inside the Host plugin. The panel is served over `/ge
 - **Generation preview** — Generate opens a plan with output/base size, fps, auto clip, frames, clips and warnings; the job starts only after **Confirm generation**.
 - **Prompt quality** — each T2V/I2V clip gets its own detailed prompt (LTX profile: 80–220 words, subject, setting, light, camera, action, continuity). Short or repeated prompts are flagged in the preview; the count must equal the clip count.
 - **Modes** — no references: T2V then last-frame I2V for later clips; reference image: I2V from it, then last-frame; reference video: one V2V clip without the frame chain. Image and video references are mutually exclusive.
-- **Upscale** — generation saves native 768×512/512×768. A separate ComfyUI pass calls `/free`, then KJNodes `ImageUpscaleWithModelBatched` (2× Nomos, `per_batch` 8/16/32), `ImageScale` and `ImageSharpen`, so peak VRAM is a few frames instead of the whole clip. `upscale: neural|off`.
-- **V2V** — a reference video is loaded through `LoadVideo → GetVideoComponents → VAEEncodeTiled`, denoised with `SplitSigmasDenoise` (0.3–0.8, default 0.6), then upscaled and saved. V2V is one clip, cropped to 8n+1 frames (max 257).
-- **OOM guard** — auto clip length uses free VRAM (lowest free GPU), not total: <4.5 GB → 2s, <6.5 → 3s, <10 → 4s, <16 → 6s, ≥16 → 8s; frames stay 8n+1 ≤257. The preview shows the chosen clip and the free-VRAM reason.
+- **Upscale** — generation saves native 480p (864×480 / 480×864). After all clips are merged, one `libplacebo` EWA Lanczos pass scales the whole video to 1280×720 / 720×1280; CPU Lanczos is the fallback. `upscale: ewa|off`.
+- **V2V** — a reference video is loaded through `LoadVideo → GetVideoComponents → ImageFromBatch → ImageScale(480p) → VAEEncodeTiled`, denoised with `SplitSigmasDenoise` (0.3–0.8, default 0.6), then saved. V2V is one clip, cropped to 8n+1 frames (max 257).
+- **Clip length** — minimum 4 seconds, max 8; auto length never goes below 4. 480p generation keeps 4s within 8 GB. Frames stay 8n+1 ≤257.
 - **GPU diagnostics** — `/api/gpu/processes` reports each GPU's total/used/free memory and compute processes with command lines.
 - **ComfyUI GPU** — choose Auto or a specific GPU in Environment; auto-start passes `CUDA_VISIBLE_DEVICES`, and **Restart on selected GPU** applies it. Auto clip length follows the selected GPU's free VRAM.
 - **ComfyUI auto-start** — Environment can start a local ComfyUI automatically when it is down. Set the directory (`main.py` + `venv/bin/python`), enable the checkbox, or press **Start now**. The plugin waits up to 60s and reports the log on failure.
 - **Troubleshooting** — if ComfyUI stops mid-job, the plugin reports `comfyui-unreachable` instead of a bare `fetch failed`; restart ComfyUI and retry. The Environment state is refreshed before each plan.
-- **Защита от OOM** — авто-длина клипа считается по свободной VRAM (минимум по выбранным GPU), а не по общей: <4.5 ГБ → 2с, <6.5 → 3с, <10 → 4с, <16 → 6с, ≥16 → 8с; кадры 8n+1 ≤257. В preview видно выбранный клип и причину.
+- **Длина клипа** — минимум 4 секунды, максимум 8; авто-длина не опускается ниже 4. 480p позволяет уложить 4с в 8 ГБ. Кадры 8n+1 ≤257.
 - **Диагностика GPU** — `/api/gpu/processes` показывает total/used/free по каждой карте и процессы с командной строкой.
 - **GPU для ComfyUI** — в Environment можно выбрать Auto или конкретную GPU; автозапуск передаёт `CUDA_VISIBLE_DEVICES`, кнопка **Перезапустить на выбранной GPU** применяет выбор. Авто-длина клипа считается по свободной VRAM выбранной карты.
 - **Автозапуск ComfyUI** — Environment умеет поднимать локальный ComfyUI, если он упал. Укажите папку (`main.py` + `venv/bin/python`), включите чекбокс или нажмите **Запустить сейчас**. Плагин ждёт до 60 секунд и показывает лог при ошибке.
 - **Диагностика** — если ComfyUI остановился во время job, плагин сообщает `comfyui-unreachable` вместо голого `fetch failed`; перезапустите ComfyUI и повторите. Состояние Environment обновляется перед каждым планом.
-- **Jobs** — the active job with progress, segments, log and result, plus recent jobs.
+- **Jobs** — clips show Sample → Ready; after all clips: Merge → EWA Upscale → Encode, with progress, log and result.
 - **Gallery** — finished videos from `Videos/`; preview, download/open, delete, select and merge.
 - **Environment** — ComfyUI status/control, workflow paths, ffmpeg/ffprobe, agent tools, and parsed model/text encoder/VAE/upscaler.
 
 ### Prompt modes (agent tools)
 
-The panel always uses **Full scene in every clip**. The native tools also accept `promptMode` and `segmentPrompts`.
+The panel defaults to **Shot prompts**. The native tools also accept `promptMode` and `segmentPrompts`; repeated adjacent prompts are rejected at generation.
 
 - **Shot prompts** — one prompt per line; each clip gets its own action. Best for long storyboarded videos.
-- **Full scene in every clip** — repeats the whole scene in every clip. Best for one continuous scene, but action may repeat.
+- **Full scene in every clip** — repeats the whole scene in every clip; adjacent repeated prompts are rejected at generation.
 - **Split by sentences** — distributes sentences across clips. Action progresses, but scene context may weaken.
 
 ### Workflow
@@ -107,15 +107,14 @@ Native DSH tools:
 
 1. Add `/home/main/TextToVideo` as a third-party plugin and enable the GenVideo bundle.
 2. Refresh DSH. The film icon appears in the left sidebar.
-3. Start ComfyUI and export the workflow in API format to `$DSH_HOME/genvideo/workflow.json`.
+3. Start ComfyUI; the plugin installs the three 480p workflows into `$DSH_HOME/genvideo`.
 4. Open the panel and generate.
 
 ### ComfyUI setup script
 
-`deploy/install-comfyui.sh` installs a working ComfyUI + LTX-Video 2B stack into a clean directory
+`deploy/install-comfyui.sh` installs a working ComfyUI + LTX-Video 2B 480p stack into a clean directory
 (no Docker, no root). It pins ComfyUI `995456d0`, Python 3.12 (via `uv`), `torch 2.11.0+cu130`,
-downloads the LTX 0.9.8 fp8 checkpoint, the `t5xxl_fp8` encoder and the `2xNomosUni` upscaler, and installs ComfyUI-KJNodes for batched upscaling
-(~10 GB), and copies the bundled UI workflows.
+downloads the LTX 0.9.8 fp8 checkpoint and the `t5xxl_fp8` encoder (~10 GB), and copies the three bundled workflows.
 
 ```bash
 bash deploy/install-comfyui.sh --dir ~/comfyui --cuda-device 1 --port 8188
@@ -181,23 +180,23 @@ Vue 3 панель ── /genvideo/api ──┐
 - **Предпросмотр** — Generate сначала строит план: итоговый/base размер, fps, auto clip, кадры, число клипов и warnings; job создаётся только после **Confirm generation**.
 - **Качество промптов** — у каждого клипа T2V/I2V свой подробный промпт (профиль LTX: 80–220 слов, субъект, локация, свет, камера, действие, continuity). Короткие и повторные промпты видны в preview; число промптов должно совпадать с числом клипов.
 - **Режимы** — без референсов: T2V, затем последний кадр → I2V для следующих клипов; reference image: I2V от неё, затем последний кадр; reference video: один V2V-клип без цепочки. Картинка и видео взаимоисключающие.
-- **Апскейл** — генерация сохраняет native 768×512/512×768. Отдельный проход ComfyUI вызывает `/free`, затем KJNodes `ImageUpscaleWithModelBatched` (2× Nomos, `per_batch` 8/16/32), `ImageScale` и `ImageSharpen`, поэтому в VRAM только несколько кадров, а не весь клип. `upscale: neural|off`.
-- **V2V** — опорное видео проходит `LoadVideo → GetVideoComponents → VAEEncodeTiled`, перерисовывается через `SplitSigmasDenoise` (0.3–0.8, по умолчанию 0.6), затем апскейл и сохранение. V2V — один клип, обрезается до 8n+1 кадров (максимум 257).
-- **Jobs** — активная генерация с прогрессом, сегментами, логом и результатом; ниже последние задания.
+- **Апскейл** — генерация сохраняет native 480p (864×480 / 480×864). После сборки всех клипов один проход `libplacebo` EWA Lanczos масштабирует весь ролик до 1280×720 / 720×1280; fallback — CPU Lanczos. `upscale: ewa|off`.
+- **V2V** — опорное видео проходит `LoadVideo → GetVideoComponents → ImageFromBatch → ImageScale(480p) → VAEEncodeTiled`, перерисовывается через `SplitSigmasDenoise` (0.3–0.8, по умолчанию 0.6), затем сохранение. V2V — один клип, обрезается до 8n+1 кадров (максимум 257).
+- **Jobs** — у клипов Sample → Ready; после всех клипов Merge → EWA Upscale → Encode, с прогрессом, логом и результатом.
 - **Gallery** — готовые ролики из `Videos/`: просмотр, скачивание/открытие, удаление, выбор и склейка.
 - **Environment** — статус и управление ComfyUI, пути workflow, ffmpeg/ffprobe, tools, а также модель, текстовый энкодер, VAE и апскейлеры из workflow.
 
 ### Prompt modes (agent tools)
 
-The panel always uses **Full scene in every clip**. The native tools also accept `promptMode` and `segmentPrompts`.
+The panel defaults to **Shot prompts**. The native tools also accept `promptMode` and `segmentPrompts`; repeated adjacent prompts are rejected at generation.
 
 - **Shot prompts** — one prompt per line; each clip gets its own action. Best for long storyboarded videos.
-- **Full scene in every clip** — repeats the whole scene in every clip. Best for one continuous scene, but action may repeat.
+- **Full scene in every clip** — repeats the whole scene in every clip; adjacent repeated prompts are rejected at generation.
 - **Split by sentences** — distributes sentences across clips. Action progresses, but scene context may weaken.
 
 ### Prompt modes (agent tools)
 
-The panel always uses **Full scene in every clip**. The native tools also accept `promptMode` and `segmentPrompts`.
+The panel defaults to **Shot prompts**. The native tools also accept `promptMode` and `segmentPrompts`; repeated adjacent prompts are rejected at generation.
 
 - **Shot prompts** — один промпт на строку; у каждого клипа своё действие. Лучший вариант для длинной раскадровки.
 - **Full scene in every clip** — повторяет всю сцену в каждом клипе. Лучше для одной непрерывной сцены, но действие может повторяться.
@@ -245,15 +244,14 @@ $DSH_HOME/genvideo/workflow.json
 
 1. Добавить `/home/main/TextToVideo` как сторонний плагин и включить бандл GenVideo.
 2. Обновить DSH — иконка появится в сайдбаре.
-3. Запустить ComfyUI и положить workflow в API-формате в `$DSH_HOME/genvideo/workflow.json`.
+3. Запустить ComfyUI; плагин сам ставит три 480p-workflow в `$DSH_HOME/genvideo`.
 4. Открыть панель и генерировать.
 
 ### Скрипт установки ComfyUI
 
 `deploy/install-comfyui.sh` ставит рабочий ComfyUI + LTX-Video 2B в отдельный каталог
 (без Docker и без root). Фиксирует ComfyUI `995456d0`, Python 3.12 (через `uv`),
-`torch 2.11.0+cu130`, скачивает fp8-чекпоинт LTX 0.9.8, энкодер `t5xxl_fp8` и
-апскейлер `2xNomosUni` (~10 ГБ) и копирует воркфлоу из `deploy/ui-workflows/`.
+`torch 2.11.0+cu130`, скачивает fp8-чекпоинт LTX 0.9.8 и энкодер `t5xxl_fp8` (~10 ГБ), затем копирует три workflow из плагина.
 
 ```bash
 bash deploy/install-comfyui.sh --dir ~/comfyui --cuda-device 1 --port 8188

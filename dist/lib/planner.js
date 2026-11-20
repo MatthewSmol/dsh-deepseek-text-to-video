@@ -6,6 +6,7 @@
  *     prompts, whether VRAM fits and how long it takes. The plan explains
  *     "what the model can do" before the run.
  */
+import { GenVideoError } from './errors.js';
 import { resolvePromptProfile, promptStats, promptSimilarity } from './prompt-profiles.js';
 /** RU: Оценка VRAM: веса + активации, линейно по числу пикселей и кадров.
  *  EN: VRAM estimate: weights + activations, linear in pixels and frames. */
@@ -162,11 +163,11 @@ export function fitPlanToBudget(input) {
 export function autoClipSec(vramGB, fps) {
     if (!(vramGB > 0))
         return 4;
-    const base = vramGB >= 16 ? 8 : vramGB >= 10 ? 6 : vramGB >= 6.5 ? 4 : vramGB >= 4.5 ? 3 : 2;
+    const base = vramGB >= 16 ? 8 : vramGB >= 10 ? 6 : 4;
     const frames = Math.round(base * fps + 1);
     if (frames <= 257)
-        return base;
-    return Math.max(1, Math.floor((257 - 1) / fps));
+        return Math.max(4, base);
+    return Math.max(4, Math.floor((257 - 1) / fps));
 }
 /** RU: Собирает полный план. EN: Builds the full plan. */
 export function planGeneration(input) {
@@ -176,6 +177,8 @@ export function planGeneration(input) {
     const width = input.width && input.width > 0 ? input.width : model.width;
     const height = input.height && input.height > 0 ? input.height : model.height;
     const target = Math.max(0.5, input.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended);
+    if (target < 4)
+        throw new GenVideoError('segment-too-short', 'A segment must be at least 4 seconds; increase the target duration.');
     const selectedGpu = gpu.available ? gpu.gpus.filter((item) => !settings.gpu.ids.length || settings.gpu.ids.includes(item.index)) : [];
     const totalVram = selectedGpu.length
         ? Math.max(...selectedGpu.map((item) => item.totalMB / 1024))
@@ -190,14 +193,14 @@ export function planGeneration(input) {
     const vram = settings.gpu.vramBudgetGB > 0 ? settings.gpu.vramBudgetGB : totalVram;
     const autoBudget = freeVram > 0 ? Math.min(vram || freeVram, freeVram) : vram;
     const autoClip = !input.clipSec || input.clipSec <= 0;
-    const clipRequested = Math.min(autoClip ? autoClipSec(autoBudget, fps) : input.clipSec, model.durationSec.max);
+    const clipRequested = Math.min(Math.max(4, autoClip ? autoClipSec(autoBudget, fps) : input.clipSec), model.durationSec.max);
     if (autoClip) {
         warnings.push({
             code: 'auto-clip',
             message: `Auto clip ${clipRequested}s: ${autoBudget.toFixed(1)} GB usable VRAM (${freeVram.toFixed(1)} GB free), max 257 frames.`,
         });
     }
-    const promptMode = input.promptMode ?? 'full';
+    const promptMode = input.promptMode ?? 'shots';
     const mode = input.videoInput ? 'v2v' : input.imageInput ? 'i2v' : 't2v';
     const promptProfile = resolvePromptProfile(model, mode);
     const segmentMode = input.segmentMode ?? 'fixed';
@@ -247,7 +250,7 @@ export function planGeneration(input) {
             warnings.push({ code: 'prompt-too-short', message: `Clip ${index + 1} has ${stats.words} words; ${promptProfile.id} expects at least ${promptProfile.minWords}. Add subject, setting, light, camera, action and continuity details.` });
         }
         if (segmentWarnings.includes('prompt-repeated')) {
-            warnings.push({ code: 'prompt-repeated', message: `Clip ${index + 1} is almost identical to the previous clip; write a new action for this segment.` });
+            warnings.push({ code: 'prompt-repeated', message: `Clip ${index + 1} repeats the previous action; write a new beat instead of repeating it.` });
         }
         return { index, durationSec, prompt, wordCount: stats.words, warnings: segmentWarnings };
     });
@@ -302,6 +305,13 @@ export function planGeneration(input) {
         mode,
         denoise: Math.min(0.8, Math.max(0.3, Number(input.denoise ?? 0.6))),
         upscaleBatch: autoBudget >= 16 ? 32 : autoBudget >= 10 ? 16 : 8,
+        segmentBriefs: segments.map((segment, index) => ({
+            index,
+            beat: index === 0 ? 'establishing shot, action begins'
+                : index === segments.length - 1 ? 'finish the action and hold the final composition'
+                    : 'new action, changed camera distance or angle',
+            mustNotRepeat: index === 0 ? 'no previous segment' : `do not repeat clip ${index}'s action`,
+        })),
         promptProfile,
         orientation: input.orientation ?? (width >= height ? 'landscape' : 'portrait'),
         baseWidth: width >= height ? 768 : 512,

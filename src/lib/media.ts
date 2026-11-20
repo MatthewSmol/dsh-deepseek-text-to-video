@@ -218,29 +218,23 @@ export async function upscaleFile(input: {
   target: string
   width: number
   height: number
-  mode: 'gpu' | 'cpu'
+  mode: 'ewa' | 'cpu'
   signal?: AbortSignal
   onProgress?: (percent: number) => void
 }): Promise<MediaInfo> {
   const info = await probeFile(input.ffprobe, input.source)
-  const landscape = input.width >= input.height
-  const midW = landscape ? 1536 : 1024
-  const midH = landscape ? 1024 : 1536
-  const cpuFilter = `scale=${midW}:${midH}:flags=lanczos,scale=${input.width}:${input.height}:flags=lanczos,unsharp=5:5:0.8:3:3:0.4`
-  if (input.mode === 'gpu') {
-    const gpuFilter = `format=yuv420p,hwupload_cuda,scale_cuda=${midW}:${midH}:interp_algo=lanczos,scale_cuda=${input.width}:${input.height}:interp_algo=lanczos,hwdownload,format=yuv420p,unsharp=5:5:0.8:3:3:0.4`
-    const args = [
-      '-init_hw_device', 'cuda=cu:0', '-filter_hw_device', 'cu',
-      '-i', input.source,
-      '-vf', gpuFilter,
-      '-c:v', 'h264_nvenc', '-preset', 'p5', '-cq', '19',
-      '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', input.target,
-    ]
+  const cpuFilter = `scale=${input.width}:${input.height}:flags=lanczos,unsharp=5:5:0.8:3:3:0.4`
+  if (input.mode === 'ewa') {
+    const ewaFilter = `libplacebo=w=${input.width}:h=${input.height}:upscaler=ewa_lanczos:downscaler=ewa_lanczos`
     try {
-      await runFfmpeg(input.ffmpeg, args, { durationSec: info.durationSec, signal: input.signal, onProgress: input.onProgress })
+      await runFfmpeg(input.ffmpeg, [
+        '-i', input.source,
+        '-vf', ewaFilter,
+        '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
+        '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', input.target,
+      ], { durationSec: info.durationSec, signal: input.signal, onProgress: input.onProgress })
       return await probeFile(input.ffprobe, input.target)
     } catch (error) {
-      // RU: Нет CUDA/фильтра — повторяем на CPU. EN: No CUDA/filter — retry on CPU.
       if (input.signal?.aborted) throw error
     }
   }

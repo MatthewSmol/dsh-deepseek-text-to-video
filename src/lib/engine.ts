@@ -37,8 +37,7 @@ import { JobManager, type JobContext } from './jobs.js'
 import { detectGpus, selectGpus } from './gpu.js'
 import { buildToolsStatus, clearComfyUiCache, detectComfyUi, detectDeps, findNvcc } from './deps.js'
 import { allModels, findModel, findVariant, formatGB, snapFrames } from './models.js'
-import { upscaleWithComfyUI } from './runners/comfyui-upscale.js'
-import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes } from './media.js'
+import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes, upscaleFile } from './media.js'
 import { fitPlanToBudget, planGeneration } from './planner.js'
 import { defaultModelsDir, defaultVideosDir, genvideoHome, inputsDir, safeBaseName, scratchDir, assertInside, outputFileName, slugify, ensureDirSync } from './paths.js'
 import { allAvailability, pickRunner } from './runners/index.js'
@@ -414,6 +413,8 @@ export class Engine {
     }
     const stored = this.plans.get(request.planId)
     if (!stored) throw new GenVideoError('plan-expired', 'The confirmed plan expired or is unknown; build a new plan.', { status: 409 })
+    const repeated = stored.plan.segments.filter((segment) => (segment.warnings ?? []).includes('prompt-repeated'))
+    if (repeated.length) throw new GenVideoError('segment-prompts-repeated', `Clips ${repeated.map((segment) => segment.index + 1).join(', ')} repeat the previous action. Write a new action for each clip and plan again.`, { status: 422 })
     const { model, variant, runner } = await this.resolveModel(request)
     if (!runner) {
       const deps = await this.deps()
@@ -597,27 +598,21 @@ export class Engine {
 
     let finalSource = merged
     if ((input.request.upscale ?? settings.upscale) !== 'off') {
-      ctx.phase('upscaling', `Neural 2× upscale (batch ${input.plan.upscaleBatch})`)
+      ctx.phase('upscaling', `EWA Lanczos 480p → ${input.plan.width}×${input.plan.height}`)
       const upscaled = join(scratch, 'upscaled.mp4')
       try {
-        await upscaleWithComfyUI({
-          settings,
-          source: merged,
-          target: upscaled,
-          width: input.plan.width,
-          height: input.plan.height,
-          fps: input.plan.fps,
-          perBatch: input.plan.upscaleBatch,
-          upscaler: settings.upscaler,
-          signal: ctx.signal,
-          log: (line) => ctx.log(line),
-          onProgress: (percent) => ctx.progress({ percent: 88 + Math.round(percent * 0.06), message: 'Neural 2× upscale' }),
+        await upscaleFile({
+          ffmpeg, ffprobe, source: merged, target: upscaled,
+          width: input.plan.width, height: input.plan.height,
+          mode: 'ewa', signal: ctx.signal,
+          onProgress: (percent) => ctx.progress({ percent: 88 + Math.round(percent * 0.06), message: 'EWA Lanczos upscale' }),
         })
+        ctx.log(`EWA Lanczos upscale: 480p → ${input.plan.width}×${input.plan.height}`)
         finalSource = upscaled
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error)
         ctx.log(`upscale fallback to native: ${detail}`)
-        ctx.progress({ percent: 90, message: 'Upscale failed; keeping native resolution' })
+        ctx.progress({ percent: 90, message: 'Upscale failed; keeping native 480p' })
       }
     }
 
