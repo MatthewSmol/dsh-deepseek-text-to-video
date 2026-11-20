@@ -1,7 +1,4 @@
 # path	url	size_bytes	sha256	group
-checkpoints/ltxv-2b-0.9.8-distilled-fp8.safetensors	https://huggingface.co/Lightricks/LTX-Video/resolve/main/ltxv-2b-0.9.8-distilled-fp8.safetensors	4461695684	d6d8fa8ed3a98346787c2503ac80fb5d7cebcf80e356b79a2ba361fbadf97e15	default
-text_encoders/t5xxl_fp8_e4m3fn.safetensors	https://huggingface.co/Comfy-Org/stable-diffusion-3.5-fp8/resolve/main/text_encoders/t5xxl_fp8_e4m3fn.safetensors	4893934904	7d330da4816157540d6bb7838bf63a0f02f573fc48ca4d8de34bb0cbfd514f09	default
-upscale_models/2xNomosUni_span_multijpg.safetensors	https://huggingface.co/Phips/2xNomosUni_span_multijpg/resolve/main/2xNomosUni_span_multijpg.safetensors	4461056	bee2a9c082f2b8f6e7f5db504b36593c24a1a959511f587114c399ca58b9c92c	default
-checkpoints/ltxv-2b-0.9.8-distilled.safetensors	https://huggingface.co/Lightricks/LTX-Video/resolve/main/ltxv-2b-0.9.8-distilled.safetensors	6340744492	76aa8c4786af752fa6f951947129d5290c3c6c0b2fadcadea6b5e114ae2cad8f	extra
-vae/LTX-Video-VAE-BF16.safetensors	https://huggingface.co/city96/LTX-Video-gguf/resolve/main/LTX-Video-VAE-BF16.safetensors	838411946	17d8f8979d2303898b7320d7fbbd0b0f07cff2fcb86acae53653de4948a1ee92	extra
-vae/ltxv_0.9.8_vae.safetensors	https://huggingface.co/Lightricks/LTX-Video/resolve/main/vae/diffusion_pytorch_model.safetensors	1676798532	265ca87cb5dff5e37f924286e957324e282fe7710a952a7dafc0df43883e2010	extra
+diffusion_models/Wan2.2-TI2V-5B-Q4_K_M.gguf	https://huggingface.co/QuantStack/Wan2.2-TI2V-5B-GGUF/resolve/main/Wan2.2-TI2V-5B-Q4_K_M.gguf	3433116000	95b19697b7f98e65b0a543640e9ca7b4dfec32e2a6e3731e8e10708be52655e2	default
+text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors	https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/text_encoders/umt5_xxl_fp8_e4m3fn_scaled.safetensors	6735906897	c3355d30191f1f066b26d93fba017ae9809dce6c627dda5f6a66eaa651204f68	default
+vae/wan2.2_vae.safetensors	https://huggingface.co/Comfy-Org/Wan-2.2/resolve/main/split_files/vae/wan2.2_vae.safetensors	1409400960	e40321bd36b9709991dae2530eb4ac303dd168276980d3e9bc4b6e2b75fed156	default

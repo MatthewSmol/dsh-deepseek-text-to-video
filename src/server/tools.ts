@@ -48,6 +48,7 @@ const promptProps = {
   inputImageId: { type: 'string' },
   inputVideoId: { type: 'string' },
   outputName: { type: 'string' },
+  audioPath: { type: 'string', description: 'Absolute path to a local audio track to mux into the final 10s video.' },
   planId: { type: 'string', description: 'planId returned by genvideo_plan after the user confirmed the preview.' },
   transcode: { type: 'object', additionalProperties: true },
 }

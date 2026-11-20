@@ -70,7 +70,7 @@ test('planGeneration explains limits and segments', () => {
     fps: 24,
   })
   assert.equal(plan.segments.length, 3)
-  assert.equal(plan.totalSec, 12)
+  assert.equal(plan.totalSec, 10)
   assert.equal(plan.availableRunner, 'mock')
   assert.ok(plan.warnings.some((warning) => warning.code === 'no-gpu'))
   assert.ok(plan.estimatedSeconds > 0)
@@ -124,7 +124,7 @@ test('full-scene mode repeats the whole prompt in every clip', () => {
   assert.equal(tooLong.prompts.length, 2)
 })
 
-test('plan uses fixed 9s clips and full-scene prompts for a 60s video', () => {
+test('plan clamps a long request to three 4s segments and 10s', () => {
   const settings = structuredClone(DEFAULT_SETTINGS)
   const plan = planGeneration({
     settings,
@@ -140,12 +140,10 @@ test('plan uses fixed 9s clips and full-scene prompts for a 60s video', () => {
     height: 512,
     fps: 24,
   })
-  assert.equal(plan.segments.length, 7)
-  assert.equal(plan.clipSec, 9)
-  assert.equal(plan.promptMode, 'full')
-  assert.equal(plan.totalSec, 60)
-  assert.ok(plan.segments.every((segment) => segment.prompt.includes('A full scene')))
-  assert.equal(plan.segments[6]?.durationSec, 6)
+  assert.equal(plan.segments.length, 3)
+  assert.equal(plan.clipSec, 4)
+  assert.equal(plan.totalSec, 10)
+  assert.equal(plan.segments[2]?.durationSec, 4)
 })
 
 
@@ -185,7 +183,7 @@ test('plan uses segment prompts and last-frame continuity', () => {
     height: 512,
     fps: 24,
   })
-  assert.equal(plan.segments.length, 2)
+  assert.equal(plan.segments.length, 3)
   assert.equal(plan.continuity, 'last-frame')
   assert.match(plan.segments[0]?.prompt ?? '', /holds the pole/)
   assert.match(plan.segments[1]?.prompt ?? '', /previous frame/)
@@ -219,10 +217,10 @@ test('auto clip and orientation drive plan sizes', () => {
   assert.equal(plan.autoClip, true)
   assert.equal(plan.clipSec, 4)
   assert.equal(plan.orientation, 'portrait')
-  assert.equal(plan.baseWidth, 512)
-  assert.equal(plan.baseHeight, 768)
+  assert.equal(plan.baseWidth, 480)
+  assert.equal(plan.baseHeight, 864)
   assert.equal(plan.frames, 121)
-  assert.equal(plan.segments.length, 15)
+  assert.equal(plan.segments.length, 3)
 })
 
 test('LTX prompt profile flags short and repeated segment prompts', () => {
@@ -242,7 +240,7 @@ test('LTX prompt profile flags short and repeated segment prompts', () => {
     height: 512,
     fps: 24,
   })
-  assert.equal(plan.segments.length, 2)
+  assert.equal(plan.segments.length, 3)
   assert.ok(plan.warnings.some((item) => item.code === 'prompt-too-short'))
   assert.ok(plan.warnings.some((item) => item.code === 'prompt-repeated'))
   assert.equal(plan.promptProfile.id, 'ltx-2b-distilled')

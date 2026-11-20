@@ -1,54 +1,48 @@
 {
   "1": {
-    "class_type": "CheckpointLoaderSimple",
+    "class_type": "UnetLoaderGGUF",
     "inputs": {
-      "ckpt_name": "ltxv-2b-0.9.8-distilled-fp8.safetensors"
+      "unet_name": "{{unet}}"
     }
   },
   "2": {
     "class_type": "CLIPLoader",
     "inputs": {
-      "clip_name": "t5xxl_fp8_e4m3fn.safetensors",
-      "type": "ltxv"
+      "clip_name": "{{clip}}",
+      "type": "wan"
+    }
+  },
+  "3": {
+    "class_type": "VAELoader",
+    "inputs": {
+      "vae_name": "{{vae}}"
     }
   },
   "4": {
     "class_type": "CLIPTextEncode",
     "inputs": {
       "text": "{{prompt}}",
-      "clip": [
-        "2",
-        0
-      ]
+      "clip": ["2", 0]
     }
   },
   "5": {
     "class_type": "CLIPTextEncode",
     "inputs": {
       "text": "{{negative}}",
-      "clip": [
-        "2",
-        0
-      ]
+      "clip": ["2", 0]
     }
   },
   "6": {
-    "class_type": "LTXVConditioning",
+    "class_type": "ModelSamplingSD3",
     "inputs": {
-      "positive": [
-        "4",
-        0
-      ],
-      "negative": [
-        "5",
-        0
-      ],
-      "frame_rate": {{fps}}
+      "model": ["1", 0],
+      "shift": 8.0
     }
   },
   "7": {
-    "class_type": "EmptyLTXVLatentVideo",
+    "class_type": "Wan22ImageToVideoLatent",
     "inputs": {
+      "vae": ["3", 0],
       "width": {{baseWidth}},
       "height": {{baseHeight}},
       "length": {{frames}},
@@ -56,146 +50,35 @@
     }
   },
   "8": {
-    "class_type": "KSamplerSelect",
+    "class_type": "KSampler",
     "inputs": {
-      "sampler_name": "euler"
+      "model": ["6", 0],
+      "seed": {{seed}},
+      "steps": {{steps}},
+      "cfg": {{guidance}},
+      "sampler_name": "uni_pc",
+      "scheduler": "simple",
+      "positive": ["4", 0],
+      "negative": ["5", 0],
+      "latent_image": ["7", 0],
+      "denoise": 1.0
     }
   },
   "9": {
-    "class_type": "LTXVScheduler",
+    "class_type": "VAEDecode",
     "inputs": {
-      "steps": 8,
-      "max_shift": 2.05,
-      "base_shift": 0.95,
-      "stretch": true,
-      "terminal": 0.1,
-      "latent": [
-        "7",
-        0
-      ]
+      "samples": ["8", 0],
+      "vae": ["3", 0]
     }
   },
   "10": {
-    "class_type": "CFGGuider",
-    "inputs": {
-      "model": [
-        "1",
-        0
-      ],
-      "positive": [
-        "6",
-        0
-      ],
-      "negative": [
-        "6",
-        1
-      ],
-      "cfg": 1.0
-    }
-  },
-  "11": {
-    "class_type": "RandomNoise",
-    "inputs": {
-      "noise_seed": {{seed}}
-    }
-  },
-  "12": {
-    "class_type": "SamplerCustomAdvanced",
-    "inputs": {
-      "noise": [
-        "11",
-        0
-      ],
-      "guider": [
-        "10",
-        0
-      ],
-      "sampler": [
-        "8",
-        0
-      ],
-      "sigmas": [
-        "9",
-        0
-      ],
-      "latent_image": [
-        "7",
-        0
-      ]
-    }
-  },
-  "13": {
-    "class_type": "VAEDecodeTiled",
-    "inputs": {
-      "samples": [
-        "12",
-        0
-      ],
-      "vae": [
-        "1",
-        2
-      ],
-      "tile_size": 256,
-      "overlap": 64,
-      "temporal_size": 32,
-      "temporal_overlap": 8
-    }
-  },
-  "14": {
-    "class_type": "UpscaleModelLoader",
-    "inputs": {
-      "model_name": "2xNomosUni_span_multijpg.safetensors"
-    }
-  },
-  "15": {
-    "class_type": "ImageUpscaleWithModel",
-    "inputs": {
-      "upscale_model": [
-        "14",
-        0
-      ],
-      "image": [
-        "13",
-        0
-      ]
-    }
-  },
-  "16": {
-    "class_type": "ImageScale",
-    "inputs": {
-      "image": [
-        "15",
-        0
-      ],
-      "upscale_method": "lanczos",
-      "width": {{outWidth}},
-      "height": {{outHeight}},
-      "crop": "disabled"
-    }
-  },
-  "18": {
-    "class_type": "ImageSharpen",
-    "inputs": {
-      "image": [
-        "16",
-        0
-      ],
-      "sharpen_radius": 1,
-      "sigma": 1.0,
-      "alpha": 0.8
-    }
-  },
-  "17": {
     "class_type": "SaveWEBM",
     "inputs": {
-      "images": [
-        "18",
-        0
-      ],
+      "images": ["9", 0],
       "filename_prefix": "genvideo",
       "codec": "vp9",
       "fps": {{fps}},
-      "crf": 24.0
+      "crf": 18.0
     }
   }
 }

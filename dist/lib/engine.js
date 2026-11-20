@@ -7,7 +7,7 @@
  *     model installs and environment state. HTTP API and MCP tools call the same
  *     methods, so the agent and the UI see identical results.
  */
-import { access, copyFile, mkdir, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import { access, copyFile, mkdir, readFile, readdir, rename, rm, stat, writeFile } from 'node:fs/promises';
 import { closeSync, existsSync, openSync, readFileSync } from 'node:fs';
 import { execFile, spawn } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -21,7 +21,7 @@ import { JobManager } from './jobs.js';
 import { detectGpus, selectGpus } from './gpu.js';
 import { buildToolsStatus, clearComfyUiCache, detectComfyUi, detectDeps, findNvcc } from './deps.js';
 import { allModels, findModel, findVariant, formatGB, snapFrames } from './models.js';
-import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes, upscaleFile } from './media.js';
+import { estimateOutputBytes, normalizeTranscode, probeFile, transcodeFile, concatFiles, extractLastFrame, formatBytes, upscaleFile, crossfadeUpscaleEncode, muxAudio } from './media.js';
 import { fitPlanToBudget, planGeneration } from './planner.js';
 import { defaultModelsDir, defaultVideosDir, genvideoHome, inputsDir, safeBaseName, scratchDir, assertInside, outputFileName, slugify, ensureDirSync } from './paths.js';
 import { allAvailability, pickRunner } from './runners/index.js';
@@ -458,6 +458,8 @@ export class Engine {
         const videoInput = input.request.inputVideoId ? await this.resolveInput(input.request.inputVideoId) : null;
         const baseSeed = input.request.seed ?? settings.seed;
         const segmentFiles = [];
+        const segmentDir = join(dirs.videosDir, 'segments', ctx.job.id);
+        ensureDirSync(segmentDir);
         let previousImage = imageInput?.path ?? null;
         for (let index = 0; index < segments.length; index += 1) {
             if (ctx.signal.aborted)
@@ -469,7 +471,7 @@ export class Engine {
             const segmentStart = Math.round((index / segments.length) * 80);
             const segmentSpan = 80 / segments.length;
             const fps = input.plan.fps;
-            const frames = input.model.family === 'ltx-video' || input.model.family === 'ltx-2' ? snapFrames(segment.durationSec * fps + 1) : Math.max(1, Math.round(segment.durationSec * fps));
+            const frames = snapFrames(segment.durationSec * fps + 1);
             ctx.segment(index, 'running', 0, 'sampling', 'Starting clip');
             ctx.phase('sampling', `Segment ${index + 1}/${segments.length}`);
             await input.runner.runner.run({
@@ -509,64 +511,61 @@ export class Engine {
             ctx.segment(index, 'done', 100, 'done', 'Ready');
             ctx.phase('segment_done', `Segment ${index + 1}/${segments.length} ready`);
             segmentFiles.push(outputPath);
+            await copyFile(outputPath, join(segmentDir, `seg-${index + 1}.mp4`));
             // RU: Continuity: последний кадр становится картинкой-условием для i2v.
             // EN: Continuity: the last frame becomes the image condition for i2v.
             const continuity = input.request.continuity ?? (segments.length > 1 ? 'last-frame' : 'none');
             if (continuity === 'last-frame' && index < segments.length - 1 && input.model.capabilities.i2v) {
                 const framePath = join(scratch, `frame-${index + 1}.jpg`);
                 try {
-                    await extractLastFrame(ffmpeg, outputPath, framePath);
+                    await extractLastFrame(ffmpeg, ffprobe, outputPath, framePath);
                     previousImage = framePath;
                 }
                 catch (error) {
-                    ctx.log(`continuity: could not extract a frame: ${error instanceof Error ? error.message : String(error)}`);
+                    throw new GenVideoError('continuity-frame-failed', `Could not extract the last frame for clip ${index + 2}: ${error instanceof Error ? error.message : String(error)}`);
                 }
             }
         }
-        ctx.phase('concatenating', 'Merging segments');
-        const merged = join(scratch, 'merged.mp4');
-        if (segmentFiles.length === 1) {
-            await copyFile(segmentFiles[0] ?? '', merged);
+        ctx.phase('concatenating', 'Crossfade + EWA + H.265');
+        let finalSource = '';
+        if (segmentFiles.length === 3) {
+            const assembled = join(scratch, 'assembled-10s.mp4');
+            await crossfadeUpscaleEncode({
+                ffmpeg, ffprobe, sources: segmentFiles, target: assembled,
+                width: input.plan.width, height: input.plan.height, fps: input.plan.fps,
+                overlapSec: 1, signal: ctx.signal,
+                onProgress: (percent) => ctx.progress({ percent: 80 + Math.round(percent * 0.1), message: 'Crossfade + EWA + H.265' }),
+            });
+            finalSource = assembled;
         }
         else {
-            await concatFiles({
-                ffmpeg,
-                ffprobe,
-                sources: segmentFiles,
-                target: merged,
-                signal: ctx.signal,
-                forceNormalize: true,
-                onProgress: (percent) => ctx.progress({ percent: 80 + Math.round(percent * 0.08), message: 'Merging segments' }),
-            });
+            const merged = join(scratch, 'merged.mp4');
+            await concatFiles({ ffmpeg, ffprobe, sources: segmentFiles, target: merged, signal: ctx.signal, forceNormalize: true });
+            finalSource = merged;
         }
-        let finalSource = merged;
-        if ((input.request.upscale ?? settings.upscale) !== 'off') {
+        if (segmentFiles.length !== 3 && (input.request.upscale ?? settings.upscale) !== 'off') {
             ctx.phase('upscaling', `EWA Lanczos 480p → ${input.plan.width}×${input.plan.height}`);
             const upscaled = join(scratch, 'upscaled.mp4');
             try {
-                await upscaleFile({
-                    ffmpeg, ffprobe, source: merged, target: upscaled,
-                    width: input.plan.width, height: input.plan.height,
-                    mode: 'ewa', signal: ctx.signal,
-                    onProgress: (percent) => ctx.progress({ percent: 88 + Math.round(percent * 0.06), message: 'EWA Lanczos upscale' }),
-                });
-                ctx.log(`EWA Lanczos upscale: 480p → ${input.plan.width}×${input.plan.height}`);
+                await upscaleFile({ ffmpeg, ffprobe, source: finalSource, target: upscaled, width: input.plan.width, height: input.plan.height, mode: 'ewa', signal: ctx.signal });
                 finalSource = upscaled;
             }
-            catch (error) {
-                const detail = error instanceof Error ? error.message : String(error);
-                ctx.log(`upscale fallback to native: ${detail}`);
-                ctx.progress({ percent: 90, message: 'Upscale failed; keeping native 480p' });
+            catch {
+                ctx.log('upscale fallback to native 480p');
             }
         }
-        const format = input.transcode.enabled ? input.transcode.format : 'mp4';
+        const format = segmentFiles.length === 3 ? 'mp4' : (input.transcode.enabled ? input.transcode.format : 'mp4');
         const seed = baseSeed >= 0 ? baseSeed : 0;
         const name = input.request.outputName
             ? safeBaseName(input.request.outputName)
             : outputFileName({ platform: input.request.platform ?? settings.platform, prompt: input.request.prompt, seed, ext: extensionFor(format) });
         const finalName = name.includes('.') ? name : `${name}.${extensionFor(format)}`;
         const finalPath = assertInside(dirs.videosDir, join(dirs.videosDir, finalName));
-        if (input.transcode.enabled) {
+        if (segmentFiles.length === 3) {
+            ctx.phase('muxing', 'Finalizing H.265');
+            await copyFile(finalSource, finalPath);
+        }
+        else if (input.transcode.enabled) {
             ctx.phase('transcoding_pass1', 'Transcoding to the requested quality/size');
             await transcodeFile({
                 ffmpeg,
@@ -584,6 +583,13 @@ export class Engine {
         else {
             ctx.phase('muxing', 'Finalizing the file');
             await copyFile(finalSource, finalPath);
+        }
+        if (input.request.audioPath) {
+            ctx.phase('muxing', 'Muxing audio');
+            const withAudio = join(scratch, 'final-audio.mp4');
+            await muxAudio({ ffmpeg, ffprobe, video: finalPath, audio: input.request.audioPath, target: withAudio, durationSec: input.plan.totalSec, signal: ctx.signal });
+            await rm(finalPath, { force: true });
+            await rename(withAudio, finalPath);
         }
         ctx.phase('verifying', 'Verifying the output');
         const info = await probeFile(ffprobe, finalPath);

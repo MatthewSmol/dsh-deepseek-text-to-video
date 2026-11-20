@@ -137,7 +137,7 @@ export function buildSegmentPrompts(
 ): { prompts: string[]; fallback: boolean } {
   const text = String(prompt ?? '').trim()
   const continuation = continuity === 'last-frame'
-    ? 'Continue seamlessly from the previous frame.'
+    ? 'Continue seamlessly from the previous frame. Same character, wardrobe, location, light and lens. Show a NEW action; do not repeat the previous action.'
     : ''
   const finish = (values: string[]) => values.map((value, index) => {
     let out = value.trim()
@@ -224,11 +224,12 @@ export function autoClipSec(vramGB: number, fps: number): number {
 export function planGeneration(input: PlanInput): Plan {
   const { settings, model, gpu } = input
   const warnings: Plan['warnings'] = []
-  const fps = input.fps && input.fps > 0 ? input.fps : model.fps[0] ?? 24
+  const fps = model.family === 'wan-video' ? 24 : (input.fps && input.fps > 0 ? input.fps : model.fps[0] ?? 24)
   const width = input.width && input.width > 0 ? input.width : model.width
   const height = input.height && input.height > 0 ? input.height : model.height
-  const target = Math.max(0.5, input.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended)
-  if (target < 4) throw new GenVideoError('segment-too-short', 'A segment must be at least 4 seconds; increase the target duration.')
+  const requestedTarget = Math.max(0.5, input.targetDurationSec ?? settings.targetDurationSec ?? model.durationSec.recommended)
+  const target = input.videoInput ? Math.min(requestedTarget, 4) : 10
+  if (requestedTarget < 4) throw new GenVideoError('segment-too-short', 'A segment must be at least 4 seconds; increase the target duration.')
   const selectedGpu = gpu.available ? gpu.gpus.filter((item) => !settings.gpu.ids.length || settings.gpu.ids.includes(item.index)) : []
   const totalVram = selectedGpu.length
     ? Math.max(...selectedGpu.map((item) => item.totalMB / 1024))
@@ -243,10 +244,7 @@ export function planGeneration(input: PlanInput): Plan {
   const vram = settings.gpu.vramBudgetGB > 0 ? settings.gpu.vramBudgetGB : totalVram
   const autoBudget = freeVram > 0 ? Math.min(vram || freeVram, freeVram) : vram
   const autoClip = !input.clipSec || input.clipSec <= 0
-  const clipRequested = Math.min(
-    Math.max(4, autoClip ? autoClipSec(autoBudget, fps) : (input.clipSec as number)),
-    model.durationSec.max,
-  )
+  const clipRequested = 4
   if (autoClip) {
     warnings.push({
       code: 'auto-clip',
@@ -270,9 +268,8 @@ export function planGeneration(input: PlanInput): Plan {
       message: `A ${target}s video with ${clipRequested}s clips needs ${requestedSegments} segments; the limit is ${MAX_SEGMENTS}. Increase the clip length or shorten the video.`,
     })
   }
-  const durations = input.singleClip
-    ? [Math.min(target, (257 - 1) / fps)]
-    : computeSegments(target, clipRequested, model.durationSec.max, segmentMode)
+  const durations = input.videoInput ? [4] : [4, 4, 4]
+  const overlaps = durations.length > 1 ? [1, 1] : []
   const continuity = input.continuity ?? (durations.length > 1 ? 'last-frame' : 'none')
   const built = buildSegmentPrompts(input.prompt, durations.length, promptMode, model.maxPromptChars, input.segmentPrompts, continuity)
   if (built.fallback) {
@@ -294,7 +291,7 @@ export function planGeneration(input: PlanInput): Plan {
     const segmentWarnings: string[] = []
     if (stats.words < promptProfile.minWords) segmentWarnings.push('prompt-too-short')
     if (stats.chars > promptProfile.maxChars) segmentWarnings.push('prompt-too-long')
-    const withoutContinuity = (value: string) => value.replace(/Continue seamlessly from the previous frame\./gi, '').trim()
+    const withoutContinuity = (value: string) => value.replace(/Continue seamlessly from the previous frame\.[\s\S]*$/i, '').trim()
     if (index > 0 && promptSimilarity(withoutContinuity(prompt), withoutContinuity(built.prompts[index - 1] ?? '')) > 0.85) segmentWarnings.push('prompt-repeated')
     if (segmentWarnings.includes('prompt-too-short')) {
       warnings.push({ code: 'prompt-too-short', message: `Clip ${index + 1} has ${stats.words} words; ${promptProfile.id} expects at least ${promptProfile.minWords}. Add subject, setting, light, camera, action and continuity details.` })
@@ -304,7 +301,7 @@ export function planGeneration(input: PlanInput): Plan {
     }
     return { index, durationSec, prompt, wordCount: stats.words, warnings: segmentWarnings }
   })
-  const totalSec = Math.round(segments.reduce((acc, segment) => acc + segment.durationSec, 0) * 100) / 100
+  const totalSec = input.videoInput ? 4 : 10
   const frames = Math.max(9, Math.round((segments[0]?.durationSec ?? 1) * fps) + 1)
   const estimatedVramGB = estimateVramGB(model, width, height, frames)
 
@@ -362,16 +359,17 @@ export function planGeneration(input: PlanInput): Plan {
       index,
       beat: index === 0 ? 'establishing shot, action begins'
         : index === segments.length - 1 ? 'finish the action and hold the final composition'
-          : 'new action, changed camera distance or angle',
+          : 'continuous camera move, new action, same scene',
       mustNotRepeat: index === 0 ? 'no previous segment' : `do not repeat clip ${index}'s action`,
     })),
     promptProfile,
     orientation: input.orientation ?? (width >= height ? 'landscape' : 'portrait'),
-    baseWidth: width >= height ? 768 : 512,
-    baseHeight: width >= height ? 512 : 768,
+    baseWidth: width >= height ? 864 : 480,
+    baseHeight: width >= height ? 480 : 864,
     promptMode,
     continuity,
     segments,
+    overlaps,
     totalSec,
     width,
     height,

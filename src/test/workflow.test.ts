@@ -2,46 +2,49 @@ import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import test from 'node:test'
 
-const files = ['workflows/ltxv-t2v.json', 'workflows/ltxv-image-to-video.json']
+const files = ['workflows/wan22-t2v.json', 'workflows/wan22-i2v.json', 'workflows/wan22-v2v.json']
 
-function load(file: string, image = false): Record<string, any> {
+function load(file: string): Record<string, any> {
   let text = readFileSync(file, 'utf8')
   const values: Record<string, string> = {
+    unet: 'Wan2.2-TI2V-5B-Q4_K_M.gguf',
+    clip: 'umt5_xxl_fp8_e4m3fn_scaled.safetensors',
+    vae: 'wan2.2_vae.safetensors',
     prompt: 'a fox', negative: '', baseWidth: '864', baseHeight: '480',
-    outWidth: '1280', outHeight: '720', frames: '97', fps: '30', seed: '1', image: 'x.png', video: 'source.mp4', denoise: '0.6', upscaler: '2xNomosUni_span_multijpg.safetensors', perBatch: '8',
+    frames: '97', fps: '24', seed: '1', image: 'x.png', video: 'source.mp4',
+    steps: '20', guidance: '5',
   }
   for (const [key, value] of Object.entries(values)) text = text.replaceAll(`{{${key}}}`, value)
-  const graph = JSON.parse(text) as Record<string, any>
-  return graph
+  return JSON.parse(text) as Record<string, any>
 }
 
-test('LTXV workflow has the expected sampler, decoder and upscaler chain', () => {
+test('Wan T2V uses the 48-channel Wan latent without upscaler nodes', () => {
   const graph = load(files[0]!)
   const classes = Object.values(graph).map((node: any) => node.class_type)
+  for (const name of ['UnetLoaderGGUF', 'CLIPLoader', 'VAELoader', 'ModelSamplingSD3', 'Wan22ImageToVideoLatent', 'KSampler', 'VAEDecode', 'SaveWEBM']) {
+    assert.ok(classes.includes(name), `${name} missing`)
+  }
   assert.equal(graph['7'].inputs.width, 864)
   assert.equal(graph['7'].inputs.height, 480)
   assert.equal(graph['7'].inputs.length, 97)
-  assert.ok(!classes.includes('ImageUpscaleWithModelBatched'))
+  assert.ok(!graph['7'].inputs.start_image)
+  assert.ok(!classes.includes('EmptyHunyuanLatentVideo'))
   assert.ok(!classes.includes('UpscaleModelLoader'))
-  for (const name of ['CheckpointLoaderSimple', 'CLIPLoader', 'LTXVConditioning', 'EmptyLTXVLatentVideo', 'KSamplerSelect', 'LTXVScheduler', 'CFGGuider', 'RandomNoise', 'SamplerCustomAdvanced', 'VAEDecodeTiled', 'SaveWEBM']) {
-    assert.ok(classes.includes(name), `${name} missing`)
-  }
-  assert.ok(JSON.stringify(graph).includes('ltxv-2b-0.9.8-distilled'))
-  assert.ok(JSON.stringify(graph).includes('t5xxl_fp8_e4m3fn'))
+  assert.ok(!classes.includes('ImageUpscaleWithModelBatched'))
 })
 
-test('image workflow uses LTXVImgToVideo and LoadImage', () => {
-  const graph = load(files[1]!, true)
+test('Wan I2V starts from a reference image', () => {
+  const graph = load(files[1]!)
   const classes = Object.values(graph).map((node: any) => node.class_type)
   assert.ok(classes.includes('LoadImage'))
-  assert.ok(classes.includes('LTXVImgToVideo'))
+  assert.deepEqual(graph['8'].inputs.start_image, ['7', 0])
 })
 
-test('V2V workflow encodes the video and trims sigmas', () => {
-  const graph = load('workflows/ltxv-video-to-video.json', true)
+test('Wan V2V is keyframe-guided, not a true V2V claim', () => {
+  const graph = load(files[2]!)
   const classes = Object.values(graph).map((node: any) => node.class_type)
-  for (const name of ['LoadVideo', 'GetVideoComponents', 'ImageFromBatch', 'VAEEncodeTiled', 'SplitSigmasDenoise', 'SamplerCustom', 'SaveWEBM']) {
+  for (const name of ['LoadVideo', 'GetVideoComponents', 'ImageFromBatch', 'Wan22ImageToVideoLatent', 'SaveWEBM']) {
     assert.ok(classes.includes(name), `${name} missing`)
   }
-  assert.ok(readFileSync('workflows/ltxv-video-to-video.json', 'utf8').includes('{{denoise}}'))
+  assert.deepEqual(graph['10'].inputs.start_image, ['9', 0])
 })

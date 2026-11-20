@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# RU: Устанавливает ComfyUI + LTX-Video 2B distilled в отдельный каталог, без root и без Docker.
-# EN: Installs ComfyUI + LTX-Video 2B distilled into a standalone directory, no root, no Docker.
+# RU: Устанавливает ComfyUI + Wan 2.2 TI2V-5B Q4_K_M в отдельный каталог, без root и без Docker.
+# EN: Installs ComfyUI + Wan 2.2 TI2V-5B Q4_K_M into a standalone directory, no root, no Docker.
 set -euo pipefail
 
 COMFY_COMMIT="${COMFY_COMMIT:-995456d0}"
@@ -21,7 +21,7 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'USAGE'
-Install ComfyUI + LTX-Video 2B distilled (GGUF-free, fp8 checkpoint).
+Install ComfyUI + Wan 2.2 TI2V-5B Q4_K_M (GGUF-free, fp8 checkpoint).
 
 Usage: bash deploy/install-comfyui.sh [options]
 
@@ -114,6 +114,13 @@ log "installing ComfyUI requirements (locked)"
 "$VENV/bin/pip" install --quiet -r "$TMP_REQ"
 rm -f "$TMP_REQ"
 
+# RU: GGUF loader нужен для Wan Q4_K_M. EN: GGUF loader is required for Wan Q4_K_M.
+if [[ ! -d "$DIR/custom_nodes/ComfyUI-GGUF" ]]; then
+  log "installing ComfyUI-GGUF"
+  git clone --depth 1 https://github.com/city96/ComfyUI-GGUF "$DIR/custom_nodes/ComfyUI-GGUF"
+  "$VENV/bin/pip" install --quiet -r "$DIR/custom_nodes/ComfyUI-GGUF/requirements.txt"
+fi
+
 download_models() {
   local manifest="$SCRIPT_DIR/models.tsv"
   [[ -f "$manifest" ]] || fail "missing $manifest"
@@ -157,7 +164,7 @@ else
 fi
 
 mkdir -p "$DIR/user/default/workflows"
-if [[ -d "$SCRIPT_DIR/ui-workflows" ]]; then
+if compgen -G "$SCRIPT_DIR/ui-workflows/*.json" > /dev/null; then
   log "installing UI workflows"
   cp "$SCRIPT_DIR/ui-workflows/"*.json "$DIR/user/default/workflows/"
 fi
@@ -182,7 +189,7 @@ chmod +x "$DIR/start-comfyui.sh"
 
 cat <<DONE
 
-ComfyUI + LTX installed.
+ComfyUI + Wan 2.2 installed.
 
   start:  bash $DIR/start-comfyui.sh
   url:    http://127.0.0.1:${PORT}

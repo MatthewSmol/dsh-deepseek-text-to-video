@@ -22,13 +22,16 @@ test('built-in registry is coherent', () => {
   }
 })
 
-test('the two requested models are present with the expected paths', () => {
-  const sulphur = BUILTIN_MODELS.find((entry) => entry.id === 'sulphur-2-base')
-  const candle = BUILTIN_MODELS.find((entry) => entry.id === 'ltx-0.9.8-2b-distilled')
-  assert.ok(sulphur?.repo === 'SulphurAI/Sulphur-2-base')
-  assert.ok(sulphur?.capabilities.i2v)
-  assert.ok(candle?.repo === 'oxide-lab/LTX-Video-0.9.8-2B-distilled')
-  assert.ok(candle?.runtimes.includes('candle'))
+test('the single Wan model is present with the expected files', () => {
+  assert.equal(BUILTIN_MODELS.length, 1)
+  const wan = BUILTIN_MODELS[0]
+  assert.equal(wan?.id, 'comfyui-workflow')
+  assert.equal(wan?.family, 'wan-video')
+  assert.ok(wan?.variants[0]?.files.some((file) => file.endsWith('Wan2.2-TI2V-5B-Q4_K_M.gguf')))
+  assert.ok(wan?.variants[0]?.files.some((file) => file.includes('umt5_xxl')))
+  assert.ok(wan?.variants[0]?.files.some((file) => file.includes('wan2.2_vae')))
+  assert.equal(wan?.capabilities.t2v, true)
+  assert.equal(wan?.capabilities.i2v, true)
 })
 
 test('custom models become registry entries', () => {

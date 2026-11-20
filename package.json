@@ -1,9 +1,9 @@
 {
   "name": "@local/dsh-genvideo",
-  "version": "1.2.1",
+  "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "GenVideo \u2014 local text-to-video MCP service with a DSH sidebar panel (Sulphur-2 / LTX-Video, ffmpeg, EN/RU).",
+  "description": "GenVideo \u2014 local Wan 2.2 TI2V-5B ComfyUI video generator with a DSH sidebar panel (3\u00d74s, 10s crossfade, EWA, H.265, audio).",
   "exports": {
     ".": "./dist/index.js",
     "./client": "./dist/client.js",

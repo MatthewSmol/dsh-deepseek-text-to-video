@@ -343,6 +343,7 @@ export interface Plan {
   promptMode: PromptMode
   continuity: 'none' | 'last-frame'
   segments: PlannedSegment[]
+  overlaps: number[]
   totalSec: number
   width: number
   height: number
@@ -391,6 +392,7 @@ export interface GenerateRequest {
   inputImageId?: string
   inputVideoId?: string
   outputName?: string
+  audioPath?: string
   requestId?: string
   transcode?: Partial<TranscodeOptions>
 }

@@ -113,7 +113,11 @@ export const comfyuiRunner = {
             frames: String(input.frames),
             fps: String(input.fps),
             seed: String(Math.max(0, input.seed)),
-            steps: String(Math.max(0, input.steps)),
+            steps: String(input.steps > 0 ? input.steps : 20),
+            guidance: String(input.guidance > 0 ? input.guidance : 5),
+            unet: 'Wan2.2-TI2V-5B-Q4_K_M.gguf',
+            clip: 'umt5_xxl_fp8_e4m3fn_scaled.safetensors',
+            vae: 'wan2.2_vae.safetensors',
             image: uploadedImage,
             video: uploadedVideo,
             baseWidth: String(baseWidth),
@@ -167,7 +171,8 @@ export const comfyuiRunner = {
         const outputs = entry.outputs ?? {};
         let file = null;
         for (const node of Object.values(outputs)) {
-            const candidate = node.videos?.[0] ?? node.gifs?.[0] ?? node.images?.[0];
+            const candidates = [...(node.videos ?? []), ...(node.gifs ?? []), ...(node.images ?? [])];
+            const candidate = candidates.find((item) => item.type === 'output') ?? null;
             if (candidate?.filename) {
                 file = candidate;
                 break;

@@ -11,11 +11,11 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 import { genvideoHome } from './paths.js';
 /** RU: Встроенные шаблоны. EN: Bundled templates. */
-export const BUNDLED_WORKFLOW_VERSION = '1.2.0';
+export const BUNDLED_WORKFLOW_VERSION = '2.0.0';
 export const BUNDLED_WORKFLOWS = [
-    { source: '../../workflows/ltxv-t2v.json', target: 'workflow.json' },
-    { source: '../../workflows/ltxv-image-to-video.json', target: 'workflow-image.json' },
-    { source: '../../workflows/ltxv-video-to-video.json', target: 'workflow-video.json' },
+    { source: '../../workflows/wan22-t2v.json', target: 'workflow.json' },
+    { source: '../../workflows/wan22-i2v.json', target: 'workflow-image.json' },
+    { source: '../../workflows/wan22-v2v.json', target: 'workflow-video.json' },
 ];
 /** RU: Копирует недостающие workflow. EN: Copies missing workflows. */
 export function installBundledWorkflows() {

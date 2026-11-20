@@ -30,9 +30,9 @@ const en: Record<string, string> = {
   platform: 'Platform', aspect: 'Aspect', resolution: 'Resolution', fps: 'FPS', seed: 'Seed', random: 'random',
   negative: 'Negative prompt', continuity: 'Continuity', none: 'None', lastFrame: 'Last frame → next clip',
   imageInput: 'Reference image (image-to-video)', videoInput: 'Reference video (video-to-video)',
-  i2vHint: 'Needs the diffusers LTX-Video 0.9.8 2B (i2v) model and the Python engine; the Candle build is text-to-video only.', denoise: 'Denoise', denoiseHint: '0.35–0.5 keeps motion and background; 0.55–0.75 redraws strongly.', upscale: 'Upscale', upscaleHint: 'EWA Lanczos after the whole video is merged: 480p → 1280×720 / 720×1280 on the GPU.', upscaleEwa: 'EWA Lanczos (GPU 480p→720p)', upscaleOff: 'Off',
+  i2vHint: 'Reference image becomes the first frame; the exact last frame of a clip is used for the next clip.', denoise: 'Denoise', denoiseHint: '0.35–0.5 keeps motion and background; 0.55–0.75 redraws strongly.', upscale: 'Upscale', upscaleHint: 'EWA Lanczos after the whole video is merged: 480p → 1280×720 / 720×1280 on the GPU.', upscaleEwa: 'EWA Lanczos (GPU 480p→720p)', upscaleOff: 'Off', audioPath: 'Audio track (path)', audioHint: 'Optional local audio file to mux into the final 10s video; leave empty for silent output.',
   referenceInput: 'Reference input', switchToI2v: 'Choose i2v model',
-  v2vHint: 'No built-in model supports video input yet.',
+  v2vHint: 'Wan TI2V has no true V2V: only the first frame is used as a keyframe (V2V keyframe).',
   chooseFile: 'Choose file', removeFile: 'Remove', advanced: 'Advanced', steps: 'Steps', guidance: 'Guidance',
   clipLength: 'Clip length', videoFormat: 'Format', clipLengthHint: 'Length of one generated clip. The last clip may be shorter.', promptMode: 'Prompt mode',
   promptFull: 'Full scene in every clip', promptSplit: 'Split by sentences', promptShots: 'Shot prompts', shotPrompts: 'Shot prompts (one per line)', shotPromptsHint: 'One prompt per clip. The agent or you can write N different actions; empty lines are ignored.',
@@ -104,9 +104,9 @@ const ru: Record<string, string> = {
   platform: 'Платформа', aspect: 'Аспект', resolution: 'Разрешение', fps: 'Кадры/с', seed: 'Seed', random: 'случайно',
   negative: 'Негативный промпт', continuity: 'Непрерывность', none: 'Нет', lastFrame: 'Последний кадр → следующий клип',
   imageInput: 'Опорная картинка (image-to-video)', videoInput: 'Опорное видео (video-to-video)',
-  i2vHint: 'Нужна diffusers-модель LTX-Video 0.9.8 2B (i2v) и Python-движок; Candle-сборка умеет только text-to-video.', denoise: 'Denoise', denoiseHint: '0.35–0.5 сохраняет движение и фон; 0.55–0.75 сильно перерисовывает.', upscale: 'Апскейл', upscaleHint: 'EWA Lanczos после сборки всего ролика: 480p → 1280×720 / 720×1280 на GPU.', upscaleEwa: 'EWA Lanczos (GPU 480p→720p)', upscaleOff: 'Выкл',
+  i2vHint: 'Опорное изображение становится первым кадром; последний кадр клипа передаётся следующему.', denoise: 'Denoise', denoiseHint: '0.35–0.5 сохраняет движение и фон; 0.55–0.75 сильно перерисовывает.', upscale: 'Апскейл', upscaleHint: 'EWA Lanczos после сборки всего ролика: 480p → 1280×720 / 720×1280 на GPU.', upscaleEwa: 'EWA Lanczos (GPU 480p→720p)', upscaleOff: 'Выкл', audioPath: 'Аудиодорожка (путь)', audioHint: 'Необязательный локальный аудиофайл для финального 10-секундного видео; пусто — без звука.',
   referenceInput: 'Опорный вход', switchToI2v: 'Выбрать i2v-модель',
-  v2vHint: 'Встроенные модели пока не поддерживают видео-вход.',
+  v2vHint: 'У Wan TI2V нет настоящего V2V: используется только первый кадр (V2V keyframe).',
   chooseFile: 'Выбрать файл', removeFile: 'Убрать', advanced: 'Дополнительно', steps: 'Шаги', guidance: 'Guidance',
   clipLength: 'Длина клипа', videoFormat: 'Формат', clipLengthHint: 'Длительность одного клипа. Последний может быть короче.', promptMode: 'Режим промпта',
   promptFull: 'Полная сцена в каждом клипе', promptSplit: 'Разбить по предложениям', promptShots: 'Промпты по кадрам', shotPrompts: 'Промпты по клипам (по одному в строке)', shotPromptsHint: 'Один промпт на клип. Агент или вы пишете N разных действий; пустые строки игнорируются.',
@@ -249,7 +249,7 @@ function emptyForm(settings?: any) {
     aspect: settings?.aspect ?? '16:9',
     width: settings?.orientation === 'portrait' ? 720 : 1280,
     height: settings?.orientation === 'portrait' ? 1280 : 720,
-    fps: [15, 24, 30, 60].includes(settings?.fps) ? settings.fps : 30,
+    fps: 24,
     targetDurationSec: settings?.targetDurationSec ?? 60,
     clipSec: 0,
     orientation: settings?.orientation ?? 'landscape',
@@ -261,6 +261,7 @@ function emptyForm(settings?: any) {
     guidance: settings?.guidance ?? 0,
     denoise: settings?.denoise ?? 0.6,
     upscale: settings?.upscale ?? 'ewa',
+    audioPath: '',
     inputImageId: '',
     inputVideoId: '',
     transcode: {
@@ -718,6 +719,7 @@ const Panel = {
         continuity: form.value.continuity,
         denoise: form.value.denoise,
         upscale: form.value.upscale,
+        audioPath: form.value.audioPath,
         transcode: form.value.transcode,
       })
     }
@@ -874,7 +876,7 @@ const Panel = {
             h('div', { class: 'gv-hint' }, 'Mode'), h('div', null, String(p.mode ?? 't2v').toUpperCase() + (p.mode === 'v2v' ? ` · denoise ${p.denoise}` : '')),
             h('div', { class: 'gv-hint' }, 'Auto clip'), h('div', null, `${p.clipSec}s · ${p.frames} frames`),
             h('div', { class: 'gv-hint' }, t('segments')), h('div', null, `${p.segments.length} · ${fmtDuration(p.totalSec)}`),
-            h('div', { class: 'gv-hint' }, 'Upscaler'), h('div', null, '2× Nomos → ImageScale'),
+            h('div', { class: 'gv-hint' }, 'Upscaler'), h('div', null, 'EWA Lanczos → H.265'),
             h('div', { class: 'gv-hint' }, 'ComfyUI'), h('div', null, state.value.deps.comfyui.ok ? 'ready' : 'unavailable'),
           ]),
           warn.length ? h('ul', { class: 'gv-mt-3 gv-list-disc gv-pl-5 gv-text-[11.5px] gv-text-warn' }, warn.map((line: string, index: number) => h('li', { key: index }, line))) : null,
@@ -1106,9 +1108,9 @@ const Panel = {
             ]),
             h(Field, { label: t('fps') }, [
               h('select', { class: 'gv-select', value: String(form.value.fps), onChange: (event: any) => patch({ fps: Number(event.target.value) }) },
-                [15, 24, 30, 60].map((value) => h('option', { key: value, value: String(value) }, String(value)))),
+                [24].map((value) => h('option', { key: value, value: String(value) }, String(value)))),
             ]),
-            h(Field, { label: t('continuity'), hint: 'Continue each clip from the previous frame. Requires workflow-image.json.' }, [
+            h(Field, { label: t('continuity'), hint: 'Each clip starts from the exact last frame of the previous clip.' }, [
               h('select', { class: 'gv-select', value: form.value.continuity, onChange: (event: any) => patch({ continuity: event.target.value }) }, [
                 h('option', { value: 'last-frame' }, t('lastFrame')),
                 h('option', { value: 'none' }, t('none')),
@@ -1126,6 +1128,11 @@ const Panel = {
                 h('option', { value: 'ewa' }, t('upscaleEwa')),
                 h('option', { value: 'off' }, t('upscaleOff')),
               ]),
+            ]),
+          ]),
+          h('div', { class: 'gv-mb-3' }, [
+            h(Field, { label: t('audioPath'), hint: t('audioHint') }, [
+              h('input', { class: 'gv-input', placeholder: '/path/to/audio.wav', value: form.value.audioPath, onInput: (event: any) => patch({ audioPath: event.target.value }) }),
             ]),
           ]),
           h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [

@@ -19,6 +19,20 @@ const LTX_PROFILE = {
 };
 /** RU: Профиль для модели и режима. EN: Profile for a model and mode. */
 export function resolvePromptProfile(model, mode) {
+    if (model.family === 'wan-video') {
+        return {
+            id: 'wan-2.2-5b',
+            minWords: 40,
+            recommendedWords: [60, 160],
+            maxChars: Math.max(800, model.maxPromptChars),
+            requiredFacets: ['subject', 'setting', 'action', 'camera', 'light', 'style'],
+            negativeHints: ['cuts', 'scene change', 'morphing', 'text', 'watermark'],
+            segmentDirective: mode === 'i2v'
+                ? 'Start exactly from the provided last frame. Keep the same character, wardrobe, location, light and lens. Describe only the NEW action and continuous camera movement; do not repeat the previous action or cut to a new scene.'
+                : 'Describe one continuous shot; for later clips describe only the new action and continuous camera movement, keeping the same scene.',
+            example: 'The same character continues walking through the same snowy forest in the same warm sunrise light; the camera pushes in slowly as they turn their head, no cut, natural motion.',
+        };
+    }
     if (model.family === 'ltx-video' || model.family === 'ltx-2') {
         const id = model.family === 'ltx-2' ? 'ltx-2' : 'ltx-2b-distilled';
         return {

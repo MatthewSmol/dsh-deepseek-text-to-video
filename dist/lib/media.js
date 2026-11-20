@@ -179,7 +179,7 @@ export async function upscaleFile(input) {
             await runFfmpeg(input.ffmpeg, [
                 '-i', input.source,
                 '-vf', ewaFilter,
-                '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
+                '-c:v', 'libx265', '-preset', 'medium', '-crf', '19', '-tag:v', 'hvc1',
                 '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', input.target,
             ], { durationSec: info.durationSec, signal: input.signal, onProgress: input.onProgress });
             return await probeFile(input.ffprobe, input.target);
@@ -192,7 +192,7 @@ export async function upscaleFile(input) {
     await runFfmpeg(input.ffmpeg, [
         '-i', input.source,
         '-vf', cpuFilter,
-        '-c:v', 'libx264', '-preset', 'medium', '-crf', '18',
+        '-c:v', 'libx265', '-preset', 'medium', '-crf', '19', '-tag:v', 'hvc1',
         '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', input.target,
     ], { durationSec: info.durationSec, signal: input.signal, onProgress: input.onProgress });
     return await probeFile(input.ffprobe, input.target);
@@ -481,9 +481,63 @@ export async function concatFiles(input) {
     });
     return probeFile(input.ffprobe, input.target);
 }
+/** RU: Склейка трёх сегментов с crossfade 1с, EWA Lanczos и H.265 в одном проходе.
+ *  EN: Three-segment crossfade, EWA Lanczos and H.265 in one pass. */
+export async function crossfadeUpscaleEncode(input) {
+    if (input.sources.length !== 3)
+        throw new GenVideoError('crossfade-needs-three', 'Crossfade assembly expects exactly three segments');
+    const infos = await Promise.all(input.sources.map((source) => probeFile(input.ffprobe, source)));
+    for (const info of infos) {
+        if (Math.abs(info.durationSec - 4) > 0.25)
+            throw new GenVideoError('segment-invalid', `Segment duration ${info.durationSec.toFixed(2)}s is not 4s`);
+    }
+    const overlap = Math.max(0.1, Math.min(1, input.overlapSec ?? 1));
+    const offset1 = 4 - overlap;
+    const offset2 = 8 - overlap * 2;
+    const total = 12 - overlap * 2;
+    const run = async (edgeFilter) => {
+        const filters = [
+            '[0:v]fps=' + input.fps + ',settb=AVTB,setpts=PTS-STARTPTS[v0]',
+            '[1:v]fps=' + input.fps + ',settb=AVTB,setpts=PTS-STARTPTS[v1]',
+            '[2:v]fps=' + input.fps + ',settb=AVTB,setpts=PTS-STARTPTS[v2]',
+            `[v0][v1]xfade=transition=fade:duration=${overlap}:offset=${offset1}[x1]`,
+            `[x1][v2]xfade=transition=fade:duration=${overlap}:offset=${offset2}[x2]`,
+            `[x2]${edgeFilter},trim=0:${total},setpts=PTS-STARTPTS,format=yuv420p[v]`,
+        ].join(';');
+        await runFfmpeg(input.ffmpeg, [
+            '-i', input.sources[0], '-i', input.sources[1], '-i', input.sources[2],
+            '-filter_complex', filters, '-map', '[v]', '-an',
+            '-c:v', 'libx265', '-crf', '19', '-preset', 'medium',
+            '-tag:v', 'hvc1', '-movflags', '+faststart', input.target,
+        ], { durationSec: total, signal: input.signal, onProgress: input.onProgress });
+        return await probeFile(input.ffprobe, input.target);
+    };
+    try {
+        return await run(`libplacebo=w=${input.width}:h=${input.height}:upscaler=ewa_lanczos:downscaler=ewa_lanczos`);
+    }
+    catch (error) {
+        if (input.signal?.aborted)
+            throw error;
+        return await run(`scale=${input.width}:${input.height}:flags=lanczos`);
+    }
+}
+/** RU: Добавляет аудиодорожку к готовому видео без перекодирования видео.
+ *  EN: Muxes an audio track without re-encoding video. */
+export async function muxAudio(input) {
+    const args = ['-i', input.video];
+    if (input.audio)
+        args.push('-i', input.audio);
+    else
+        args.push('-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000');
+    args.push('-map', '0:v:0', '-map', '1:a:0', '-c:v', 'copy', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2', '-af', 'apad', '-t', String(input.durationSec), '-movflags', '+faststart', input.target);
+    await runFfmpeg(input.ffmpeg, args, { durationSec: input.durationSec, signal: input.signal });
+    return await probeFile(input.ffprobe, input.target);
+}
 /** RU: Извлекает последний кадр для continuity в i2v. EN: Extracts the last frame for i2v continuity. */
-export async function extractLastFrame(ffmpeg, source, target) {
-    const result = await runCommand(ffmpeg, ['-hide_banner', '-y', '-sseof', '-0.2', '-i', source, '-frames:v', '1', '-q:v', '2', target], { timeoutMs: 60_000 });
+export async function extractLastFrame(ffmpeg, ffprobe, source, target) {
+    const info = await probeFile(ffprobe, source);
+    const last = Math.max(0, Math.round(info.durationSec * info.fps) - 1);
+    const result = await runCommand(ffmpeg, ['-hide_banner', '-y', '-i', source, '-vf', `select=eq(n\\,${last})`, '-frames:v', '1', '-q:v', '2', target], { timeoutMs: 60_000 });
     if (result.code !== 0) {
         throw new GenVideoError('frame-extract-failed', result.stderr.trim().split('\n').slice(-2).join(' '));
     }

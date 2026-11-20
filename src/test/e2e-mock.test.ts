@@ -48,7 +48,9 @@ test('mock generation writes a real mp4 into Videos/', { skip: !hasFfmpeg }, asy
   assert.ok(engine)
   const request = {
     prompt: 'A test clip with a moving gradient',
-    modelId: 'ltx-0.9.8-2b-distilled',
+    promptMode: 'shots' as const,
+    segmentPrompts: ['A blue gradient moves left.', 'A green gradient moves right.', 'A warm gradient settles.'],
+    modelId: 'comfyui-workflow',
     runner: 'mock' as const,
     platform: 'custom' as const,
     width: 320,
@@ -61,7 +63,7 @@ test('mock generation writes a real mp4 into Videos/', { skip: !hasFfmpeg }, asy
   }
   const planned = await engine.plan(request)
   const { job, plan } = await engine.generate({ ...request, planId: planned.planId })
-  assert.equal(plan.segments.length, 1)
+  assert.equal(plan.segments.length, 3)
   const done = await waitJob(job.id)
   assert.equal(done.status, 'done', done.error?.message)
   const output = done.outputs[0]
@@ -72,7 +74,7 @@ test('mock generation writes a real mp4 into Videos/', { skip: !hasFfmpeg }, asy
   const info = await probeFile(deps.ffprobe.path, output.path)
   assert.equal(info.width, 320)
   assert.equal(info.height, 240)
-  assert.ok(info.durationSec >= 3.5)
+  assert.ok(info.durationSec >= 9.5)
 })
 
 test('size-mode transcode respects the MB limit', { skip: !hasFfmpeg }, async () => {
@@ -82,13 +84,13 @@ test('size-mode transcode respects the MB limit', { skip: !hasFfmpeg }, async ()
   assert.ok(source, 'the previous test must leave a clip')
   const job = await engine.transcode({
     name: source.name,
-    transcode: { mode: 'size', targetSizeMB: 0.25, format: 'mp4' },
+    transcode: { mode: 'size', targetSizeMB: 0.5, format: 'mp4' },
   })
   const done = await waitJob(job.id)
   assert.equal(done.status, 'done', done.error?.message)
   const output = done.outputs[0]
   assert.ok(output)
-  assert.ok(output.bytes <= 0.25 * 1e6 * 1.05, `size ${output.bytes} exceeds the limit`)
+  assert.ok(output.bytes <= 0.5 * 1e6 * 1.05, `size ${output.bytes} exceeds the limit`)
 })
 
 test('merge concatenates two clips into a longer video', { skip: !hasFfmpeg }, async () => {
@@ -103,12 +105,12 @@ test('merge concatenates two clips into a longer video', { skip: !hasFfmpeg }, a
   assert.ok(output)
   const deps = await engine.deps()
   const info = await probeFile(deps.ffprobe.path, output.path)
-  assert.ok(info.durationSec >= 3.5)
+  assert.ok(info.durationSec >= 9.5)
 })
 
 test('plan selects the ComfyUI workflow backend', { skip: !hasFfmpeg }, async () => {
   assert.ok(engine)
-  const plan = await engine.plan({ prompt: 'A dragon', modelId: 'sulphur-2-base', targetDurationSec: 20 })
+  const plan = await engine.plan({ prompt: 'A dragon', modelId: 'comfyui-workflow', targetDurationSec: 20 })
   assert.ok(plan.availableRunner === 'comfyui' || plan.availableRunner === null)
   assert.ok(plan.segments.length > 1)
 })
@@ -118,7 +120,7 @@ test('generation requires a confirmed plan', { skip: !hasFfmpeg }, async () => {
   await assert.rejects(
     engine.generate({
       prompt: 'unconfirmed fox',
-      modelId: 'ltx-0.9.8-2b-distilled',
+      modelId: 'comfyui-workflow',
       runner: 'mock',
       targetDurationSec: 4,
       transcode: { enabled: false },
@@ -131,7 +133,7 @@ test('a reference video plans one V2V clip', { skip: !hasFfmpeg }, async () => {
   assert.ok(engine)
   const plan = await engine.plan({
     prompt: 'restyle the fox',
-    modelId: 'ltx-0.9.8-2b-distilled',
+    modelId: 'comfyui-workflow',
     runner: 'mock',
     inputVideoId: 'source.mp4',
     fps: 30,
