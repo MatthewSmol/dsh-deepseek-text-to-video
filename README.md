@@ -293,9 +293,13 @@ npm test          # 45 тестов, включая ffmpeg mock e2e
 | `$DSH_HOME/genvideo/jobs.json`, `logs/` | история заданий и логи |
 | `$DSH_HOME/genvideo/work/` | временные сегменты и скретч склейки |
 
+## Responsibilities
+
+ComfyUI only generates the three raw 4s segments. The plugin performs last-frame chaining, the two 1s crossfades, EWA/CPU scaling, H.265 encoding and AAC muxing; no merge or crossfade node is installed in ComfyUI.
+
 ## Current release
 
-**2.2.0** — single Wan 2.2 TI2V-5B Q4_K_M model, 3×4s, two 1s crossfades, 10s final, EWA + H.265 after merge, optional local audio.
+**2.2.1** — single Wan 2.2 TI2V-5B Q4_K_M model, 3×4s, two 1s crossfades, 10s final, EWA + H.265 after merge, optional local audio.
 
 Telegram delivery: H.265 targets **3 Mbps**; a 10s 720p file is ~4 MB. `hevc_nvenc` is tried first, then `libx265`; the actual encoder is written to the job log. H.265 inline playback depends on the Telegram client — send as a file if needed.
 

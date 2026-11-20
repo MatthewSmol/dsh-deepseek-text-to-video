@@ -226,8 +226,8 @@ export async function probeHevcNvenc(ffmpeg: string, force = false): Promise<Hev
   if (!force && cached && Date.now() - cached.at < 60_000) return cached.result
   const result = await runCommand(ffmpeg, [
     '-hide_banner', '-loglevel', 'error',
-    '-f', 'lavfi', '-i', 'color=c=black:s=64x64:d=0.2',
-    '-frames:v', '1', '-c:v', 'hevc_nvenc', '-f', 'null', '-',
+    '-f', 'lavfi', '-i', 'color=c=black:s=320x240:d=0.2',
+    '-frames:v', '1', '-c:v', 'hevc_nvenc', '-pix_fmt', 'yuv420p', '-f', 'null', '-',
   ], { timeoutMs: 10_000 })
   const probe: HevcEncoderProbe = result.code === 0
     ? { ok: true, error: null }
@@ -278,6 +278,7 @@ export async function upscaleFile(input: {
   const attempts: Array<{ filter: string; encoder: HevcFinalEncoder }> = []
   if (input.mode === 'ewa') {
     attempts.push({ filter: ewaFilter, encoder: preferred })
+    if (preferred === 'hevc_nvenc') attempts.push({ filter: cpuFilter, encoder: 'hevc_nvenc' })
     if (preferred === 'hevc_nvenc') attempts.push({ filter: ewaFilter, encoder: 'libx265' })
     attempts.push({ filter: cpuFilter, encoder: 'libx265' })
   } else {
@@ -660,6 +661,7 @@ export async function crossfadeUpscaleEncode(input: {
   }
   let reason = probe.error ?? undefined
   const ewa = `libplacebo=w=${input.width}:h=${input.height}:upscaler=ewa_lanczos:downscaler=ewa_lanczos`
+  const cpuScale = `scale=${input.width}:${input.height}:flags=lanczos`
   if (preferred === 'hevc_nvenc') {
     try {
       const result = await run(ewa, 'hevc_nvenc')
@@ -667,7 +669,15 @@ export async function crossfadeUpscaleEncode(input: {
       return result
     } catch (error) {
       if (input.signal?.aborted) throw error
-      reason = `NVENC failed: ${error instanceof Error ? error.message : String(error)}`
+      reason = `NVENC/EWA attempt failed: ${error instanceof Error ? error.message : String(error)}`
+    }
+    try {
+      const result = await run(cpuScale, 'hevc_nvenc')
+      input.onEncoder?.('hevc_nvenc', 'EWA unavailable; CPU Lanczos + NVENC')
+      return result
+    } catch (error) {
+      if (input.signal?.aborted) throw error
+      reason = `NVENC attempt failed: ${error instanceof Error ? error.message : String(error)}`
     }
   }
   try {
@@ -676,10 +686,11 @@ export async function crossfadeUpscaleEncode(input: {
     return result
   } catch (error) {
     if (input.signal?.aborted) throw error
-    const result = await run(`scale=${input.width}:${input.height}:flags=lanczos`, 'libx265')
+    const result = await run(cpuScale, 'libx265')
     input.onEncoder?.('libx265', reason ?? 'EWA filter unavailable; CPU Lanczos fallback')
     return result
   }
+
 }
 
 /** RU: Добавляет аудиодорожку к готовому видео без перекодирования видео.
