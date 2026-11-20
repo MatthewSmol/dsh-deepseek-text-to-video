@@ -1,6 +1,6 @@
 {
   "name": "@local/dsh-genvideo",
-  "version": "2.0.0",
+  "version": "2.0.2",
   "private": true,
   "type": "module",
   "description": "GenVideo \u2014 local Wan 2.2 TI2V-5B ComfyUI video generator with a DSH sidebar panel (3\u00d74s, 10s crossfade, EWA, H.265, audio).",
