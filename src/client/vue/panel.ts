@@ -26,7 +26,7 @@ const en: Record<string, string> = {
   install: 'Install', installing: 'Installing…', installed: 'Installed', notInstalled: 'Not installed',
   update: 'Update', checkUpdates: 'Check updates', model: 'Model', runner: 'Runner', auto: 'Auto',
   prompt: 'Prompt', promptHint: 'Describe scene, camera, lighting and action. Long prompts are split between segments.',
-  duration: 'Duration', durationHint: 'Longer than the model clip limit is generated as segments and merged.', perClip: 'max/clip',
+  duration: 'Duration', durationHint: 'Fixed Wan pipeline: exactly 3 clips × 4s, two 1s crossfades, 10s final.', durationFixed: '10 seconds final · 3 × 4s', continuityFixed: 'Exact last frame → next clip', assembleHint: 'Crossfade 1s + 1s → EWA → H.265 MP4; then optional AAC audio.', perClip: 'max/clip',
   platform: 'Platform', aspect: 'Aspect', resolution: 'Resolution', fps: 'FPS', seed: 'Seed', random: 'random',
   negative: 'Negative prompt', continuity: 'Continuity', none: 'None', lastFrame: 'Last frame → next clip',
   imageInput: 'Reference image (image-to-video)', videoInput: 'Reference video (video-to-video)',
@@ -81,7 +81,7 @@ const en: Record<string, string> = {
   mcpTools: 'Tools', version: 'Version', settingsHint: 'Stored in DSH_HOME/genvideo/settings.json.',
   outputHint: 'Default: <project>/Videos', modelsHint: 'Default: <project>/models', seedHint: '-1 = random',
   stepsHint: '0 = model default', negativeHint: 'What to avoid in the shot', inputHint: 'The model must support this input.', sectionScene: 'Enter prompt', sectionReferences: 'Source', sectionOutput: 'Output', sectionEncoding: 'Encoding', sourceHint: 'The base to start from: a reference image or video.',
-  jobsHint: 'Live progress comes from the local GenVideo engine via SSE.', stageSample: 'Sample', stageUpscale: 'EWA Upscale', stageMerge: 'Merge', stageEncode: 'Encode', stageReady: 'Ready', currentStep: 'Current step', clip: 'clip', promptsPreview: 'Prompts', libraryHint: 'Finished videos from the Videos folder.',
+  jobsHint: 'Live progress comes from the local GenVideo engine via SSE.', stageSample: 'Sample', stageAssemble: 'Crossfade + EWA + H.265', stageAudio: 'Audio / Encode', stageUpscale: 'EWA + H.265', stageMerge: 'Crossfade', stageEncode: 'Encode', stageReady: 'Ready', currentStep: 'Current step', clip: 'clip', promptsPreview: 'Prompts', libraryHint: 'Finished videos from the Videos folder.',
   gpuSelect: 'GPUs to use', budgetHint: '0 = no limit; compare with the GPU total above.',
   ffmpegMissing: 'ffmpeg is missing: generation and merging are unavailable.',
   comfyuiHint: 'URL of a running ComfyUI, e.g. http://127.0.0.1:8188', candleHint: 'Path to the built candle-video binary',
@@ -100,7 +100,7 @@ const ru: Record<string, string> = {
   install: 'Установить', installing: 'Установка…', installed: 'Установлена', notInstalled: 'Не установлена',
   update: 'Обновить', checkUpdates: 'Проверить обновления', model: 'Модель', runner: 'Раннер', auto: 'Авто',
   prompt: 'Промпт', promptHint: 'Опишите сцену, камеру, свет и действие. Длинный промпт делится между сегментами.',
-  duration: 'Длительность', durationHint: 'Если дольше лимита клипа модели — генерация сегментами и склейка.', perClip: 'макс/клип',
+  duration: 'Длительность', durationHint: 'Фиксированный Wan-пайплайн: ровно 3 клипа × 4с, два crossfade по 1с, итог 10с.', durationFixed: '10 секунд · 3 × 4с', continuityFixed: 'Точный последний кадр → следующий клип', assembleHint: 'Crossfade 1с + 1с → EWA → H.265 MP4; затем AAC-аудио.', perClip: 'макс/клип',
   platform: 'Платформа', aspect: 'Аспект', resolution: 'Разрешение', fps: 'Кадры/с', seed: 'Seed', random: 'случайно',
   negative: 'Негативный промпт', continuity: 'Непрерывность', none: 'Нет', lastFrame: 'Последний кадр → следующий клип',
   imageInput: 'Опорная картинка (image-to-video)', videoInput: 'Опорное видео (video-to-video)',
@@ -155,7 +155,7 @@ const ru: Record<string, string> = {
   mcpTools: 'Инструменты', version: 'Версия', settingsHint: 'Хранится в DSH_HOME/genvideo/settings.json.',
   outputHint: 'По умолчанию: <проект>/Videos', modelsHint: 'По умолчанию: <проект>/models', seedHint: '-1 = случайный',
   stepsHint: '0 = по умолчанию модели', negativeHint: 'Чего избегать в кадре', inputHint: 'Модель должна поддерживать этот вход.', sectionScene: 'Введите промпт', sectionReferences: 'Исходник', sectionOutput: 'Выход', sectionEncoding: 'Кодирование', sourceHint: 'База, от чего отталкиваться: референс-картинка или видео.',
-  jobsHint: 'Прогресс приходит от локального движка GenVideo по SSE.', stageSample: 'Сэмплинг', stageUpscale: 'EWA-апскейл', stageMerge: 'Склейка', stageEncode: 'Кодирование', stageReady: 'Готово', currentStep: 'Текущий шаг', clip: 'клип', promptsPreview: 'Промпты', libraryHint: 'Готовые ролики из папки Videos.',
+  jobsHint: 'Прогресс приходит от локального движка GenVideo по SSE.', stageSample: 'Сэмплинг', stageAssemble: 'Crossfade + EWA + H.265', stageAudio: 'Аудио / кодирование', stageUpscale: 'EWA + H.265', stageMerge: 'Crossfade', stageEncode: 'Кодирование', stageReady: 'Готово', currentStep: 'Текущий шаг', clip: 'клип', promptsPreview: 'Промпты', libraryHint: 'Готовые ролики из папки Videos.',
   gpuSelect: 'Используемые GPU', budgetHint: '0 = без лимита; сравнивайте с объёмом GPU выше.',
   ffmpegMissing: 'ffmpeg не найден: генерация и склейка недоступны.',
   comfyuiHint: 'URL запущенного ComfyUI, например http://127.0.0.1:8188', candleHint: 'Путь к собранному бинарю candle-video',
@@ -1012,7 +1012,7 @@ const Panel = {
           h('button', { type: 'button', class: 'gv-btn', onClick: () => void refresh() }, t('refresh')),
         ]),
         plan.value
-          ? h('div', { class: 'gv-hint' }, `${plan.value.segments.length} clips · ${plan.value.segments.length > 1 ? `${plan.value.segments.length - 1}×${fmtDuration(plan.value.clipSec)} + ${fmtDuration(plan.value.segments[plan.value.segments.length - 1]?.durationSec ?? 0)}` : fmtDuration(plan.value.totalSec)} = ${fmtDuration(plan.value.totalSec)}`)
+          ? h('div', { class: 'gv-hint' }, `${plan.value.segments.length} × ${fmtDuration(plan.value.clipSec)} → ${fmtDuration(plan.value.totalSec)} final`)
           : null,
       ]),
       h('div', { class: 'gv-flex gv-flex-col gv-gap-4' }, [
@@ -1087,11 +1087,8 @@ const Panel = {
         h(Card, { title: `3 · ${t('sectionOutput')}` }, [
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2 lg:gv-grid-cols-4' }, [
             h(Field, { label: t('duration'), hint: t('durationHint') }, [
-              h('input', { class: 'gv-input', type: 'number', min: 1, max: 600, value: form.value.targetDurationSec, onInput: (event: any) => patch({ targetDurationSec: Number(event.target.value) || 1 }) }),
-              h('div', { class: 'gv-mt-1 gv-flex gv-gap-1' }, [30, 60, 120].map((sec) => h('button', {
-                key: sec, type: 'button', class: 'gv-btn gv-h-7 gv-px-2 gv-text-[10.5px]',
-                onClick: () => patch({ targetDurationSec: sec }),
-              }, sec >= 60 ? `${sec / 60}m` : `${sec}s`))),
+              h('div', { class: 'gv-input gv-flex gv-items-center gv-font-semibold' }, t('durationFixed')),
+              h('div', { class: 'gv-hint gv-mt-1' }, '3 × 4s = 12s source · 2 × 1s overlaps → 10s final'),
             ]),
             h(Field, { label: t('videoFormat') }, [
               h(Segmented, {
@@ -1110,84 +1107,30 @@ const Panel = {
               h('select', { class: 'gv-select', value: String(form.value.fps), onChange: (event: any) => patch({ fps: Number(event.target.value) }) },
                 [24].map((value) => h('option', { key: value, value: String(value) }, String(value)))),
             ]),
-            h(Field, { label: t('continuity'), hint: 'Each clip starts from the exact last frame of the previous clip.' }, [
-              h('select', { class: 'gv-select', value: form.value.continuity, onChange: (event: any) => patch({ continuity: event.target.value }) }, [
-                h('option', { value: 'last-frame' }, t('lastFrame')),
-                h('option', { value: 'none' }, t('none')),
-              ]),
+            h(Field, { label: t('continuity'), hint: t('assembleHint') }, [
+              h('div', { class: 'gv-input gv-flex gv-items-center gv-text-[12px]' }, t('continuityFixed')),
             ]),
           ]),
           plan.value
-            ? h('div', { class: 'gv-hint gv-mt-2' }, `${t('segments')}: ${plan.value.segments.length} · ${plan.value.segments.length > 1 ? `${plan.value.segments.length - 1}×${fmtDuration(plan.value.clipSec)} + ${fmtDuration(plan.value.segments[plan.value.segments.length - 1]?.durationSec ?? 0)}` : fmtDuration(plan.value.totalSec)} = ${fmtDuration(plan.value.totalSec)}`)
+            ? h('div', { class: 'gv-hint gv-mt-2' }, `${t('segments')}: ${plan.value.segments.length} × ${fmtDuration(plan.value.clipSec)} → ${fmtDuration(plan.value.totalSec)} final`)
             : null,
         ]),
-        h(Card, { title: `4 · ${t('sectionEncoding')}`, hint: t('transcodeHint') }, [
-          h('div', { class: 'gv-mb-3' }, [
-            h(Field, { label: t('upscale'), hint: t('upscaleHint') }, [
-              h('select', { class: 'gv-select', value: form.value.upscale, onChange: (event: any) => patch({ upscale: event.target.value }) }, [
-                h('option', { value: 'ewa' }, t('upscaleEwa')),
-                h('option', { value: 'off' }, t('upscaleOff')),
-              ]),
-            ]),
-          ]),
+        h(Card, { title: `4 · ${t('sectionEncoding')}`, hint: t('assembleHint') }, [
           h('div', { class: 'gv-mb-3' }, [
             h(Field, { label: t('audioPath'), hint: t('audioHint') }, [
               h('input', { class: 'gv-input', placeholder: '/path/to/audio.wav', value: form.value.audioPath, onInput: (event: any) => patch({ audioPath: event.target.value }) }),
             ]),
           ]),
-          h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
-            h(Segmented, {
-              value: form.value.transcode.enabled ? form.value.transcode.mode : 'off',
-              onChange: (value: string) => patchTranscode(
-                value === 'off'
-                  ? { enabled: false }
-                  : { enabled: true, mode: value === 'size' ? 'size' : 'quality' },
-              ),
-              options: [
-                { value: 'off', label: t('noTranscode') },
-                { value: 'quality', label: t('qualityMode') },
-                { value: 'size', label: t('sizeMode') },
-              ],
-            }),
-            form.value.transcode.enabled
-              ? h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-2 lg:gv-grid-cols-3' }, [
-              form.value.transcode.mode === 'quality'
-                ? h(Field, { label: t('quality') }, [
-                    h('select', { class: 'gv-select', value: form.value.transcode.quality, onChange: (event: any) => patchTranscode({ quality: event.target.value }) }, [
-                      h('option', { value: 'high' }, t('high')),
-                      h('option', { value: 'medium' }, t('medium')),
-                      h('option', { value: 'compressed' }, t('compressed')),
-                    ]),
-                  ])
-                : h(Field, { label: `${t('sizeLimit')} (${t('mb')})` }, [
-                    h('input', { class: 'gv-input', type: 'number', min: 1, max: 20000, value: form.value.transcode.targetSizeMB, onInput: (event: any) => patchTranscode({ targetSizeMB: Number(event.target.value) || 1 }) }),
-                  ]),
-              h(Field, { label: t('encoder'), hint: t('encoderHint') }, [
-                h('select', { class: 'gv-select', value: form.value.transcode.encoder, onChange: (event: any) => patchTranscode({ encoder: event.target.value }) }, [
-                  h('option', { value: 'auto' }, t('encoderAuto')),
-                  h('option', { value: 'cpu' }, t('encoderCpu')),
-                  h('option', { value: 'nvenc' }, t('encoderNvenc')),
-                  h('option', { value: 'vulkan' }, t('encoderVulkan')),
-                ]),
-              ]),
-              h(Field, { label: t('codec'), hint: t('codecHint') }, [
-                h('select', { class: 'gv-select', value: form.value.transcode.codec, onChange: (event: any) => patchTranscode({ codec: event.target.value }) }, [
-                  h('option', { value: 'h264' }, t('codecH264')),
-                  h('option', { value: 'h265' }, t('codecH265')),
-                ]),
-              ]),
-              h(Field, { label: t('format') }, [
-                h('select', { class: 'gv-select', value: form.value.transcode.format, onChange: (event: any) => patchTranscode({ format: event.target.value }) },
-                  ['mp4', 'webm', 'gif'].map((value) => h('option', { key: value, value }, value.toUpperCase()))),
-              ]),
-              h(Field, { label: t('fit') }, [
-                h('select', { class: 'gv-select', value: form.value.transcode.fit, onChange: (event: any) => patchTranscode({ fit: event.target.value }) }, [
-                  h('option', { value: 'contain' }, t('contain')),
-                  h('option', { value: 'cover' }, t('cover')),
-                ]),
-              ]),
-                ])
-              : null,
+          h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-3' }, [
+            h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-3' }, [
+              h('div', { class: 'gv-hint' }, 'Video'), h('div', { class: 'gv-font-semibold' }, 'H.265 / HEVC · CRF 19'),
+            ]),
+            h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-3' }, [
+              h('div', { class: 'gv-hint' }, 'Scale'), h('div', { class: 'gv-font-semibold' }, 'EWA Lanczos → 720p'),
+            ]),
+            h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-3' }, [
+              h('div', { class: 'gv-hint' }, 'Audio'), h('div', { class: 'gv-font-semibold' }, 'AAC 192k · 48 kHz'),
+            ]),
           ]),
         ]),
       ]),
@@ -1223,7 +1166,7 @@ const Panel = {
       ...jobs.value.map((job: any) => {
         const total = job.progress?.segmentCount ?? job.params?.segments ?? 0
         const params = job.params ?? {}
-        const mode = params.inputVideoId ? 'V2V' : params.inputImageId ? 'I2V' : 'T2V'
+        const mode = params.inputVideoId ? 'V2V keyframe' : params.inputImageId ? 'I2V' : 'T2V'
         const running = job.status === 'running' || job.status === 'queued'
         const live = liveJobs.value[job.id] ?? job
         const segments = job.segments ?? []
@@ -1231,14 +1174,13 @@ const Panel = {
         const finished = job.status === 'done'
         const upscaleEnabled = String(params.upscale ?? 'ewa') !== 'off'
         const globalStages = [
-          ...(segments.length > 1 ? [{ key: 'merge', label: 'stageMerge' }] : []),
-          ...(upscaleEnabled ? [{ key: 'upscale', label: 'stageUpscale' }] : []),
-          { key: 'encode', label: 'stageEncode' },
+          segments.length > 1 ? { key: 'assemble', label: 'stageAssemble' } : { key: 'upscale', label: 'stageUpscale' },
+          { key: 'encode', label: 'stageAudio' },
         ]
         const activeKey = finished ? 'done'
-          : phase === 'concatenating' ? 'merge'
+          : phase === 'concatenating' ? 'assemble'
             : phase === 'upscaling' ? 'upscale'
-              : phase.includes('transcod') || phase === 'verifying' ? 'encode'
+              : phase === 'muxing' || phase.includes('transcod') || phase === 'verifying' ? 'encode'
                 : null
         const activeIndex = globalStages.findIndex((stage) => stage.key === activeKey)
         const stageClass = (index: number) => {
@@ -1257,6 +1199,7 @@ const Panel = {
                 h('span', { class: 'gv-text-[13px] gv-font-semibold gv-text-text' }, jobTitle(job)),
                 h(Badge, { tone: statusTone(job.status) }, t(job.status) || job.status),
                 h(Badge, null, mode),
+                job.kind === 'generate' ? h(Badge, null, 'H.265') : null,
                 total > 0 ? h(Badge, null, `${Math.min(total, (job.progress?.segmentIndex ?? 0) + 1)}/${total}`) : null,
               ]),
               h('div', { class: 'gv-mt-1 gv-hint gv-truncate' }, `${fmtTime(job.createdAt)} · ${job.id.slice(0, 8)}${params.prompt ? ` · ${String(params.prompt).slice(0, 90)}` : ''}`),
