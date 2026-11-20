@@ -535,6 +535,7 @@ export class Engine {
                 width: input.plan.width, height: input.plan.height, fps: input.plan.fps,
                 overlapSec: 1, signal: ctx.signal,
                 onProgress: (percent) => ctx.progress({ percent: 80 + Math.round(percent * 0.1), message: 'Crossfade + EWA + H.265' }),
+                onEncoder: (encoder, reason) => ctx.log(`H.265 encoder: ${encoder}${reason ? ` (${reason})` : ''}`),
             });
             finalSource = assembled;
         }
@@ -547,7 +548,7 @@ export class Engine {
             ctx.phase('upscaling', `EWA Lanczos 480p → ${input.plan.width}×${input.plan.height}`);
             const upscaled = join(scratch, 'upscaled.mp4');
             try {
-                await upscaleFile({ ffmpeg, ffprobe, source: finalSource, target: upscaled, width: input.plan.width, height: input.plan.height, mode: 'ewa', signal: ctx.signal });
+                await upscaleFile({ ffmpeg, ffprobe, source: finalSource, target: upscaled, width: input.plan.width, height: input.plan.height, mode: 'ewa', signal: ctx.signal, onEncoder: (encoder, reason) => ctx.log(`H.265 encoder: ${encoder}${reason ? ` (${reason})` : ''}`) });
                 finalSource = upscaled;
             }
             catch {

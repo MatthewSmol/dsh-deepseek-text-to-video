@@ -78,7 +78,7 @@ export function runCommand(command: string, args: string[] = [], options: RunOpt
       if (stderr.length < maxOutput) stderr += chunk.toString('utf8')
     })
     child.on('error', (error) => finish(error))
-    child.on('close', (code) => finish(null, code ?? 0))
+    child.on('close', (code, signal) => finish(null, code ?? (signal ? 1 : 0)))
   })
 }
 

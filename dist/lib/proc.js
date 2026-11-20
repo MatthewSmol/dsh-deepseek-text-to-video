@@ -70,7 +70,7 @@ export function runCommand(command, args = [], options = {}) {
                 stderr += chunk.toString('utf8');
         });
         child.on('error', (error) => finish(error));
-        child.on('close', (code) => finish(null, code ?? 0));
+        child.on('close', (code, signal) => finish(null, code ?? (signal ? 1 : 0)));
     });
 }
 /** RU: Запускает команду, отдавая строки вывода построчно, и возвращает код

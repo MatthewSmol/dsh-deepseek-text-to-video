@@ -72,6 +72,7 @@ test('mock generation writes a real mp4 into Videos/', { skip: !hasFfmpeg }, asy
   assert.ok(done.percent === 100)
   const deps = await engine.deps()
   const info = await probeFile(deps.ffprobe.path, output.path)
+  assert.equal(info.videoCodec, 'hevc')
   assert.equal(info.width, 320)
   assert.equal(info.height, 240)
   assert.ok(info.durationSec >= 9.5)

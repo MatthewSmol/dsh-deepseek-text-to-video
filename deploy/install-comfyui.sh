@@ -21,15 +21,15 @@ SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 
 usage() {
   cat <<'USAGE'
-Install ComfyUI + Wan 2.2 TI2V-5B Q4_K_M (GGUF-free, fp8 checkpoint).
+Install ComfyUI + Wan 2.2 TI2V-5B Q4_K_M (GGUF + UMT5 + Wan VAE).
 
 Usage: bash deploy/install-comfyui.sh [options]
 
 Options:
   --dir PATH                 target directory (default: ~/comfyui)
   --models-from PATH         copy models from an existing ComfyUI models/ dir
-                             instead of downloading (~10 GB)
-  --with-extra               also download bf16 checkpoint and both VAEs (+7 GB)
+                             instead of downloading (~11.6 GB)
+  --with-extra               reserved; Wan needs no extra model files
   --no-models                skip model download entirely
   --cuda-device N            GPU index passed to ComfyUI (default: 1)
   --port N                   HTTP port (default: 8188)
@@ -66,10 +66,9 @@ command -v curl >/dev/null || fail "curl is required"
 mkdir -p "$DIR"
 DIR="$(cd "$DIR" && pwd)"
 
-# RU: места должно хватить на venv (~9 ГБ) и модели (~10 или ~17 ГБ).
-# EN: enough room for the venv (~9 GB) and models (~10 or ~17 GB).
+# RU: места должно хватить на venv (~9 ГБ) и модели Wan (~11.6 ГБ).
+# EN: enough room for the venv (~9 GB) and Wan models (~11.6 GB).
 NEED_GB=24
-if [[ "$WITH_EXTRA" == "true" ]]; then NEED_GB=32; fi
 if [[ "$NO_MODELS" == "true" ]]; then NEED_GB=12; fi
 AVAIL_GB=$(df -Pk "$DIR" | awk 'NR==2 {print int($4/1024/1024)}')
 if (( AVAIL_GB < NEED_GB )); then
@@ -170,20 +169,26 @@ if compgen -G "$SCRIPT_DIR/ui-workflows/*.json" > /dev/null; then
 fi
 
 DSH_HOME_DIR="${DSH_HOME:-$HOME/.dsh}"
-PLUGIN_WF="$DSH_HOME_DIR/genvideo/workflow.json"
-if [[ -f "$PLUGIN_WF" && "$FORCE_PLUGIN_WORKFLOW" != "true" ]]; then
-  log "keeping existing $PLUGIN_WF (use --force-plugin-workflow to replace)"
-else
-  mkdir -p "$(dirname "$PLUGIN_WF")"
-  cp "$SCRIPT_DIR/genvideo-workflow.json" "$PLUGIN_WF"
-  log "installed plugin workflow: $PLUGIN_WF"
-fi
+PLUGIN_DIR="$DSH_HOME_DIR/genvideo"
+mkdir -p "$PLUGIN_DIR"
+install_workflow() {
+  local src="$1" dst="$2"
+  if [[ -f "$dst" && "$FORCE_PLUGIN_WORKFLOW" != "true" ]]; then
+    log "keeping existing $dst (use --force-plugin-workflow to replace)"
+    return
+  fi
+  cp "$src" "$dst"
+  log "installed plugin workflow: $dst"
+}
+install_workflow "$SCRIPT_DIR/genvideo-workflow.json" "$PLUGIN_DIR/workflow.json"
+install_workflow "$SCRIPT_DIR/genvideo-workflow-image.json" "$PLUGIN_DIR/workflow-image.json"
+install_workflow "$SCRIPT_DIR/genvideo-workflow-video.json" "$PLUGIN_DIR/workflow-video.json"
 
 cat > "$DIR/start-comfyui.sh" <<START
 #!/usr/bin/env bash
 set -euo pipefail
 exec "$VENV/bin/python" "$DIR/main.py" \\
-  --listen 127.0.0.1 --port ${PORT} --cuda-device ${CUDA_DEVICE} --preview-method none "\$@"
+  --listen 127.0.0.1 --port ${PORT} --cuda-device ${CUDA_DEVICE} --reserve-vram 1 --preview-method none "\$@"
 START
 chmod +x "$DIR/start-comfyui.sh"
 

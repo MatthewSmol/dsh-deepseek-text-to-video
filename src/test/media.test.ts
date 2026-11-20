@@ -6,6 +6,7 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
   bitrateForSize,
+  hevcFinalArgs,
   minSizeMB,
   normalizeTranscode,
   qualityArgs,
@@ -126,4 +127,16 @@ test('H.265 selects libx265/hevc encoders and tags hvc1', () => {
 
   const webm = normalizeTranscode({ mode: 'quality', format: 'webm', codec: 'h265' }, 5)
   assert.ok(qualityArgs(webm).includes('libvpx-vp9'))
+})
+
+test('final H.265 encoder args prefer NVENC and keep hvc1', () => {
+  const gpu = hevcFinalArgs('hevc_nvenc')
+  assert.ok(gpu.includes('hevc_nvenc'))
+  assert.ok(gpu.includes('hvc1'))
+  assert.ok(gpu.includes('-b:v'))
+  assert.ok(gpu.includes('3000k'))
+  assert.ok(gpu.includes('-maxrate'))
+  const cpu = hevcFinalArgs('libx265')
+  assert.ok(cpu.includes('libx265'))
+  assert.ok(cpu.includes('hvc1'))
 })

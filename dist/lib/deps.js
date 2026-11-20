@@ -11,6 +11,7 @@ import { delimiter, join } from 'node:path';
 import { homedir } from 'node:os';
 import { genvideoHome, freeDiskGB, packageRoot, workdir } from './paths.js';
 import { firstWorking, runCommand } from './proc.js';
+import { probeHevcNvenc } from './media.js';
 /** RU: Python окружение, созданное плагином. EN: Python environment created by the plugin. */
 export function venvDir() {
     return join(genvideoHome(), 'python', 'venv');
@@ -169,6 +170,7 @@ export async function detectDeps(settings) {
     const ffmpeg = await firstWorking(ffmpegCandidates(settings, 'ffmpeg'), ['-version']);
     const ffprobe = await firstWorking(ffmpegCandidates(settings, 'ffprobe'), ['-version']);
     const encoders = ffmpeg ? await ffmpegEncoders(ffmpeg.path) : [];
+    const hevcNvenc = ffmpeg ? await probeHevcNvenc(ffmpeg.path) : { ok: false, error: 'ffmpeg not found' };
     const pythonCandidates = [settings.deps.pythonPath, venvPython(), process.env.PYTHON_PATH || '', 'python3', 'python'].filter(Boolean);
     const python = await firstWorking(pythonCandidates, ['--version']);
     let venv = { ok: false, path: venvDir(), torch: null, diffusers: null, cuda: false };
@@ -203,7 +205,7 @@ export async function detectDeps(settings) {
     const comfy = await detectComfyUi(settings.deps.comfyuiUrl);
     const disk = await freeDiskGB(genvideoHome());
     return {
-        ffmpeg: { ok: Boolean(ffmpeg), path: ffmpeg?.path ?? '', version: ffmpeg?.version ?? null, encoders },
+        ffmpeg: { ok: Boolean(ffmpeg), path: ffmpeg?.path ?? '', version: ffmpeg?.version ?? null, encoders, hevcNvenc },
         ffprobe: { ok: Boolean(ffprobe), path: ffprobe?.path ?? '', version: ffprobe?.version ?? null },
         python: { ok: Boolean(python), path: python?.path ?? '', version: python?.version ?? null },
         venv,

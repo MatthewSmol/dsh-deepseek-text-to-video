@@ -67,7 +67,7 @@ const en: Record<string, string> = {
   buildCandle: 'Build candle engine', buildStarted: 'Candle build started; progress is in Jobs.',
   cargoHint: 'Needed only to build candle-video; Python and ComfyUI do not require Rust.',
   advancedEngines: 'Advanced: external engine overrides', advancedHint: 'Empty values mean auto-detect.', autoHint: 'Empty = auto-detect.',
-  ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', python: 'Python', venv: 'Venv', cargo: 'Cargo',
+  ffmpeg: 'ffmpeg', hevcNvenc: 'H.265 NVENC', hevcCpu: 'H.265 CPU fallback', ffprobe: 'ffprobe', python: 'Python', venv: 'Venv', cargo: 'Cargo',
   comfyui: 'ComfyUI', path: 'Path', test: 'Test', installFfmpeg: 'Install ffmpeg', installPython: 'Install Python engine',
   outputDir: 'Output folder', modelsDir: 'Models folder', language: 'Language', english: 'English', russian: 'Русский',
   defaults: 'Defaults', service: 'MCP service', uptime: 'Uptime', unavailable: 'Unavailable',
@@ -141,7 +141,7 @@ const ru: Record<string, string> = {
   buildCandle: 'Собрать candle-движок', buildStarted: 'Сборка Candle запущена; прогресс во вкладке «Задания».',
   cargoHint: 'Нужен только для сборки candle-video; Python и ComfyUI не требуют Rust.',
   advancedEngines: 'Дополнительно: переопределения внешних движков', advancedHint: 'Пустое значение = автоопределение.', autoHint: 'Пусто = автоопределение.',
-  ffmpeg: 'ffmpeg', ffprobe: 'ffprobe', python: 'Python', venv: 'Окружение', cargo: 'Cargo',
+  ffmpeg: 'ffmpeg', hevcNvenc: 'H.265 NVENC', hevcCpu: 'H.265 CPU fallback', ffprobe: 'ffprobe', python: 'Python', venv: 'Окружение', cargo: 'Cargo',
   comfyui: 'ComfyUI', path: 'Путь', test: 'Проверить', installFfmpeg: 'Установить ffmpeg', installPython: 'Установить Python-движок',
   outputDir: 'Папка результатов', modelsDir: 'Папка моделей', language: 'Язык', english: 'English', russian: 'Русский',
   defaults: 'Значения по умолчанию', service: 'MCP-сервис', uptime: 'Аптайм', unavailable: 'Недоступен',
@@ -1111,7 +1111,7 @@ const Panel = {
           ]),
           h('div', { class: 'gv-grid gv-grid-cols-1 gv-gap-3 sm:gv-grid-cols-3' }, [
             h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-3' }, [
-              h('div', { class: 'gv-hint' }, 'Video'), h('div', { class: 'gv-font-semibold' }, 'H.265 / HEVC · CRF 19'),
+              h('div', { class: 'gv-hint' }, 'Video'), h('div', { class: 'gv-font-semibold' }, `H.265 / HEVC · 3 Mbps · ${state.value.deps.ffmpeg.hevcNvenc?.ok ? 'NVENC' : 'CPU'}`),
             ]),
             h('div', { class: 'gv-rounded-lg gv-bg-surface-2 gv-p-3' }, [
               h('div', { class: 'gv-hint' }, 'Scale'), h('div', { class: 'gv-font-semibold' }, 'EWA Lanczos → 720p'),
@@ -1551,6 +1551,7 @@ const Panel = {
           h('div', { class: 'gv-flex gv-flex-col' }, [
             h(Row, { label: t('ffmpeg'), hint: deps.ffmpeg.version ?? '' }, [
               h(Badge, { tone: deps.ffmpeg.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.ffmpeg.ok ? deps.ffmpeg.path : t('unavailable')),
+              deps.ffmpeg.ok ? h(Badge, { tone: deps.ffmpeg.hevcNvenc?.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' }, deps.ffmpeg.hevcNvenc?.ok ? t('hevcNvenc') : t('hevcCpu')) : null,
               !deps.ffmpeg.ok ? h('button', { type: 'button', class: 'gv-btn gv-h-8 gv-px-3', onClick: installFfmpeg }, t('installFfmpeg')) : null,
             ]),
             h(Row, { label: t('ffprobe') }, [
@@ -1634,6 +1635,7 @@ const Panel = {
             ]),
             h(Row, { label: t('ffmpeg'), hint: deps.ffmpeg.version ?? '' }, [
               h(Badge, { tone: deps.ffmpeg.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.ffmpeg.ok ? deps.ffmpeg.path : t('unavailable')),
+              deps.ffmpeg.ok ? h(Badge, { tone: deps.ffmpeg.hevcNvenc?.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-warn-soft gv-bg-warn-soft gv-text-warn' }, deps.ffmpeg.hevcNvenc?.ok ? t('hevcNvenc') : t('hevcCpu')) : null,
             ]),
             h(Row, { label: t('ffprobe') }, [
               h(Badge, { tone: deps.ffprobe.ok ? 'gv-border-ok-soft gv-bg-ok-soft gv-text-ok' : 'gv-border-danger-soft gv-bg-danger-soft gv-text-danger' }, deps.ffprobe.ok ? deps.ffprobe.path : t('unavailable')),

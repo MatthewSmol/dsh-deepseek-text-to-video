@@ -278,7 +278,7 @@ export interface GpuStatus {
 
 /** RU: Состояние внешних зависимостей. EN: External dependency state. */
 export interface DepsStatus {
-  ffmpeg: { ok: boolean; path: string; version: string | null; encoders: string[] }
+  ffmpeg: { ok: boolean; path: string; version: string | null; encoders: string[]; hevcNvenc?: { ok: boolean; error: string | null } }
   ffprobe: { ok: boolean; path: string; version: string | null }
   python: { ok: boolean; path: string; version: string | null }
   venv: { ok: boolean; path: string; torch: string | null; diffusers: string | null; cuda: boolean }

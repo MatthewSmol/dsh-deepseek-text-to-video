@@ -209,6 +209,53 @@ export function buildVideoFilters(options: { width: number; height: number; fps:
   return filters
 }
 
+/** RU: Финальный HEVC-энкодер. EN: Final HEVC encoder. */
+export type HevcFinalEncoder = 'hevc_nvenc' | 'libx265'
+
+export interface HevcEncoderProbe {
+  ok: boolean
+  error: string | null
+}
+
+const nvencProbeCache = new Map<string, { at: number; result: HevcEncoderProbe }>()
+
+/** RU: Проверяет, может ли ffmpeg запустить hevc_nvenc на этой машине.
+ *  EN: Checks whether ffmpeg can start hevc_nvenc on this machine. */
+export async function probeHevcNvenc(ffmpeg: string, force = false): Promise<HevcEncoderProbe> {
+  const cached = nvencProbeCache.get(ffmpeg)
+  if (!force && cached && Date.now() - cached.at < 60_000) return cached.result
+  const result = await runCommand(ffmpeg, [
+    '-hide_banner', '-loglevel', 'error',
+    '-f', 'lavfi', '-i', 'color=c=black:s=64x64:d=0.2',
+    '-frames:v', '1', '-c:v', 'hevc_nvenc', '-f', 'null', '-',
+  ], { timeoutMs: 10_000 })
+  const probe: HevcEncoderProbe = result.code === 0
+    ? { ok: true, error: null }
+    : { ok: false, error: result.stderr.trim().split('\n').filter(Boolean).slice(-1)[0] ?? `ffmpeg exited ${result.code}` }
+  nvencProbeCache.set(ffmpeg, { at: Date.now(), result: probe })
+  return probe
+}
+
+/** RU: Аргументы финального H.265-энкодера (GPU или CPU).
+ *  EN: Final H.265 encoder arguments (GPU or CPU). */
+export function hevcFinalArgs(encoder: HevcFinalEncoder, bitrateKbps = 3000): string[] {
+  const rate = `${Math.max(500, Math.round(bitrateKbps))}k`
+  const bufsize = `${Math.max(1000, Math.round(bitrateKbps) * 2)}k`
+  if (encoder === 'hevc_nvenc') {
+    return [
+      '-c:v', 'hevc_nvenc', '-preset', 'p5', '-tune', 'hq',
+      '-rc', 'vbr', '-b:v', rate, '-maxrate', rate, '-bufsize', bufsize,
+      '-spatial-aq', '1', '-temporal-aq', '1',
+      '-pix_fmt', 'yuv420p', '-tag:v', 'hvc1', '-movflags', '+faststart',
+    ]
+  }
+  return [
+    '-c:v', 'libx265', '-preset', 'medium',
+    '-b:v', rate, '-maxrate', rate, '-bufsize', bufsize,
+    '-pix_fmt', 'yuv420p', '-tag:v', 'hvc1', '-movflags', '+faststart',
+  ]
+}
+
 /** RU: Апскейл видео: GPU (scale_cuda + NVENC) или CPU Lanczos.
  *  EN: Video upscale: GPU (scale_cuda + NVENC) or CPU Lanczos. */
 export async function upscaleFile(input: {
@@ -221,30 +268,39 @@ export async function upscaleFile(input: {
   mode: 'ewa' | 'cpu'
   signal?: AbortSignal
   onProgress?: (percent: number) => void
+  onEncoder?: (encoder: HevcFinalEncoder, reason?: string) => void
 }): Promise<MediaInfo> {
   const info = await probeFile(input.ffprobe, input.source)
   const cpuFilter = `scale=${input.width}:${input.height}:flags=lanczos,unsharp=5:5:0.8:3:3:0.4`
+  const ewaFilter = `libplacebo=w=${input.width}:h=${input.height}:upscaler=ewa_lanczos:downscaler=ewa_lanczos`
+  const probe = await probeHevcNvenc(input.ffmpeg)
+  const preferred: HevcFinalEncoder = probe.ok ? 'hevc_nvenc' : 'libx265'
+  const attempts: Array<{ filter: string; encoder: HevcFinalEncoder }> = []
   if (input.mode === 'ewa') {
-    const ewaFilter = `libplacebo=w=${input.width}:h=${input.height}:upscaler=ewa_lanczos:downscaler=ewa_lanczos`
+    attempts.push({ filter: ewaFilter, encoder: preferred })
+    if (preferred === 'hevc_nvenc') attempts.push({ filter: ewaFilter, encoder: 'libx265' })
+    attempts.push({ filter: cpuFilter, encoder: 'libx265' })
+  } else {
+    attempts.push({ filter: cpuFilter, encoder: preferred })
+    if (preferred === 'hevc_nvenc') attempts.push({ filter: cpuFilter, encoder: 'libx265' })
+  }
+  let lastError: unknown = null
+  let reason = probe.error ?? undefined
+  for (const attempt of attempts) {
     try {
       await runFfmpeg(input.ffmpeg, [
-        '-i', input.source,
-        '-vf', ewaFilter,
-        '-c:v', 'libx265', '-preset', 'medium', '-crf', '19', '-tag:v', 'hvc1',
-        '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', input.target,
+        '-i', input.source, '-vf', attempt.filter,
+        ...hevcFinalArgs(attempt.encoder), '-an', input.target,
       ], { durationSec: info.durationSec, signal: input.signal, onProgress: input.onProgress })
+      input.onEncoder?.(attempt.encoder, attempt.encoder === 'libx265' ? reason : undefined)
       return await probeFile(input.ffprobe, input.target)
     } catch (error) {
       if (input.signal?.aborted) throw error
+      lastError = error
+      if (attempt.encoder === 'hevc_nvenc') reason = `NVENC failed: ${error instanceof Error ? error.message : String(error)}`
     }
   }
-  await runFfmpeg(input.ffmpeg, [
-    '-i', input.source,
-    '-vf', cpuFilter,
-    '-c:v', 'libx265', '-preset', 'medium', '-crf', '19', '-tag:v', 'hvc1',
-    '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', input.target,
-  ], { durationSec: info.durationSec, signal: input.signal, onProgress: input.onProgress })
-  return await probeFile(input.ffprobe, input.target)
+  throw lastError instanceof Error ? lastError : new GenVideoError('upscale-failed', 'All H.265 encoder attempts failed')
 }
 
 /** RU: Аргументы ffmpeg для прохода качества. EN: ffmpeg arguments for a quality pass. */
@@ -573,6 +629,7 @@ export async function crossfadeUpscaleEncode(input: {
   overlapSec?: number
   signal?: AbortSignal
   onProgress?: (percent: number) => void
+  onEncoder?: (encoder: HevcFinalEncoder, reason?: string) => void
 }): Promise<MediaInfo> {
   if (input.sources.length !== 3) throw new GenVideoError('crossfade-needs-three', 'Crossfade assembly expects exactly three segments')
   const infos = await Promise.all(input.sources.map((source) => probeFile(input.ffprobe, source)))
@@ -583,7 +640,9 @@ export async function crossfadeUpscaleEncode(input: {
   const offset1 = 4 - overlap
   const offset2 = 8 - overlap * 2
   const total = 12 - overlap * 2
-  const run = async (edgeFilter: string): Promise<MediaInfo> => {
+  const probe = await probeHevcNvenc(input.ffmpeg)
+  const preferred: HevcFinalEncoder = probe.ok ? 'hevc_nvenc' : 'libx265'
+  const run = async (edgeFilter: string, encoder: HevcFinalEncoder): Promise<MediaInfo> => {
     const filters = [
       '[0:v]fps=' + input.fps + ',settb=AVTB,setpts=PTS-STARTPTS[v0]',
       '[1:v]fps=' + input.fps + ',settb=AVTB,setpts=PTS-STARTPTS[v1]',
@@ -595,16 +654,31 @@ export async function crossfadeUpscaleEncode(input: {
     await runFfmpeg(input.ffmpeg, [
       '-i', input.sources[0]!, '-i', input.sources[1]!, '-i', input.sources[2]!,
       '-filter_complex', filters, '-map', '[v]', '-an',
-      '-c:v', 'libx265', '-crf', '19', '-preset', 'medium',
-      '-tag:v', 'hvc1', '-movflags', '+faststart', input.target,
+      ...hevcFinalArgs(encoder), input.target,
     ], { durationSec: total, signal: input.signal, onProgress: input.onProgress })
     return await probeFile(input.ffprobe, input.target)
   }
+  let reason = probe.error ?? undefined
+  const ewa = `libplacebo=w=${input.width}:h=${input.height}:upscaler=ewa_lanczos:downscaler=ewa_lanczos`
+  if (preferred === 'hevc_nvenc') {
+    try {
+      const result = await run(ewa, 'hevc_nvenc')
+      input.onEncoder?.('hevc_nvenc')
+      return result
+    } catch (error) {
+      if (input.signal?.aborted) throw error
+      reason = `NVENC failed: ${error instanceof Error ? error.message : String(error)}`
+    }
+  }
   try {
-    return await run(`libplacebo=w=${input.width}:h=${input.height}:upscaler=ewa_lanczos:downscaler=ewa_lanczos`)
+    const result = await run(ewa, 'libx265')
+    input.onEncoder?.('libx265', reason)
+    return result
   } catch (error) {
     if (input.signal?.aborted) throw error
-    return await run(`scale=${input.width}:${input.height}:flags=lanczos`)
+    const result = await run(`scale=${input.width}:${input.height}:flags=lanczos`, 'libx265')
+    input.onEncoder?.('libx265', reason ?? 'EWA filter unavailable; CPU Lanczos fallback')
+    return result
   }
 }
 
