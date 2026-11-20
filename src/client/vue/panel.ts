@@ -717,7 +717,6 @@ const Panel = {
         steps: form.value.steps,
         guidance: form.value.guidance,
         continuity: form.value.continuity,
-        denoise: form.value.denoise,
         upscale: form.value.upscale,
         audioPath: form.value.audioPath,
         transcode: form.value.transcode,
@@ -1071,17 +1070,6 @@ const Panel = {
                 form.value.inputVideoId ? h('button', { type: 'button', class: 'gv-btn', onClick: () => patch({ inputVideoId: '' }) }, t('removeFile')) : null,
               ]),
             ]),
-            form.value.inputVideoId
-              ? h('div', { class: 'gv-mt-3' }, [
-                  h(Field, { label: t('denoise'), hint: t('denoiseHint') }, [
-                    h('input', {
-                      class: 'gv-input', type: 'range', min: 0.3, max: 0.8, step: 0.05, value: form.value.denoise,
-                      onInput: (event: any) => patch({ denoise: Number(event.target.value) }),
-                    }),
-                    h('span', { class: 'gv-hint' }, String(form.value.denoise)),
-                  ]),
-                ])
-              : null,
           ]),
         ]),
         h(Card, { title: `3 · ${t('sectionOutput')}` }, [
@@ -1155,7 +1143,7 @@ const Panel = {
       return 'gv-stage-pending'
     }
 
-    const jobTitle = (job: any): string => job.kind === 'generate' ? 'Video generation' : job.kind === 'transcode' ? 'Transcode' : job.kind === 'merge' ? 'Merge' : job.kind
+    const jobTitle = (job: any): string => job.kind === 'generate' ? 'Wan 2.2 · video generation' : job.kind === 'transcode' ? 'Transcode' : job.kind === 'merge' ? 'Merge' : job.kind
 
     const jobsView = () => h('div', { class: 'gv-flex gv-flex-col gv-gap-3' }, [
       h('div', { class: 'gv-flex gv-flex-wrap gv-items-center gv-justify-between gv-gap-2' }, [

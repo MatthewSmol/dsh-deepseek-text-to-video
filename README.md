@@ -295,7 +295,7 @@ npm test          # 45 тестов, включая ffmpeg mock e2e
 
 ## Current release
 
-**2.1.0** — single Wan 2.2 TI2V-5B Q4_K_M model, 3×4s, two 1s crossfades, 10s final, EWA + H.265 after merge, optional local audio.
+**2.1.1** — single Wan 2.2 TI2V-5B Q4_K_M model, 3×4s, two 1s crossfades, 10s final, EWA + H.265 after merge, optional local audio.
 
 ## Versioning
 
