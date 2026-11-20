@@ -293,7 +293,7 @@ npm test          # 45 тестов, включая ffmpeg mock e2e
 
 ## Versioning
 
-`package.json` is the single version source; the runtime `VERSION` reads it, so the Environment version always matches the package. Bump the minor version for new behaviour and the patch version for fixes **in the same commit** as the change.
+`docs/` is local-only and excluded from git. `package.json` is the single version source; the runtime `VERSION` reads it, so the Environment version always matches the package. Bump the minor version for new behaviour and the patch version for fixes **in the same commit** as the change.
 
 ## Версии
 

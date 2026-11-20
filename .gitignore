@@ -17,6 +17,9 @@ AGENTS.md
 # ComfyUI runtime log
 .comfy-server.log
 
+# local documentation, not published
+docs/
+
 # scratch artifacts from local experiments
 wf/
 
