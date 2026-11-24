@@ -310,3 +310,16 @@ Telegram delivery: H.265 targets **3 Mbps**; a 10s 720p file is ~4 MB. `hevc_nve
 ## Версии
 
 `package.json` — единственный источник версии; runtime `VERSION` читает его, поэтому версия в Environment всегда совпадает с пакетом. Новое поведение — minor, исправление — patch, и версия поднимается **в том же коммите**, что и изменение.
+
+## Поддержка проекта
+
+Плагин бесплатный. Если он сэкономил вам время — можно поддержать разработку.
+
+| Сеть | Адрес |
+| --- | --- |
+| BTC | `bc1qmvw20wke93dtnf0hzzuqlg0fxkgxfxsnsz9xe7` |
+| ETH | `0x6888d4d2Bbc1776432AA32e02f50DdBeFDeE31Af` |
+| SOL | `AXAMj68npvibHCg1hNqX7b51iGTeQqKuMeaQY6asmoXL` |
+| GRAM | `UQAH2_xVEAa2AkTfvZ5f5c_kLwJ7JflcEMgcKb4rWucC41q5` |
+| ADA | `addr1q9lclrf04dvdfnv9n2u0nxf3ps4lwsuc0ptmuha4nk5cnxq0w5zns4f6a2qjrdnaklkgxdgmhy7tqeg99ut4enzkx84s08dqty` |
+| TRX | `TCrfaBYqi4ar7n2FwrtvxT2exvbbYcToNq` |
